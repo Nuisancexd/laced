@@ -77,5 +77,5 @@ This program is only compatible with Windows 10 (x86).
 It does not support 64-bit versions or other operating systems.
 
 ## Contact
-
+ilnur.sadykov.03@gmail.com
 
