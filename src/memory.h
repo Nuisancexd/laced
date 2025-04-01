@@ -1,0 +1,26 @@
+#pragma once
+#include "macro.h"
+
+#define PVOID void*
+#include <cstddef>
+#include <memory>
+
+namespace memory
+{
+	unsigned int MurmurHash2A(const void* key, int len);
+	VOID* CopyMem(PVOID dst, PVOID src, size_t size);
+	int my_stoi(const char* str);
+	int my_stoi2(char* str);
+	VOID* CopyMemW(PVOID dst, PVOID src, size_t size);
+	VOID Copy(PVOID pDst, CONST PVOID pSrc, size_t size);
+	PVOID m_malloc(size_t size);
+	VOID m_free(PVOID memory);
+	size_t StrLen(const char* Str);
+	size_t StrLen(const wchar_t* Str);
+	const char* FindChar(const char* Str, char Ch);
+	const wchar_t* FindCharW(const wchar_t* Str, wchar_t Ch);
+	size_t FindCharWI(const wchar_t* Str, wchar_t Ch);
+	BOOL StrStrC(const char* Str, const char* StrEq);
+	BOOL StrStrCW(const wchar_t* wstr, const wchar_t* wstreq);
+	size_t FindCharI(const char* Str, char ch);
+}
