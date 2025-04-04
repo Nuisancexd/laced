@@ -40,7 +40,8 @@ STATIC BOOL WriteFullData
 		BytesToWrite -= BytesWritten;
 	}
 	
-	/*DWORD BytesWritten;
+	/*
+	DWORD BytesWritten;
 	do
 	{
 		if(ReadFile(hFile, FileBuffer, FileSize.QuadPart, &dwread, NULL))
@@ -394,12 +395,24 @@ BOOL filesystem::ReadFile_
 
 
 HMODULE hCrypt32 = NULL;
+CryptBinaryToStringA_t pCryptBinaryToStringA = NULL;
+CryptStringToBinaryA_t pCryptStringToBinaryA = NULL;
+CryptBinaryToStringW_t pCryptBinaryToStringW = NULL;
+CryptStringToBinaryW_t pCryptStringToBinaryW = NULL;
+
 
 BOOL LoadCrypt32()
 {
 	if (!hCrypt32)
 		hCrypt32 = LoadLibraryA("Crypt32.dll");
-	return hCrypt32 != NULL;
+	if (hCrypt32 != NULL)
+	{
+		pCryptBinaryToStringA = (CryptBinaryToStringA_t)GetProcAddress(hCrypt32, "CryptBinaryToStringA");
+		pCryptStringToBinaryA = (CryptStringToBinaryA_t)GetProcAddress(hCrypt32, "CryptStringToBinaryA");
+		pCryptBinaryToStringW = (CryptBinaryToStringW_t)GetProcAddress(hCrypt32, "CryptBinaryToStringW");
+		pCryptStringToBinaryW = (CryptStringToBinaryW_t)GetProcAddress(hCrypt32, "CryptStringToBinaryW");
+	}
+	else return FALSE;
 	return TRUE;
 }
 
@@ -426,9 +439,6 @@ STATIC BOOL Base64Encode
 		
 	if (mode == BINARY_CRYPT) // Binary -> Base64  
 	{
-		CryptBinaryToStringA_t pCryptBinaryToStringA =
-			(CryptBinaryToStringA_t)GetProcAddress(hCrypt32, "CryptBinaryToStringA");
-
 		if (!pCryptBinaryToStringA)
 		{
 			printf("Failed to get function address Crypt32.dll\n");			
@@ -451,8 +461,6 @@ STATIC BOOL Base64Encode
 	}
 	else if(mode == BASE_CRYPT)// Base64 -> Binary
 	{
-		CryptStringToBinaryA_t pCryptStringToBinaryA = 
-			(CryptStringToBinaryA_t)GetProcAddress(hCrypt32, "CryptStringToBinaryA");
 		if (!pCryptStringToBinaryA)
 		{
 			printf("Failed to get function address Crypt32.dll\n");
@@ -475,10 +483,6 @@ STATIC BOOL Base64Encode
 	}
 	else if (mode == BINARY_CRYPT_W)
 	{
-		CryptBinaryToStringW_t pCryptBinaryToStringW =
-			(CryptBinaryToStringW_t)GetProcAddress(hCrypt32, "CryptBinaryToStringW");
-
-
 		if (!pCryptBinaryToStringW)
 		{
 			printf("Failed to get function address Crypt32.dll\n");
@@ -502,9 +506,6 @@ STATIC BOOL Base64Encode
 	}
 	else if (mode == BASE_CRYPT_W)
 	{
-		CryptStringToBinaryW_t pCryptStringToBinaryW =
-			(CryptStringToBinaryW_t)GetProcAddress(hCrypt32, "CryptStringToBinaryW");
-
 		if (!pCryptStringToBinaryW)
 		{
 			printf("Failed to get function address Crypt32.dll\n");

