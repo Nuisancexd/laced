@@ -1,0 +1,2 @@
+laced.exe config
+pause
