@@ -328,17 +328,28 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
 }
 
 
-STATIC BOOL ParseFileConfig(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW)
+STATIC BOOL ParseFileConfig(int argc, char** argv, std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW)
 {
+    CHAR* ConfigFullPath = GetCommandLineArgCh(argc, argv, "-path");
     WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
-    GetCurrentDirectoryW(MAX_PATH, locale);
-    wmemcpy_s(&locale[memory::StrLen(locale)], 13, L"\\config.laced", 13);
-    printf_s("locale:\t%ls\n", locale);
+
+    if (ConfigFullPath)
+    {
+        MultiByteToWideChar(CP_UTF8, 0, ConfigFullPath, memory::StrLen(ConfigFullPath), locale, memory::StrLen(ConfigFullPath));        
+        printf_s("Path file config:\t%ls\n", locale);
+    }
+    else
+    {
+        GetCurrentDirectoryW(MAX_PATH, locale);
+        wmemcpy_s(&locale[memory::StrLen(locale)], 13, L"\\config.laced", 13);
+        printf_s("locale:\t%ls\n", locale);
+    }
+    
     
     HANDLE hFile = CreateFileW(locale, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
     if (hFile == INVALID_HANDLE_VALUE)
     {
-        printf_s("Failed open config.laced file.\n");
+        printf_s("Failed open config.laced file. Check filename of config: \"config.laced\"\n");
         memory::m_free(locale);
         return FALSE;
     }
@@ -439,7 +450,7 @@ STATIC BOOL ParseFileConfig(std::vector<CHAR*>* strings, std::vector<WCHAR*>* st
         }
         else
         {            
-            printf_s("Syntax error: unmatched quotes detected in line: %s\n", line);
+            printf_s("Syntax error: unmatched quotes in line: %s\n", line);
             memory::m_free(locale);
             memory::m_free(ptrbuff);
             CloseHandle(hFile);
@@ -460,10 +471,10 @@ STATIC BOOL ParseFileConfig(std::vector<CHAR*>* strings, std::vector<WCHAR*>* st
 
 STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW)
 {
-    for (CHAR* ptr : *strings)
-        delete[] ptr;
-    for (WCHAR* ptr : *stringsW)
-        delete[] ptr;
+    for (VOID* ptr : *strings)
+        memory::m_free(ptr);
+    for (VOID* ptr : *stringsW)
+        memory::m_free(ptr);
 
     delete strings;
     delete stringsW;
@@ -477,7 +488,7 @@ int main(int argc, char** argv)
     {        
         std::vector<CHAR*>* strings = new std::vector<CHAR*>;
         std::vector<WCHAR*>* stringsW = new std::vector<WCHAR*>;
-        if (!ParseFileConfig(strings, stringsW))
+        if (!ParseFileConfig(argc, argv, strings, stringsW))
         {
             printf_s("Failed Parse Config.\n");
             free_vector(strings, stringsW);
@@ -489,10 +500,8 @@ int main(int argc, char** argv)
             printf_s("\t%ls\n", ptr);        
         
         ParsingCommandLine(strings->size(), strings->data(), stringsW->data());
-        
         RtlSecureZeroMemory(argv, sizeof(argv));
-
-        free_vector(strings, stringsW);        
+        free_vector(strings, stringsW);
     }
     else
         ParsingCommandLine(argc, argv, NULL);
@@ -595,6 +604,7 @@ VOID CommandLineHelper()
 
     printf("GENERAL OPTIONS:\n");
     printf("[*]  -h / -help       Provides Information about program.\n");
+    printf("[*]  config           Load parameters from config. Config must be in \n");
     printf("[*]  -p / -path       Path to the file to encrypt. Optional field. If null, encrypts in local path.\n");
     printf("[*]  -n / -name       Encrypt FILENAME with Base64. (default: false)\n");
     printf("[*]  -m / -mode       Select the encryption mode. (default: FULL_ENCRYPT)\n");
@@ -630,7 +640,7 @@ VOID CommandLineHelper()
     printf("[*]  Gen / RSAGenKey     Command generate RSA keys. This is a required field.\n");
     printf("[*]  -B64 / -Base64      Save RSA keys in Base64 format. (default: false)\n");
     printf("[*]  -b / -bit           RSA bit(key) length. Available options: 1024, 2048 or 4096. (default: 2048)\n");
-    printf("[*]  -p / -path          Path to save the generated keys. This is a required field.\n");
+    printf("[*]  -p / -path          Path to save the generated keys. Optional field. If null, saves in local path.\n");
     printf("[*]  -print              Print the generated keys in HEX format. (default: false)\n");
     printf("EXAMPLE USAGE:           laced.exe RSAGenKey -path C:/GenTofolder -B64 -bit 4096\n\n");
     printf_s("%s\n", std::string(120, '-').c_str());

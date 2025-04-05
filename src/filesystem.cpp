@@ -682,7 +682,7 @@ STATIC BOOL ReadRSAFile
 	hCryptFile = CreateFileW(KeyFile, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 	if (hCryptFile == INVALID_HANDLE_VALUE)
 	{
-		printf_s("Failed create key files. %ls. GetLastError%lu\n", KeyFile, GetLastError());
+		printf_s("Failed create key files. %ls. GetLastError = %lu\n", KeyFile, GetLastError());
 		return FALSE;
 	}
 	LARGE_INTEGER FileSize;
@@ -1148,7 +1148,6 @@ BOOL filesystem::FileCryptDecrypt
 	if (!ReadRSAFile(KeyFile, PrivateKey, &RsaKey, &CryptoProvider))
 	{
 		printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", KeyFile, GetLastError());
-		printf_s("Filename %ls\n", FileCrypt);
 		return FALSE;
 	}
 	if (!getParseFile(&FileInfo) || FileInfo.FileHandle == INVALID_HANDLE_VALUE)
