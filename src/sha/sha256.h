@@ -42,5 +42,8 @@ STATIC INLINE VOID sha256_init(sha256_state* sctx)
 
 VOID sha256(CONST u8* data, u32 len, u8* out);
 
+VOID sha256_init_context(sha256_state* ctx);
+VOID sha256_update_context(sha256_state* ctx, CONST u8* data, u32 len);
+VOID sha256_final_context(sha256_state* ctx, u8* out);
 
 #endif

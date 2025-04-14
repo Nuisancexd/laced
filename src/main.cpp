@@ -17,7 +17,9 @@
 #include "threadpool.h"
 
 #include <string>
-#include "vector"
+#include <vector>
+
+#include "sha/sha256.h"
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -321,6 +323,9 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     WCHAR* FileFlagDelete = GetCommandLineArgCurr(argc, wargv, L"-d");
     if (!FileFlagDelete) FileFlagDelete = GetCommandLineArgCurr(argc, wargv, L"-delete");
     if (FileFlagDelete) global::SetFlagDelete(TRUE);
+    WCHAR* Verify = GetCommandLineArgCurr(argc, wargv, L"-v");
+    if(!Verify) Verify = GetCommandLineArgCurr(argc, wargv, L"-verify");
+    if(Verify) //global
 
     if(cmd)
         RtlSecureZeroMemory(cmd, sizeof(cmd));
@@ -469,22 +474,20 @@ STATIC BOOL ParseFileConfig(int argc, char** argv, std::vector<CHAR*>* strings, 
     return TRUE;
 }
 
-STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW)
-{
-    for (VOID* ptr : *strings)
-        memory::m_free(ptr);
-    for (VOID* ptr : *stringsW)
-        memory::m_free(ptr);
 
-    delete strings;
-    delete stringsW;
-}
-
-
+STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW);
 int main(int argc, char** argv)
 {
+    SLIST<locker::HLIST>* HashList = NULL;
+    if (TRUE)
+        HashList = new SLIST<locker::HLIST>;
+        
+    //filesystem::VerifySignatureRSA(NULL, (WCHAR*)L"C:\\Users\\Clown\\Desktop\\test\\tttt\\make.txt");
+    return 1;
+
     CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");
-    if (pars)
+    //if (pars)
+    if(true)
     {        
         std::vector<CHAR*>* strings = new std::vector<CHAR*>;
         std::vector<WCHAR*>* stringsW = new std::vector<WCHAR*>;
@@ -541,7 +544,7 @@ int main(int argc, char** argv)
     {
         LIST_FOREACH(data, DriveInfo)
         {
-            locker::HandlerCrypt(data->Filename, data->FullPath, data->Path, data->Exst);
+            locker::HandlerCrypt(data->Filename, data->FullPath, data->Path, data->Exst, HashList);
         }
     }
     else
@@ -557,20 +560,50 @@ int main(int argc, char** argv)
         {
             pool.put_task([=]()
                 {
-                    locker::HandlerCrypt(data->Filename, data->FullPath, data->Path, data->Exst);
+                    locker::HandlerCrypt(data->Filename, data->FullPath, data->Path, data->Exst, HashList);
                 });
         }
         pool.run_main_thread();
     }
 
 
+    if (TRUE)//ver
+    {
+        locker::VerifyContent(HashList);
+    }
+
     pathsystem::FreeList(DriveInfo);
     global::free_global();
     UnLoadCrypt32();
+    if (HashList)
+        free_HashList(HashList);
+    else delete HashList; //check
 
     printf_s("SUCCESS\n");
     _CrtDumpMemoryLeaks();
     return EXIT_SUCCESS;
+}
+
+STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW)
+{
+    for (VOID* ptr : *strings)
+        memory::m_free(ptr);
+    for (VOID* ptr : *stringsW)
+        memory::m_free(ptr);
+
+    delete strings;
+    delete stringsW;
+}
+
+STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList)
+{
+    locker::PHLIST dataHash = NULL;
+    SLIST_FOREACH(dataHash, HashList)
+    {
+        delete[] dataHash->hash;
+    }
+
+    delete HashList;
 }
 
 VOID CommandLineHelper()

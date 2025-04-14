@@ -240,3 +240,18 @@ VOID sha256(CONST u8* data, u32 len, u8* out)
 	sha256_update(&ctx, data, len);
 	sha256_final(&ctx, out, 32);
 }
+
+VOID sha256_init_context(sha256_state* ctx)
+{
+	sha256_init(ctx);
+}
+
+VOID sha256_update_context(sha256_state* ctx, CONST u8* data, u32 len)
+{
+	sha256_update(ctx, data, len);
+}
+
+VOID sha256_final_context(sha256_state* ctx, u8* out)
+{
+	sha256_final(ctx, out, 32);
+}

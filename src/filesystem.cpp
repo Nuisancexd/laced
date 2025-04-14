@@ -6,6 +6,7 @@
 #include "filesystem.h"
 #include "memory.h"
 #include "global_parameters.h"
+#include "sha/sha256.h"
 
 #define ECRYPT_NAME_P L".laced"
 #define ECRYPT_NAME_LEN 6
@@ -899,9 +900,8 @@ STATIC BOOL WriteEncryptInfo
 	BYTE Buffer[4];
 	memset((VOID*)Buffer, 0, 4);
 	Buffer[0] = EncryptMode + 100;
-	std::string strbit = std::to_string(size);
+	std::string strbit = std::to_string((size + 1) << 31 | (size + 1) >> 1);
 	memcpy_s((VOID*)&Buffer[1], 3, strbit.c_str(), strbit.size());
-
 	LARGE_INTEGER Offset;
 	Offset.QuadPart = 0;
 	
@@ -1095,9 +1095,9 @@ STATIC BYTE* ReadEncryptInfo
 	INT mode = ReadInfo[0] - 100;
 	INT size_bit = 0;
 	for (int i = 1; i < 4; ++i)
-	{
-		size_bit = size_bit * 10 + (ReadInfo[i] - '0');		
-	}
+		size_bit = size_bit * 10 + (ReadInfo[i] - '0');
+	size_bit = size_bit << 1 | size_bit >> (31);
+	size_bit -= 1;
 	BYTE* read_key = (BYTE*)memory::m_malloc(size_bit);	
 	Offset.QuadPart = -(size_bit + 4);
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_END))
@@ -1258,6 +1258,73 @@ END:
 }
 
 
+BOOL filesystem::VerifySignatureRSA
+(
+	SLIST<locker::HLIST>* list,
+	WCHAR* KeyFile,
+	WCHAR* Filename
+)
+{
+	locker::FILE_INFO FileInfo;
+	FileInfo.Filename = Filename;
+	FileInfo.FilePath = Filename;
+	if (!getParseFile(&FileInfo) || FileInfo.FileHandle == INVALID_HANDLE_VALUE)
+	{
+		printf_s("Failed ParseFile VerifySignatureRSA %ls. GetLastError = %lu.\n", Filename, GetLastError());
+		return FALSE;
+	}
+
+
+	DWORD BytesRead;
+	CHAR* Buffer = (CHAR*)memory::m_malloc(1048576); // 1 MB
+	if (!Buffer)
+	{
+		printf_s("Failed alloc memory\n");
+		return FALSE;
+	}	
+	
+	sha256_state ctx;
+	sha256_init_context(&ctx);
+	//BYTE out[256];
+	//memset(out, 0, 256);
+	BYTE* out = (BYTE*)memory::m_malloc(32);
+
+	while (ReadFile(FileInfo.FileHandle, Buffer, 1048576, &BytesRead, NULL) && BytesRead != 0)
+		sha256_update_context(&ctx, (CONST u8*)Buffer, BytesRead);
+
+	sha256_final_context(&ctx, out);
+	
+	locker::PHLIST hash = new locker::HLIST;
+	hash->hash = out;
+	list->SLIST_INSERT_HEAD(hash);
+
+	//WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
+	//GetCurrentDirectoryW(MAX_PATH, locale);
+	//wmemcpy_s(&locale[memory::StrLen(locale)], 16, L"\\signature.laced", 16);
+
+	//HANDLE hFile = CreateFileW(locale, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
+
+
+	////EncryptRSA(KeyFile, , locale);
+
+	//EncryptRSA((WCHAR*)L"C:\\Users\\Clown\\Desktop\\test\\RSA_private_kay_laced.txt",
+	//	(WCHAR*)L"signature.laced", (WCHAR*)L"C:\\Users\\Clown\\Desktop\\test\\signature.laced");
+
+	printf("HashSum SHA256 file %ls - ", Filename);
+	for (int i = 0; i < 32; ++i)
+		printf("%02x", out[i]);
+	printf("\n");
+
+	memory::m_free(Buffer);
+
+	return TRUE;
+}
+
+BOOL VerifycationSignatureRSA()
+{
+
+}
+
 
 STATIC VOID SafeURLBase64(WCHAR* str, size_t size, size_t mode)
 {
@@ -1297,10 +1364,11 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 {
 	size_t len_path = memory::StrLen(Path);
 	size_t len_filename = memory::StrLen(Filename);
-	size_t len_FPath = memory::StrLen(FPath);
+	size_t len_FPath = memory::StrLen(FPath);	
 
 	if (memory::StrStrCW(exst, ECRYPT_NAME_P))
 	{		
+		if ("hsah") return NULL;
 		size_t len = len_FPath - ECRYPT_NAME_LEN;
 		WCHAR* name = (WCHAR*)memory::m_malloc((260) * sizeof(WCHAR));
 		wmemcpy_s(name, len, FPath, len);
@@ -1330,12 +1398,15 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 			memory::m_free(Base64);
 			memory::m_free(name);
 			return FullPath;
-		}
+		}		
 	END:
 		return name;
 	}
 	else
 	{
+		if ("hash")
+			"...";
+
 		if (global::GetCryptName())
 		{						
 			if ((len_filename + (len_filename / 3)) > MAX_PATH)
