@@ -21,7 +21,9 @@ namespace locker
 	
 	typedef struct HashList
 	{
+		CHAR* Filename;
 		BYTE* hash;
+		size_t hash_size;
 		SLIST_ENTRY(HashList);
 	} *PHLIST, HLIST;
 

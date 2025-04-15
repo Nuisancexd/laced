@@ -5,7 +5,8 @@
 
 /*		default		*/
 STATIC int g_Encrypt = 0;
-STATIC int g_DeCrypt = 0;
+//STATIC int g_DeCrypt = 0;
+STATIC int g_DeCrypt = CRYPT;
 STATIC WCHAR* g_Path = NULL;
 STATIC WCHAR* g_PathRSAKey = NULL;
 STATIC int g_EncryptMode = FULL_ENCRYPT;

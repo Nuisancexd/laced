@@ -476,18 +476,16 @@ STATIC BOOL ParseFileConfig(int argc, char** argv, std::vector<CHAR*>* strings, 
 
 
 STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW);
+STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList);
 int main(int argc, char** argv)
 {
     SLIST<locker::HLIST>* HashList = NULL;
     if (TRUE)
         HashList = new SLIST<locker::HLIST>;
         
-    //filesystem::VerifySignatureRSA(NULL, (WCHAR*)L"C:\\Users\\Clown\\Desktop\\test\\tttt\\make.txt");
-    return 1;
-
     CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");
-    //if (pars)
-    if(true)
+    if (pars)
+    //if(true)
     {        
         std::vector<CHAR*>* strings = new std::vector<CHAR*>;
         std::vector<WCHAR*>* stringsW = new std::vector<WCHAR*>;
@@ -569,15 +567,14 @@ int main(int argc, char** argv)
 
     if (TRUE)//ver
     {
-        locker::VerifyContent(HashList);
+        filesystem::VerifyContent(HashList);
     }
-
     pathsystem::FreeList(DriveInfo);
     global::free_global();
     UnLoadCrypt32();
     if (HashList)
         free_HashList(HashList);
-    else delete HashList; //check
+    //else delete HashList; //check
 
     printf_s("SUCCESS\n");
     _CrtDumpMemoryLeaks();

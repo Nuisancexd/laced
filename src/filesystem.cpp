@@ -774,7 +774,7 @@ BOOL filesystem::EncryptRSA
 
 	if (hCryptFile == INVALID_HANDLE_VALUE || hCryptFile_out == INVALID_HANDLE_VALUE)
 	{
-		printf_s("Failed create key files. %ls. GetLastError%lu\n", Filename, GetLastError());
+		printf_s("Failed create key files %ls - GetLastError = %lu\n", Filename, GetLastError());
 		goto END;
 	}
 	
@@ -1260,14 +1260,14 @@ END:
 
 BOOL filesystem::VerifySignatureRSA
 (
-	SLIST<locker::HLIST>* list,
-	WCHAR* KeyFile,
+	SLIST<locker::HLIST>* list,	
+	WCHAR* FPath,
 	WCHAR* Filename
 )
 {
 	locker::FILE_INFO FileInfo;
 	FileInfo.Filename = Filename;
-	FileInfo.FilePath = Filename;
+	FileInfo.FilePath = FPath;
 	if (!getParseFile(&FileInfo) || FileInfo.FileHandle == INVALID_HANDLE_VALUE)
 	{
 		printf_s("Failed ParseFile VerifySignatureRSA %ls. GetLastError = %lu.\n", Filename, GetLastError());
@@ -1285,44 +1285,139 @@ BOOL filesystem::VerifySignatureRSA
 	
 	sha256_state ctx;
 	sha256_init_context(&ctx);
-	//BYTE out[256];
-	//memset(out, 0, 256);
-	BYTE* out = (BYTE*)memory::m_malloc(32);
+	size_t hash_s = 32;
+	BYTE* out = (BYTE*)memory::m_malloc(hash_s);
 
 	while (ReadFile(FileInfo.FileHandle, Buffer, 1048576, &BytesRead, NULL) && BytesRead != 0)
 		sha256_update_context(&ctx, (CONST u8*)Buffer, BytesRead);
 
 	sha256_final_context(&ctx, out);
+		
+	//if (global::HEX())
+	if (TRUE)
+	{
+		BYTE* hashHEX = (BYTE*)memory::m_malloc(65);
+		CONST CHAR* literals = "0123456789abcdef";
+
+		int i = 0;
+		int j = 0;
+		for (; i < hash_s; ++i)
+		{
+			hashHEX[j++] = literals[out[i] >> 4];			
+			hashHEX[j++] = literals[out[i] & 0x0F];
+		}
+		
+		memory::m_free(out);
+		out = NULL;
+		out = hashHEX;
+		hash_s = 64;
+	}	
 	
 	locker::PHLIST hash = new locker::HLIST;
 	hash->hash = out;
+	CHAR* file = (CHAR*)memory::m_malloc(MAX_PATH);
+	wcstombs(file, Filename, memory::StrLen(Filename));
+	hash->Filename = file;
+	hash->hash_size = hash_s;
 	list->SLIST_INSERT_HEAD(hash);
-
-	//WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
-	//GetCurrentDirectoryW(MAX_PATH, locale);
-	//wmemcpy_s(&locale[memory::StrLen(locale)], 16, L"\\signature.laced", 16);
-
-	//HANDLE hFile = CreateFileW(locale, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-
-
-	////EncryptRSA(KeyFile, , locale);
-
-	//EncryptRSA((WCHAR*)L"C:\\Users\\Clown\\Desktop\\test\\RSA_private_kay_laced.txt",
-	//	(WCHAR*)L"signature.laced", (WCHAR*)L"C:\\Users\\Clown\\Desktop\\test\\signature.laced");
-
-	printf("HashSum SHA256 file %ls - ", Filename);
-	for (int i = 0; i < 32; ++i)
-		printf("%02x", out[i]);
-	printf("\n");
-
+	
 	memory::m_free(Buffer);
 
 	return TRUE;
 }
 
+BOOL filesystem::VerifyContent(SLIST<locker::HLIST>* HashList)
+{
+	locker::PHLIST DataHash = NULL;
+	HANDLE hFile = NULL;
+
+	WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
+	GetCurrentDirectoryW(MAX_PATH, locale);
+	wmemcpy_s(&locale[memory::StrLen(locale)], 20, L"\\signature.laced.txt", 20);
+	WCHAR* locale_hash = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
+	GetCurrentDirectoryW(MAX_PATH, locale_hash);
+	wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], 25, L"\\hash_signature.laced.txt", 25);
+
+
+	hFile = CreateFileW(locale, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		printf_s("Failed create file signature.laced. GetLastError - %lu\n", GetLastError());
+		return FALSE;
+	}
+	
+	size_t size_signature = 0;
+	printf("HashSum SHA256 HEX-format\n");
+	SLIST_FOREACH(DataHash, HashList)
+	{
+		printf_s("file - %s \t hash - %s\n", DataHash->Filename, DataHash->hash);
+		WriteFullData(hFile, DataHash->Filename, memory::StrLen(DataHash->Filename));
+		WriteFullData(hFile, (VOID*)"\t", 1);
+		WriteFullData(hFile, DataHash->hash, DataHash->hash_size);
+		WriteFullData(hFile, (VOID*)"\r\n", 2);
+		size_signature += DataHash->hash_size;
+	}
+	CloseHandle(hFile);	
+	if (size_signature > 500) // size < bit_rsa
+	{
+		printf("Hash will be crypted with gybrid RSA & CHACHA\n");
+		BOOL stat = global::GetDeCrypt();
+		global::SetDeCrypt(CRYPT);
+		FileCryptDecrypt(global::GetPathRSAKey(), locale, locale_hash);
+		global::SetDeCrypt(stat);
+	}
+	else
+	{
+		printf("Hash will be crypted with only RSA\n");
+		EncryptRSA(global::GetPathRSAKey(), locale, locale_hash);
+		
+	}
+	
+	WCHAR* hash_crypted_hash = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
+	GetCurrentDirectoryW(MAX_PATH, hash_crypted_hash);
+	wmemcpy_s(&hash_crypted_hash[memory::StrLen(hash_crypted_hash)], 24, L"\\hash_signature.laced.txt", 24);
+	hFile = CreateFileW(hash_crypted_hash, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		printf_s("Failed create file hash_signature.laced. GetLastError - %lu\n", GetLastError());
+		return FALSE;
+	}
+
+		
+	return TRUE;	
+}
+
 BOOL VerifycationSignatureRSA()
 {
+	/*
+	bool hexToBin(const char* hexStr, BYTE* outBuf, size_t outBufSize)
+{
+    size_t hexLen = strlen(hexStr);
+    if (hexLen % 2 != 0 || outBufSize < hexLen / 2)
+        return false; // Некорректная длина или маленький буфер
 
+    auto hexCharToVal = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1; // недопустимый символ
+    };
+
+    for (size_t i = 0; i < hexLen; i += 2)
+    {
+        int high = hexCharToVal(hexStr[i]);
+        int low  = hexCharToVal(hexStr[i + 1]);
+        if (high < 0 || low < 0)
+            return false; // ошибка в hex-строке
+
+        outBuf[i / 2] = (BYTE)((high << 4) | low);
+    }
+
+    return true;
+}
+
+	*/
+	return FALSE;
 }
 
 
