@@ -12,6 +12,10 @@ A encryption tool implementing both hybrid encryption (RSA + ChaCha), pure asymm
 ## Usage Options:
 ```shell
    -h / -help       Provides Information about program.
+   config           Load parameters from config. Configure from the local path or use
+		    '-path' followed by the path to the configuration.
+   -s / -sign       Signature and Verification (default: false). When using the signature
+		    first specify the public key, followed by the private key, separating them with the '$' symbol.
    -p / -path       Path to the file to encrypt. Optional field. If null, encrypts in local path.
    -n / -name       Encrypt FILENAME with Base64. (default: false)
    -m / -mode       Select the encryption mode. (default: FULL_ENCRYPT)
@@ -44,9 +48,11 @@ A encryption tool implementing both hybrid encryption (RSA + ChaCha), pure asymm
    -d / -delete     File flag delete on close. (default: false)
 
 EXAMPLE USAGE:
+Config:     laced.exe config -path C:\\Config.laced\tlaced.exe config
 ASYMMETRIC: laced.exe -path C:/FolderFiles -name -mode full -cat dir -what asym -key "C:/FullPathToRSAkeys" crypt
 SYMMETRIC:  laced.exe -path C:/FolderFiles -name -mode full -cat dir -what sym -key "secret key"
 RSA ONLY:   laced.exe -path C:/File.txt -name -what rsa -key "C:/FullPathToRSAkeys" crypt
+Signature:  laced.exe -p C:/FolderFiles -w asym -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt
 
 RSA Generate Keys OPTIONS:
 
