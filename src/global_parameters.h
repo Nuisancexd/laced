@@ -31,6 +31,12 @@ enum
 	DECRYPT = 9
 };
 
+enum name
+{
+	BASE64_NAME = 17,
+	HASH_NAME = 18
+};
+
 
 namespace global
 {
@@ -41,6 +47,8 @@ namespace global
 	WCHAR* GetPath();
 	VOID SetPath(WCHAR* set_path);
 	WCHAR* GetPathRSAKey();
+	VOID SetPathSignRSAKey(WCHAR* path_sing);
+	WCHAR* GetPathSignRSAKey();
 	VOID SetPathRSAKey(WCHAR* set_path);
 	int GetEncMode();
 	VOID SetEncMode(int g_EncryptCat_);
@@ -58,7 +66,7 @@ namespace global
 	unsigned long GetBitKey();
 	VOID SetPrintHex(BOOL hex);
 	BOOL GetPrintHex();
-	VOID SetCryptName(BOOL stat);
+	VOID SetCryptName(int stat);
 	BOOL GetCryptName();
 	VOID SetFlagDelete(BOOL flag);
 	BOOL GetFlagDelete();

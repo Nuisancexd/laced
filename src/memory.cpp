@@ -17,11 +17,10 @@ VOID memory::Copy(PVOID pDst, CONST PVOID pSrc, size_t size)
 		*_dst++ = *_src++;
 }
 
-#define HASHING_SEED 24759
 #define mmix(h,k) { k *= m; k ^= k >> r; k *= m; h *= m; h ^= k; }
 #define LowerChar(C) if (C >= 'A' && C <= 'Z') {C = C + ('a'-'A');}
 
-unsigned int memory::MurmurHash2A(const void* key, int len)
+unsigned int memory::MurmurHash2A(const void* key, int len, int seed)
 {
 	char temp[64];
 	memset(temp, 0, 64);	
@@ -36,8 +35,8 @@ unsigned int memory::MurmurHash2A(const void* key, int len)
 	unsigned int l = len;
 
 	const unsigned char* data = (const unsigned char*)temp;
-
-	unsigned int h = HASHING_SEED;
+	
+	unsigned int h = seed;
 	unsigned int k;
 
 	while (len >= 4)
@@ -268,3 +267,47 @@ size_t memory::FindCharI(const char* Str, char ch)
 	return 0;
 }
 
+
+unsigned char* memory::BinaryToHex(unsigned char* src, size_t size)
+{
+	unsigned char* hashHEX = (unsigned char*)m_malloc(65);
+	CONST char* literals = "0123456789abcdef";
+
+	int i = 0;
+	int j = 0;
+	for (; i < size; ++i)
+	{
+		hashHEX[j++] = literals[src[i] >> 4];
+		hashHEX[j++] = literals[src[i] & 0x0F];
+	}
+
+	return hashHEX;
+}
+
+
+unsigned char* memory::HexToBinary(const char* hexStr, size_t hexSize)
+{
+	unsigned char* outBuf = (unsigned char*)m_malloc(hexSize / 2);
+
+	auto hexCharToVal = [](char c) -> int 
+	{
+		if (c >= '0' && c <= '9') return c - '0';
+		if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+		if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+		return -1;
+	};
+
+	for (size_t i = 0; i < hexSize; i += 2)
+	{
+		int high = hexCharToVal(hexStr[i]);
+		int low  = hexCharToVal(hexStr[i + 1]);
+		if (high < 0 || low < 0)
+			return NULL;
+
+		outBuf[i / 2] = (unsigned char)((high << 4) | low);
+	}
+
+	return outBuf;
+}
+
+	

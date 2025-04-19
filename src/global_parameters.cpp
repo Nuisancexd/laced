@@ -5,10 +5,10 @@
 
 /*		default		*/
 STATIC int g_Encrypt = 0;
-//STATIC int g_DeCrypt = 0;
-STATIC int g_DeCrypt = CRYPT;
+STATIC int g_DeCrypt = 0;
 STATIC WCHAR* g_Path = NULL;
 STATIC WCHAR* g_PathRSAKey = NULL;
+STATIC WCHAR* g_PathSignRSAKey = NULL;
 STATIC int g_EncryptMode = FULL_ENCRYPT;
 STATIC int g_EncryptCat = DIR_CAT;
 STATIC BOOL g_Status = FALSE;
@@ -18,7 +18,7 @@ STATIC unsigned char* g_IV = NULL;
 STATIC BOOL g_DropMode = FALSE;
 STATIC unsigned long g_BitKey = 0x08000000;
 STATIC BOOL g_print_hex = FALSE;
-STATIC BOOL g_CryptName = FALSE;
+STATIC int g_CryptName = 0;
 STATIC BOOL g_FlagDelete = FALSE;
 
 VOID global::SetEncrypt(int Encrypt)
@@ -59,6 +59,16 @@ VOID global::SetPathRSAKey(WCHAR* set_path)
 WCHAR* global::GetPathRSAKey()
 {
 	return g_PathRSAKey;
+}
+
+VOID global::SetPathSignRSAKey(WCHAR* path_sing)
+{
+	g_PathSignRSAKey = path_sing;
+}
+
+WCHAR* global::GetPathSignRSAKey()
+{
+	return g_PathSignRSAKey;
 }
 
 VOID global::SetEncMode(int EncryptMode)
@@ -141,12 +151,12 @@ BOOL global::GetPrintHex()
 	return g_print_hex;
 }
 
-VOID global::SetCryptName(BOOL stat)
+VOID global::SetCryptName(int name)
 {
-	g_CryptName = stat;
+	g_CryptName = name;
 }
 
-BOOL global::GetCryptName()
+int global::GetCryptName()
 {
 	return g_CryptName;
 }
@@ -185,5 +195,11 @@ VOID global::free_global()
 	{
 		memory::m_free(g_Path);
 		g_Path = NULL;
+	}
+
+	if (g_PathSignRSAKey)
+	{
+		memory::m_free(g_PathSignRSAKey);
+		g_PathSignRSAKey = NULL;
 	}
 }

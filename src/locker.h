@@ -20,8 +20,7 @@ namespace locker
 	}FILE_INFO, * PFILE_INFO;
 	
 	typedef struct HashList
-	{
-		CHAR* Filename;
+	{		
 		BYTE* hash;
 		size_t hash_size;
 		SLIST_ENTRY(HashList);

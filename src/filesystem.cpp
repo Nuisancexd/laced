@@ -1,7 +1,8 @@
-#include <windows.h>
+п»ї#include <windows.h>
 #include <fileapi.h>
 #include <stdio.h>
 #include <string>
+#include <map>
 
 #include "filesystem.h"
 #include "memory.h"
@@ -14,6 +15,7 @@
 
 #define SET(v,w) ((v) = (w))
 
+STATIC BOOL VER = FALSE;
 
 
 STATIC BOOL WriteFullData
@@ -57,11 +59,8 @@ BOOL filesystem::getParseFile
 	locker::PFILE_INFO FileInfo
 )
 {	
-	HANDLE hFile = NULL;
-	if(global::GetFlagDelete())
-		hFile = CreateFileW(FileInfo->FilePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL);
-	else
-		hFile = CreateFileW(FileInfo->FilePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);	
+	HANDLE hFile = NULL;	
+	hFile = CreateFileW(FileInfo->FilePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);	
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -132,8 +131,7 @@ BOOL filesystem::EncryptFileFullData
 		return FALSE;
 	}
 
-	memory::m_free(FileBuffer);
-
+	memory::m_free(FileBuffer);	
 	return TRUE;
 }
 
@@ -226,7 +224,7 @@ BOOL filesystem::EncryptFilePartly
 	}
 
 	memory::m_free(BufferPart);
-	memory::m_free(BufferStep);
+	memory::m_free(BufferStep);	
 
 	return TRUE;
 }
@@ -674,11 +672,24 @@ STATIC BOOL ReadRSAFile
 	DWORD sizeKey;
 	DWORD dwread;
 
-	if (!CryptAcquireContextA(CryptoProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+	if (VER)
 	{
-		printf_s("Failed create provider. GetLastError = %lu.\n", GetLastError());
-		return FALSE;
+		if (!CryptAcquireContextA(CryptoProvider, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT))
+		{
+			printf_s("Failed create provider. GetLastError = %lu.\n", GetLastError());
+			return FALSE;
+		}
 	}
+	else
+	{
+		if (!CryptAcquireContextA(CryptoProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+		{
+			printf_s("Failed create provider. GetLastError = %lu.\n", GetLastError());
+			return FALSE;
+		}
+	}
+	
+
 
 	hCryptFile = CreateFileW(KeyFile, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 	if (hCryptFile == INVALID_HANDLE_VALUE)
@@ -726,10 +737,11 @@ STATIC BOOL ReadRSAFile
 		SUCCESS_return = TRUE;
 		goto END;
 	}
-
+	
 	if (!CryptImportKey(*CryptoProvider, BuffRSA, dwread, 0, 0, RsaKey))
 	{
 		printf_s("Failed import Key. GetLastError = %lu.\n", GetLastError());
+		printf_s("if key in Base64 format - check flag -Base64\n");
 		goto END;
 	}
 	SUCCESS_return = TRUE;
@@ -835,13 +847,13 @@ END:
 		CloseHandle(hCryptFile_out);
 	if (FileBuffer)
 	{
-		SecureZeroMemory(FileBuffer, dwDataLen + 32);
+		RtlSecureZeroMemory(FileBuffer, dwDataLen);
 		memory::m_free(FileBuffer);
 	}
 	if (RsaKey)
 		CryptDestroyKey(RsaKey);
 	if (CryptoProvider)
-		CryptReleaseContext(CryptoProvider, 0);	
+		CryptReleaseContext(CryptoProvider, 0);		
 
 	return SUCCESS_return;
 }
@@ -1062,8 +1074,10 @@ END:
 		CloseHandle(FileInfo.FileHandle);
 	if(FileInfo.newFileHandle && FileInfo.newFileHandle != INVALID_HANDLE_VALUE)
 		CloseHandle(FileInfo.newFileHandle);
-	
-	
+	if (RsaKey)
+		CryptDestroyKey(RsaKey);
+	if (CryptoProvider)
+		CryptReleaseContext(CryptoProvider, 0);	
 
 	return SUCCESS_return;
 }
@@ -1139,12 +1153,13 @@ BOOL filesystem::FileCryptDecrypt
 	HCRYPTKEY RsaKey = 0;
 	BOOL SUCCESS_return = FALSE;
 	BYTE* EncryptedKey = NULL;
-	DWORD EncryptedKeySize;	
+	DWORD EncryptedKeySize = 0;	
 	LONG cat;
 	INT mode;
 	BYTE PrivateKey[4096] = { 0 };
 
-
+	DWORD dwDataLen = 0;
+	
 	if (!ReadRSAFile(KeyFile, PrivateKey, &RsaKey, &CryptoProvider))
 	{
 		printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", KeyFile, GetLastError());
@@ -1154,15 +1169,16 @@ BOOL filesystem::FileCryptDecrypt
 	{
 		printf_s("Failed ParseFile %ls. GetLastError = %lu.\n", FileCrypt, GetLastError());
 		goto END;
-	}
-	EncryptedKeySize = 0;
+	}	
+
 	EncryptedKey = ReadEncryptInfo(FileInfo.FileHandle, &EncryptedKeySize, &mode);
 	if (EncryptedKey == NULL)	goto END;
 	FileInfo.bit = EncryptedKeySize;
-	cat = EncryptedKeySize;		
-	if (!CryptDecrypt(RsaKey, 0, TRUE, 0, EncryptedKey, &EncryptedKeySize))
+	cat = EncryptedKeySize;
+
+	if (!CryptDecrypt(RsaKey, 0, TRUE, 0, EncryptedKey, &EncryptedKeySize))	
 	{
-		printf_s("Failed CryptEncrypt. GetLastError = %lu\n", GetLastError());			
+		printf_s("Failed CryptDecrypt. GetLastError = %lu\n", GetLastError());			
 		goto END;
 	}
 	
@@ -1253,12 +1269,39 @@ END:
 		CryptDestroyKey(RsaKey);
 	if (CryptoProvider)
 		CryptReleaseContext(CryptoProvider, 0);
-
+	
 	return SUCCESS_return;
 }
 
 
-BOOL filesystem::VerifySignatureRSA
+STATIC VOID dump_hash(CONST BYTE* hash, size_t len) 
+{	
+	for (size_t i = 0; i < len; ++i) printf("%02X", hash[i]);
+	printf("\n");
+}
+
+VOID filesystem::sort_hashList(SLIST<locker::HLIST>* list)
+{
+	SLIST<locker::HLIST>* list_sorted = new SLIST<locker::HLIST>;
+	std::multimap<u32, BYTE*> map;
+	locker::PHLIST DataHash = NULL;
+	SLIST_FOREACH(DataHash, list)	
+		map.insert({ memory::MurmurHash2A(DataHash->hash, 32, 0), DataHash->hash});
+	
+	for (auto& e : map)
+	{
+		locker::PHLIST hash_sorted = new locker::HLIST;		
+		hash_sorted->hash = e.second;
+		hash_sorted->hash_size = 32;
+		list_sorted->SLIST_INSERT_HEAD(hash_sorted);
+	}
+
+
+	*list = *list_sorted;
+}
+
+
+BOOL filesystem::HashSignatureFile
 (
 	SLIST<locker::HLIST>* list,	
 	WCHAR* FPath,
@@ -1270,7 +1313,7 @@ BOOL filesystem::VerifySignatureRSA
 	FileInfo.FilePath = FPath;
 	if (!getParseFile(&FileInfo) || FileInfo.FileHandle == INVALID_HANDLE_VALUE)
 	{
-		printf_s("Failed ParseFile VerifySignatureRSA %ls. GetLastError = %lu.\n", Filename, GetLastError());
+		printf_s("Failed ParseFile HashSignatureFile %ls. GetLastError = %lu.\n", Filename, GetLastError());
 		return FALSE;
 	}
 
@@ -1293,131 +1336,172 @@ BOOL filesystem::VerifySignatureRSA
 
 	sha256_final_context(&ctx, out);
 		
-	//if (global::HEX())
-	if (TRUE)
-	{
-		BYTE* hashHEX = (BYTE*)memory::m_malloc(65);
-		CONST CHAR* literals = "0123456789abcdef";
 
-		int i = 0;
-		int j = 0;
-		for (; i < hash_s; ++i)
-		{
-			hashHEX[j++] = literals[out[i] >> 4];			
-			hashHEX[j++] = literals[out[i] & 0x0F];
-		}
-		
-		memory::m_free(out);
-		out = NULL;
-		out = hashHEX;
-		hash_s = 64;
-	}	
-	
 	locker::PHLIST hash = new locker::HLIST;
 	hash->hash = out;
-	CHAR* file = (CHAR*)memory::m_malloc(MAX_PATH);
-	wcstombs(file, Filename, memory::StrLen(Filename));
-	hash->Filename = file;
 	hash->hash_size = hash_s;
-	list->SLIST_INSERT_HEAD(hash);
+	list->SLIST_INSERT_HEAD_SAFE(hash);
 	
 	memory::m_free(Buffer);
+	CloseHandle(FileInfo.FileHandle);
 
 	return TRUE;
 }
 
-BOOL filesystem::VerifyContent(SLIST<locker::HLIST>* HashList)
+BOOL filesystem::CraeteSignatureFile(SLIST<locker::HLIST>* HashList)
 {
+	VER = TRUE;
 	locker::PHLIST DataHash = NULL;
 	HANDLE hFile = NULL;
+	BOOL success = FALSE;
 
-	WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
+	WCHAR* locale_hash = (WCHAR*)memory::m_malloc((MAX_PATH + 21) * sizeof(WCHAR));
+	GetCurrentDirectoryW(MAX_PATH, locale_hash);
+	wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], 20, L"\\signature.laced.txt", 20);
+
+	BYTE HASH_SHA[32];
+	sha256_state ctx;
+	sha256_init_context(&ctx);	
+	SLIST_FOREACH(DataHash, HashList)
+		sha256_update_context(&ctx, (CONST u8*)DataHash->hash, DataHash->hash_size);		
+	sha256_final_context(&ctx, HASH_SHA);
+
+	DWORD sig_len;
+	BYTE signature[4096] = {0};
+	HCRYPTPROV CryptoProvider = 0;
+	HCRYPTKEY RsaKey = 0;
+	HCRYPTHASH hHash = 0;
+
+	if (!ReadRSAFile(global::GetPathSignRSAKey(), signature, &RsaKey, &CryptoProvider))
+	{
+		printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
+		goto END;
+	}
+	
+	if (!CryptCreateHash(CryptoProvider, CALG_SHA_256, 0, 0, &hHash)) 
+	{
+		printf_s("FailedCryptCreateHash. GetLastError = %lu.\n", GetLastError());
+		goto END;
+	}
+	if (!CryptHashData(hHash, HASH_SHA, 32, 0)) 
+	{
+		printf_s("Failed CryptHashData. GetLastError = %lu\n", GetLastError());
+		goto END;
+	}	
+	sig_len = sizeof(signature);
+	if (!CryptSignHashA(hHash, AT_KEYEXCHANGE, NULL, 0, signature, &sig_len)) 
+	{
+		printf_s("Failed CryptSignHash. GetLastError() =  %lu\n", GetLastError());
+		goto END;
+	}
+	CryptDestroyHash(hHash);
+
+	hFile = CreateFileW(locale_hash, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		printf_s("Failed Create File %ls\n", locale_hash);
+		goto END;
+	}
+
+	if (!WriteFullData(hFile, signature, sig_len))
+	{
+		printf_s("Failed WriteFullData. GetLastError = %lu\n", GetLastError());
+	}
+	CloseHandle(hFile);
+	printf("Crypted Hash Sum saved in: %ls\n", locale_hash);
+	success = TRUE;
+	
+END:
+	if (RsaKey) CryptDestroyKey(RsaKey);
+	if (CryptoProvider) CryptReleaseContext(CryptoProvider, 0);
+	memory::m_free(locale_hash);
+
+	return success;
+}
+
+BOOL filesystem::VerifycationSignatureFile(SLIST<locker::HLIST>* HashList)
+{
+	VER = TRUE;
+	BOOL success = FALSE;
+	HANDLE hFile = NULL;
+	locker::FILE_INFO FileInfo;
+	locker::PHLIST DataHash = NULL;
+	DWORD dwread;
+	BYTE* Buffer = NULL;
+
+	HCRYPTPROV CryptoProvider = 0;
+	HCRYPTKEY RsaKey = 0;
+	HCRYPTHASH hHash = 0;
+
+	BYTE HASH_SHA[32] = { 0 };
+	BYTE key[4096] = { 0 };
+
+
+	WCHAR* locale = (WCHAR*)memory::m_malloc((MAX_PATH + 21) * sizeof(WCHAR));
 	GetCurrentDirectoryW(MAX_PATH, locale);
 	wmemcpy_s(&locale[memory::StrLen(locale)], 20, L"\\signature.laced.txt", 20);
-	WCHAR* locale_hash = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
-	GetCurrentDirectoryW(MAX_PATH, locale_hash);
-	wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], 25, L"\\hash_signature.laced.txt", 25);
 
-
-	hFile = CreateFileW(locale, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-	if (hFile == INVALID_HANDLE_VALUE)
+	FileInfo.FilePath = locale;
+	if (!getParseFile(&FileInfo))
 	{
-		printf_s("Failed create file signature.laced. GetLastError - %lu\n", GetLastError());
-		return FALSE;
+		printf_s("Failed getParseFile. Verify hash file %ls; GetLastError = %lu\n", locale, GetLastError());
+		goto END;
+	}
+
+	Buffer = (BYTE*)memory::m_malloc(FileInfo.Filesize);
+	if (!ReadFile(FileInfo.FileHandle, Buffer, FileInfo.Filesize, &dwread, NULL) || dwread != FileInfo.Filesize)
+	{
+		printf_s("Failed ReadFile %ls; GetLastError = %lu\n", locale, GetLastError());
+		goto END;
+	}
+	CloseHandle(FileInfo.FileHandle);
+
+	sha256_state ctx;
+	sha256_init_context(&ctx);
+	SLIST_FOREACH(DataHash, HashList)
+		sha256_update_context(&ctx, (CONST u8*)DataHash->hash, DataHash->hash_size);
+	sha256_final_context(&ctx, HASH_SHA);
+
+	
+	if (!ReadRSAFile(global::GetPathSignRSAKey(), key, &RsaKey, &CryptoProvider))
+	{
+		printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
+		goto END;
+	}
+
+	if (!CryptCreateHash(CryptoProvider, CALG_SHA_256, 0, 0, &hHash)) 
+	{
+		printf_s("Failed CryptCreateHash. GetLastError =  %lu\n", GetLastError());
+		goto END;
 	}
 	
-	size_t size_signature = 0;
-	printf("HashSum SHA256 HEX-format\n");
-	SLIST_FOREACH(DataHash, HashList)
+	if (!CryptHashData(hHash, HASH_SHA, 32, 0)) 
 	{
-		printf_s("file - %s \t hash - %s\n", DataHash->Filename, DataHash->hash);
-		WriteFullData(hFile, DataHash->Filename, memory::StrLen(DataHash->Filename));
-		WriteFullData(hFile, (VOID*)"\t", 1);
-		WriteFullData(hFile, DataHash->hash, DataHash->hash_size);
-		WriteFullData(hFile, (VOID*)"\r\n", 2);
-		size_signature += DataHash->hash_size;
+		printf_s("Failed CryptHashData. GetLastError =  %lu\n", GetLastError());
+		goto END;
 	}
-	CloseHandle(hFile);	
-	if (size_signature > 500) // size < bit_rsa
+
+	if (!CryptVerifySignatureA(hHash, Buffer, dwread, RsaKey, NULL, 0)) 
 	{
-		printf("Hash will be crypted with gybrid RSA & CHACHA\n");
-		BOOL stat = global::GetDeCrypt();
-		global::SetDeCrypt(CRYPT);
-		FileCryptDecrypt(global::GetPathRSAKey(), locale, locale_hash);
-		global::SetDeCrypt(stat);
+		printf_s("Failed CryptVerifySignature. GetLastError = %lu\n", GetLastError());
+		printf_s("Signature verification is FAILED\n");
 	}
 	else
-	{
-		printf("Hash will be crypted with only RSA\n");
-		EncryptRSA(global::GetPathRSAKey(), locale, locale_hash);
-		
-	}
-	
-	WCHAR* hash_crypted_hash = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
-	GetCurrentDirectoryW(MAX_PATH, hash_crypted_hash);
-	wmemcpy_s(&hash_crypted_hash[memory::StrLen(hash_crypted_hash)], 24, L"\\hash_signature.laced.txt", 24);
-	hFile = CreateFileW(hash_crypted_hash, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
-		printf_s("Failed create file hash_signature.laced. GetLastError - %lu\n", GetLastError());
-		return FALSE;
-	}
+		printf("Signature verification SUCCESS\n");
 
-		
-	return TRUE;	
-}
+	success = TRUE;
 
-BOOL VerifycationSignatureRSA()
-{
-	/*
-	bool hexToBin(const char* hexStr, BYTE* outBuf, size_t outBufSize)
-{
-    size_t hexLen = strlen(hexStr);
-    if (hexLen % 2 != 0 || outBufSize < hexLen / 2)
-        return false; // Некорректная длина или маленький буфер
+END:
+	if (hHash) CryptDestroyHash(hHash);
+	if (RsaKey) CryptDestroyKey(RsaKey);
+	if (CryptoProvider) CryptReleaseContext(CryptoProvider, 0);
+	memory::m_free(locale);
+	if (Buffer)
+		memory::m_free(Buffer);
 
-    auto hexCharToVal = [](char c) -> int {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        return -1; // недопустимый символ
-    };
 
-    for (size_t i = 0; i < hexLen; i += 2)
-    {
-        int high = hexCharToVal(hexStr[i]);
-        int low  = hexCharToVal(hexStr[i + 1]);
-        if (high < 0 || low < 0)
-            return false; // ошибка в hex-строке
 
-        outBuf[i / 2] = (BYTE)((high << 4) | low);
-    }
-
-    return true;
-}
-
-	*/
-	return FALSE;
+	return success;
 }
 
 
@@ -1463,13 +1547,12 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 
 	if (memory::StrStrCW(exst, ECRYPT_NAME_P))
 	{		
-		if ("hsah") return NULL;
 		size_t len = len_FPath - ECRYPT_NAME_LEN;
 		WCHAR* name = (WCHAR*)memory::m_malloc((260) * sizeof(WCHAR));
 		wmemcpy_s(name, len, FPath, len);
 		
-		if (global::GetCryptName())
-		{							
+		if (global::GetCryptName() == BASE64_NAME)
+		{
 			SafeURLBase64(&name[len_path + 1], len_filename - ECRYPT_NAME_LEN, BASE_CRYPT);
 
 			VOID* Base64 = NULL;
@@ -1493,16 +1576,27 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 			memory::m_free(Base64);
 			memory::m_free(name);
 			return FullPath;
-		}		
+		}
 	END:
 		return name;
 	}
 	else
 	{
-		if ("hash")
-			"...";
-
-		if (global::GetCryptName())
+		if (global::GetCryptName() == HASH_NAME)
+		{
+			CHAR ptr[260] = { 0 };
+			u8 out[32] = { 0 };
+			WideCharToMultiByte(CP_UTF8, 0, Filename, -1, ptr, len_filename, NULL, NULL);
+			sha256((CONST u8*)ptr, len_filename, out);
+			u8* name = memory::BinaryToHex(out, 32);
+			WCHAR* FullPath = (WCHAR*)memory::m_malloc((len_path + 2 + 64 + 6) * sizeof(WCHAR));
+			wmemcpy_s(FullPath, len_path, Path, len_path);
+			FullPath[len_path] = L'\\';
+			MultiByteToWideChar(CP_UTF8, 0, (CHAR*)name, 64, &FullPath[len_path + 1], 64);
+			wmemcpy_s(&FullPath[memory::StrLen(FullPath)], ECRYPT_NAME_LEN, ECRYPT_NAME_P, ECRYPT_NAME_LEN);
+			return FullPath;
+		}
+		if (global::GetCryptName() == BASE64_NAME)
 		{						
 			if ((len_filename + (len_filename / 3)) > MAX_PATH)
 			{
@@ -1536,7 +1630,7 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 
 			memory::m_free(Base64);
 			return FullPath;
-		}		
+		}
 	END_:
 		std::wstring wstr(FPath);
 		wstr += std::wstring(ECRYPT_NAME_P);
@@ -1549,96 +1643,3 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 	memcpy_s(empty, ECRYPT_NAME_LEN, ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	return empty;
 }
-
-//WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR* FPath)
-//{
-//	size_t len_path = memory::StrLen(Path);
-//	size_t len_filename = memory::StrLen(Filename);
-//	size_t len_FPath = memory::StrLen(FPath);
-//
-//	if (memory::StrStrCW(exst, ECRYPT_NAME_P))
-//	{		
-//		size_t len = len_FPath - ECRYPT_NAME_LEN;
-//		WCHAR* name = (WCHAR*)memory::m_malloc((260) * sizeof(WCHAR));
-//		wmemcpy_s(name, len, FPath, len);
-//		
-//		if (global::GetCryptName())
-//		{
-//			size_t asd = len_filename - ECRYPT_NAME_LEN;
-//			SafeURLBase64(&name[len_path + 1], asd, BASE_CRYPT);
-//			CHAR ptr[260] = { 0 };
-//			WideCharToMultiByte(CP_UTF8, 0, &name[len_path + 1], -1, ptr, asd, NULL, NULL);
-//			VOID* Base64Key_b = NULL;//byte
-//			DWORD size;
-//			if (!Base64Encode(&Base64Key_b, (BYTE*)ptr, 0, &size, BASE_CRYPT))
-//			{
-//				printf_s("Failed MakeCopyFile convert Base64 file %ls. GetLastError = %lu\n", Filename, GetLastError());				
-//				goto END;
-//			}
-//			if (Base64Key_b == NULL)
-//			{
-//				printf_s("Failed MakeCopyFile convert Base64 file %ls. GetLastError = %lu\n", Filename, GetLastError());				
-//				goto END;
-//			}			
-//			WCHAR* FullPath = (WCHAR*)memory::m_malloc((len_path + 2) * sizeof(WCHAR) + size);
-//			wmemcpy_s(FullPath, len_path, Path, len_path);
-//			FullPath[len_path] = L'\\';
-//			wmemcpy_s(&FullPath[len_path + 1], size, (WCHAR*)Base64Key_b, size/2);
-//
-//			memory::m_free(Base64Key_b);
-//			memory::m_free(name);
-//			return FullPath;
-//		}
-//	END:
-//		return name;
-//	}
-//	else
-//	{
-//		if (global::GetCryptName())
-//		{
-//			size_t len_a = len_filename * 2 + (len_filename * 2) / 3 + len_path;
-//			if (len_a > MAX_PATH)
-//			{
-//				printf_s("Path_len + Size * 2 + (size * 2) / 3) must be smaller than 260smbls: %u\n", len_a);
-//				goto END_;
-//			}
-//			
-//			size_t byte_len = len_filename * sizeof(WCHAR);
-//			BYTE ptr[260];
-//			memcpy_s(ptr, byte_len, Filename, byte_len); 
-//
-//			VOID* Base64Key = NULL;
-//			DWORD size;
-//			if (!Base64Encode(&Base64Key, ptr, byte_len, &size, BINARY_CRYPT))
-//			{
-//				printf_s("Failed MakeCopyFile convert Base64 file %ls. GetLastError = %lu\n", Filename, GetLastError());				
-//				goto END_;
-//			}
-//			if (Base64Key == NULL)
-//			{
-//				printf_s("Failed MakeCopyFile convert Base64 file %ls. GetLastError = %lu\n", Filename, GetLastError());				
-//				goto END_;
-//			}			
-//
-//			WCHAR* FullPath = (WCHAR*)memory::m_malloc((len_path + size + ECRYPT_NAME_LEN + 2) * sizeof(WCHAR));
-//			wmemcpy_s(FullPath, len_path, Path, len_path);
-//			FullPath[len_path] = L'\\';
-//			MultiByteToWideChar(CP_UTF8, 0, (CHAR*)Base64Key, size, &FullPath[len_path + 1], size);
-//			wmemcpy_s(&FullPath[size + len_path + 1], ECRYPT_NAME_LEN, ECRYPT_NAME_P, ECRYPT_NAME_LEN);			
-//			SafeURLBase64(&FullPath[len_path + 1], size, BINARY_CRYPT);
-//
-//			memory::m_free(Base64Key);
-//			return FullPath;
-//		}		
-//	END_:
-//		std::wstring wstr(FPath);
-//		wstr += std::wstring(ECRYPT_NAME_P);
-//		WCHAR* ret = (WCHAR*)memory::m_malloc((wstr.size() + 1) * sizeof(WCHAR));
-//		wmemcpy_s(ret, wstr.size(), wstr.c_str(), wstr.size());
-//		return ret;
-//	}
-//
-//	WCHAR* empty = (WCHAR*)memory::m_malloc((ECRYPT_NAME_LEN + 1) * sizeof(WCHAR));
-//	memcpy_s(empty, ECRYPT_NAME_LEN, ECRYPT_NAME_P, ECRYPT_NAME_LEN);
-//	return empty;
-//}

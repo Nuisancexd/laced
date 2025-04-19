@@ -19,12 +19,11 @@
 #include <string>
 #include <vector>
 
-#include "sha/sha256.h"
-
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 STATIC BOOL Gen = FALSE;
 STATIC BOOL THREAD_ENABLE = FALSE;
+STATIC BOOL Signature = FALSE;
 
 
 CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)
@@ -119,8 +118,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     {
         WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
         GetCurrentDirectoryW(MAX_PATH, locale);
-        global::SetPath(locale);
-        printf_s("Current directory: %ls\n", locale);
+        global::SetPath(locale);        
     }
     else if (path)
     {
@@ -129,11 +127,19 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
         wmemcpy_s(spath, len, path, len);
         global::SetPath(spath);
     }
+    printf_s("directory:\t%ls\n", global::GetPath());
 
 
-    WCHAR* CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-n");
-    if (!CryptFileName) CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-name");
-    if (CryptFileName) global::SetCryptName(TRUE);
+    WCHAR* CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-n_hash");    
+    if (!CryptFileName) CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-name_hash");
+    if(CryptFileName) global::SetCryptName(HASH_NAME);    
+    else
+    {
+        CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-n_base");
+        if (!CryptFileName) CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-name_base");
+        if (CryptFileName) global::SetCryptName(BASE64_NAME);
+    }
+    
 
     WCHAR* B64 = GetCommandLineArgCurr(argc, wargv, L"-B64");
     if (!B64)B64 = GetCommandLineArgCurr(argc, wargv, L"-Base64");
@@ -218,21 +224,13 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-what");
     if (EcnryptChoice)
     {
-        if (memory::StrStrCW(EcnryptChoice, L"asym"))
+        if (memory::StrStrCW(EcnryptChoice, L"asym") || memory::StrStrCW(EcnryptChoice, L"rsa"))
         {
-            global::SetEncrypt(ASYMMETRIC);
-            EcnryptChoice = GetCommandLineArg(argc, wargv, L"-k");
-            if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-key");
-            if (!EcnryptChoice)
-            {
-                printf_s("Type -key \"C:/path\" RSA private/public key or generate RSA Key\n");
-                CommandLineHelper();
-            }
+            if(memory::StrStrCW(EcnryptChoice, L"asym"))
+                global::SetEncrypt(ASYMMETRIC);
+            else
+                global::SetEncrypt(RSA_ONLY);
 
-            size_t len = memory::StrLen(EcnryptChoice);
-            WCHAR* keypath = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
-            wmemcpy_s(keypath, len, EcnryptChoice, len);
-            global::SetPathRSAKey(keypath);
             EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"crypt");
             if (EcnryptChoice)
                 global::SetDeCrypt(CRYPT);
@@ -247,6 +245,54 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
                     exit(1);
                 }
             }
+
+            EcnryptChoice = GetCommandLineArg(argc, wargv, L"-k");
+            if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-key");
+            if (!EcnryptChoice)
+            {
+                printf_s("Type -key \"C:/path\" RSA private/public key or generate RSA Key\n");
+                CommandLineHelper();
+            }
+
+            WCHAR* signature = GetCommandLineArgCurr(argc, wargv, L"-s");
+            if (!signature) signature = GetCommandLineArgCurr(argc, wargv, L"-sign");
+            if (signature)
+            {
+                Signature = TRUE;
+                WCHAR* smb = GetCommandLineArg(argc, wargv, L"$");                
+                if (!smb)
+                {
+                    printf("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
+                    printf("example: -key C:\\key\\public_key_rsa.txt $ C:\\key\\private_key_rsa.txt");
+                    exit(1);
+                }
+
+                size_t len = memory::StrLen(EcnryptChoice);
+                WCHAR* public_key = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
+                wmemcpy_s(public_key, len, EcnryptChoice, len);
+                len = memory::StrLen(smb);
+                WCHAR* private_key = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
+                wmemcpy_s(private_key, len, smb, len);
+                printf_s("public key:\t%ls\n", public_key);
+                printf_s("private key:\t%ls\n", private_key);
+                if (global::GetDeCrypt() == CRYPT)
+                {
+                    global::SetPathRSAKey(public_key);                    
+                    global::SetPathSignRSAKey(private_key);
+                }
+                else
+                {
+                    global::SetPathRSAKey(private_key);
+                    global::SetPathSignRSAKey(public_key);
+                }
+            }
+            else
+            {
+                size_t len = memory::StrLen(EcnryptChoice);
+                WCHAR* keypath = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
+                wmemcpy_s(keypath, len, EcnryptChoice, len);
+                global::SetPathRSAKey(keypath);
+            }                      
         }
         else if (memory::StrStrCW(EcnryptChoice, L"sym"))
         {
@@ -276,42 +322,11 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
             }
             else
             {
-                unsigned chachaIV = memory::MurmurHash2A(global::GetKey(), 32);
+                unsigned chachaIV = memory::MurmurHash2A(global::GetKey(), 32, HASHING_SEED);
                 std::string s = std::to_string(chachaIV);
                 BYTE* iv = (BYTE*)memory::m_malloc(9);
                 memcpy_s(iv, 9, s.c_str(), min(s.size(), size_t(8)));
                 global::SetIV(iv);
-            }
-        }
-        else if (memory::StrStrCW(EcnryptChoice, L"rsa"))
-        {
-            global::SetEncrypt(RSA_ONLY);
-            EcnryptChoice = GetCommandLineArg(argc, wargv, L"-k");
-            if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-key");
-            if (!EcnryptChoice)
-            {
-                printf_s("Type -key \"C:/path\" RSA private/public key or generate RSA Key\n");
-                CommandLineHelper();
-            }
-
-            size_t len = memory::StrLen(EcnryptChoice);
-            WCHAR* keypath = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
-            wmemcpy_s(keypath, len, path, len);
-            global::SetPathRSAKey(keypath);
-
-            EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"crypt");
-            if (EcnryptChoice)
-                global::SetDeCrypt(CRYPT);
-            else if (!EcnryptChoice)
-            {
-                EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"decrypt");
-                if (EcnryptChoice)
-                    global::SetDeCrypt(DECRYPT);
-                else
-                {
-                    printf_s("Type: crypt or decrypt. This is a required field. (default: null)\n");
-                    exit(1);
-                }
             }
         }
     }
@@ -323,13 +338,9 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     WCHAR* FileFlagDelete = GetCommandLineArgCurr(argc, wargv, L"-d");
     if (!FileFlagDelete) FileFlagDelete = GetCommandLineArgCurr(argc, wargv, L"-delete");
     if (FileFlagDelete) global::SetFlagDelete(TRUE);
-    WCHAR* Verify = GetCommandLineArgCurr(argc, wargv, L"-v");
-    if(!Verify) Verify = GetCommandLineArgCurr(argc, wargv, L"-verify");
-    if(Verify) //global
-
+    
     if(cmd)
-        RtlSecureZeroMemory(cmd, sizeof(cmd));
-    RtlSecureZeroMemory(argv, sizeof(argv));
+        RtlSecureZeroMemory(cmd, sizeof(cmd));    
 }
 
 
@@ -478,15 +489,10 @@ STATIC BOOL ParseFileConfig(int argc, char** argv, std::vector<CHAR*>* strings, 
 STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW);
 STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList);
 int main(int argc, char** argv)
-{
-    SLIST<locker::HLIST>* HashList = NULL;
-    if (TRUE)
-        HashList = new SLIST<locker::HLIST>;
-        
+{           
     CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");
-    if (pars)
-    //if(true)
-    {        
+    if (pars)    
+    {
         std::vector<CHAR*>* strings = new std::vector<CHAR*>;
         std::vector<WCHAR*>* stringsW = new std::vector<WCHAR*>;
         if (!ParseFileConfig(argc, argv, strings, stringsW))
@@ -498,7 +504,7 @@ int main(int argc, char** argv)
         
         printf("\nconfig.laced parameters:\n");        
         for(WCHAR* ptr : *stringsW)
-            printf_s("\t%ls\n", ptr);        
+            printf_s("\t%ls\n", ptr);
         
         ParsingCommandLine(strings->size(), strings->data(), stringsW->data());
         RtlSecureZeroMemory(argv, sizeof(argv));
@@ -506,6 +512,10 @@ int main(int argc, char** argv)
     }
     else
         ParsingCommandLine(argc, argv, NULL);
+
+    SLIST<locker::HLIST>* HashList = NULL;
+    if (Signature)
+        HashList = new SLIST<locker::HLIST>;
 
     
     if (global::GetCryptName() || global::GetRsaBase64())
@@ -564,20 +574,25 @@ int main(int argc, char** argv)
         pool.run_main_thread();
     }
 
-
-    if (TRUE)//ver
+    
+    if (Signature)
     {
-        filesystem::VerifyContent(HashList);
+        filesystem::sort_hashList(HashList);
+        if(global::GetDeCrypt() == CRYPT)
+            filesystem::CraeteSignatureFile(HashList);
+        else if(global::GetDeCrypt() == DECRYPT)
+            filesystem::VerifycationSignatureFile(HashList);
     }
+
     pathsystem::FreeList(DriveInfo);
     global::free_global();
     UnLoadCrypt32();
     if (HashList)
         free_HashList(HashList);
-    //else delete HashList; //check
-
-    printf_s("SUCCESS\n");
-    _CrtDumpMemoryLeaks();
+    
+    printf_s("SUCCESS\n");    
+    _CrtDumpMemoryLeaks(); 
+    
     return EXIT_SUCCESS;
 }
 
@@ -596,9 +611,7 @@ STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList)
 {
     locker::PHLIST dataHash = NULL;
     SLIST_FOREACH(dataHash, HashList)
-    {
-        delete[] dataHash->hash;
-    }
+        delete[] dataHash->hash;     
 
     delete HashList;
 }
@@ -611,7 +624,7 @@ VOID CommandLineHelper()
     printf("\t\t|  |       /  /_\\  \\ |  |     |   __|  |  |  |  |\n");
     printf("\t\t|  `----. /  _____  \\|  `----.|  |____ |  '--'  |\n");
     printf("\t\t|_______|/__/     \\__\\\\______||_______||_______/\n\n");
-    printf("laced ver. 1.0\n");
+    printf("laced ver. 2.0\n");
     printf_s("%s\n\n", std::string(120, '-').c_str());
 
     /*
@@ -634,7 +647,10 @@ VOID CommandLineHelper()
 
     printf("GENERAL OPTIONS:\n");
     printf("[*]  -h / -help       Provides Information about program.\n");
-    printf("[*]  config           Load parameters from config. Config must be in \n");
+    printf("[*]  config           Load parameters from config. Configure from the local path or use\n");
+    printf("                      '-path' followed by the path to the configuration.\n");
+    printf("[*]  -s / -sign       Signature and Verification (default: false). When using the signature\n");
+    printf("                      first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
     printf("[*]  -p / -path       Path to the file to encrypt. Optional field. If null, encrypts in local path.\n");
     printf("[*]  -n / -name       Encrypt FILENAME with Base64. (default: false)\n");
     printf("[*]  -m / -mode       Select the encryption mode. (default: FULL_ENCRYPT)\n");
@@ -657,14 +673,16 @@ VOID CommandLineHelper()
     printf("[*]  -k / -key        Required for ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n");
     printf("                      For ASYMMETRIC: the full path to private/public RSA key.\n");
     printf("                      For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n");
-    printf("[*]  -iv              For SYMMETRIC   The initialization vector (IV). Size must be between 1 and 8 bytes. Optional field.\n");
+    printf("[*]  -iv              For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n");
     printf("[*]  -e / -enable     Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n");
     printf("[*]  -B64 / -Base64   If RSA key in Base64 format. (default: false)\n");
-    printf("[*]  -d / -delete     File flag delete on close. (default: false)\n");
+    printf("[*]  -d / -delete     File flag delete on close. (default: false)\n");    
 
+    printf("EXAMPLE USAGE     Config:  laced.exe config -path C:\\Config.laced\tlaced.exe config\n");
     printf("EXAMPLE USAGE ASYMMETRIC:  laced.exe -path C:/FolderFiles -name -mode full -cat dir -what asym -key \"C:/FullPathToRSAkeys\" crypt\n");
     printf("EXAMPLE USAGE  SYMMETRIC:  laced.exe -path C:/FolderFiles -name -mode full -cat dir -what sym -key \"secret key\"\n");
-    printf("EXAMPLE USAGE   RSA_ONLY:  laced.exe -path C:/File.txt -name -what rsa -key \"C:/FullPathToRSAkeys\" crypt\n\n\n");
+    printf("EXAMPLE USAGE   RSA_ONLY:  laced.exe -path C:/File.txt -name -what rsa -key \"C:/FullPathToRSAkeys\" crypt\n");
+    printf("EXAMPLE USAGE  Signature:  laced.exe -p C:/FolderFiles -w asym -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n\n\n");
 
     printf("RSA Generate Keys OPTIONS:\n");
     printf("[*]  Gen / RSAGenKey     Command generate RSA keys. This is a required field.\n");

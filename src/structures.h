@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include "macro.h"
+#include <mutex>
 
 #define PTR(elm) (void*&)elm
 
@@ -21,6 +22,7 @@ class SLIST
 public:
 
 	TYPE* ptr = NULL;	/*  HEAD  */
+	inline STATIC std::mutex mtx;
 
 	~SLIST()
 	{
@@ -42,8 +44,7 @@ public:
 			SLIST_INSERT_HEAD(slist.ptr);
 			slist.ptr = next;
 		}
-
-		delete& slist.ptr;
+		slist.ptr = NULL;
 		return *this;
 	}
 
@@ -66,7 +67,6 @@ public:
 			SLIST_INSERT_HEAD(slist->ptr);
 			slist->ptr = next;
 		}
-		delete& slist->ptr;
 	}
 
 	TYPE* SLIST_NEXT(TYPE*& entry) CONST
@@ -81,6 +81,13 @@ public:
 	{
 		entry->entries = ptr;
 		ptr = entry;
+	}
+
+	VOID SLIST_INSERT_HEAD_SAFE(TYPE*& entry)
+	{
+		std::lock_guard<std::mutex> lock(mtx);
+		entry->entries = ptr;
+		ptr = entry;		
 	}
 
 	inline VOID SLIST_DELETE_HEAD(TYPE*& entry)
@@ -133,6 +140,7 @@ private:
 			ptr = p_elm->entries;
 			delete p_elm;
 		}
+		ptr = NULL;
 	}
 };
 
@@ -176,7 +184,6 @@ public:
 			list.ptr = next;
 		}
 
-		delete& list.ptr;
 		return *this;
 	}
 
@@ -219,7 +226,6 @@ public:
 		list->tptr->next = ptr;
 		ptr->prev = list->tptr;
 		ptr = list->ptr;
-		delete& list->ptr;
 	}
 
 	inline VOID LIST_CONCAT_TAIL(LIST*& list)
@@ -227,7 +233,6 @@ public:
 		tptr->next = list->ptr;
 		list->ptr->prev = tptr;
 		tptr = list->tptr;
-		delete& list->ptr;
 	}
 
 	inline VOID LIST_INSERT_HEAD(TYPE*& entry)
@@ -363,7 +368,6 @@ public:
 			sque->ptr = NULL;
 			sque->tptr = &sque->ptr;
 		}
-		delete& sque->ptr;
 		return *this;
 	}
 

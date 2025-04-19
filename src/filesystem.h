@@ -19,8 +19,10 @@ namespace filesystem
 	BOOL EncryptRSA(WCHAR* KeyFile, WCHAR* Filename, WCHAR* newFileName);
 	BOOL FileCryptEncrypt(WCHAR* KeyFile, WCHAR* FileCrypt, WCHAR* newFilename);
 	BOOL FileCryptDecrypt(WCHAR* KeyFile,WCHAR* FileCrypt,WCHAR* newFilename);
-	BOOL VerifySignatureRSA(SLIST<locker::HLIST>* list, WCHAR* FPath, WCHAR* Filename);
-	BOOL VerifyContent(SLIST<locker::HLIST>* HashList);
+	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, WCHAR* FPath, WCHAR* Filename);
+	VOID sort_hashList(SLIST<locker::HLIST>* list);
+	BOOL CraeteSignatureFile(SLIST<locker::HLIST>* HashList);
+	BOOL VerifycationSignatureFile(SLIST<locker::HLIST>* HashList);
 }
 
 

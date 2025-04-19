@@ -2,12 +2,14 @@
 #include "macro.h"
 
 #define PVOID void*
+#define HASHING_SEED 24759
+
 #include <cstddef>
 #include <memory>
 
 namespace memory
 {
-	unsigned int MurmurHash2A(const void* key, int len);
+	unsigned int MurmurHash2A(const void* key, int len, int seed);
 	VOID* CopyMem(PVOID dst, PVOID src, size_t size);
 	int my_stoi(const char* str);
 	int my_stoi2(char* str);
@@ -23,4 +25,6 @@ namespace memory
 	BOOL StrStrC(const char* Str, const char* StrEq);
 	BOOL StrStrCW(const wchar_t* wstr, const wchar_t* wstreq);
 	size_t FindCharI(const char* Str, char ch);
+	unsigned char* BinaryToHex(unsigned char* src, size_t size);
+	unsigned char* HexToBinary(const char* hexStr, size_t hexSize);
 }

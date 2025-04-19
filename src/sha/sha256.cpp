@@ -190,6 +190,13 @@ STATIC VOID sha256_update(sha256_state* ctx, CONST u8* data, u32 len)
 		memcpy(ctx->buf + part, data, len);
 }
 
+INLINE VOID memzero_explicit(sha256_state* ctx)
+{
+	volatile char* ptr = (volatile char*)ctx;
+	for (size_t i = 0; i < sizeof(ctx); ++i)
+		ptr[i] = 0;
+}
+
 STATIC VOID sha256_final(sha256_state* ctx, u8* out, u32 digest_size)
 {
 	CONST int bit_offset = SHA256_BLOCK_SIZE - sizeof(u64);
@@ -230,6 +237,7 @@ STATIC VOID sha256_final(sha256_state* ctx, u8* out, u32 digest_size)
 		out[i + 24] = (ctx->state[6] >> (24 - i * 8)) & 0xff;
 		out[i + 28] = (ctx->state[7] >> (24 - i * 8)) & 0xff;
 	}
+	memzero_explicit(ctx);
 }
 
 VOID sha256(CONST u8* data, u32 len, u8* out)
