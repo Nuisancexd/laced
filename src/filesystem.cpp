@@ -1280,7 +1280,7 @@ STATIC VOID dump_hash(CONST BYTE* hash, size_t len)
 	printf("\n");
 }
 
-VOID filesystem::sort_hashList(SLIST<locker::HLIST>* list)
+VOID filesystem::sort_hashList(SLIST<HASH_LIST>* list)
 {
 	SLIST<locker::HLIST>* list_sorted = new SLIST<locker::HLIST>;
 	std::multimap<u32, BYTE*> map;
@@ -1303,7 +1303,7 @@ VOID filesystem::sort_hashList(SLIST<locker::HLIST>* list)
 
 BOOL filesystem::HashSignatureFile
 (
-	SLIST<locker::HLIST>* list,	
+	SLIST<HASH_LIST>* list,	
 	WCHAR* FPath,
 	WCHAR* Filename
 )
@@ -1348,16 +1348,26 @@ BOOL filesystem::HashSignatureFile
 	return TRUE;
 }
 
-BOOL filesystem::CraeteSignatureFile(SLIST<locker::HLIST>* HashList)
+
+BOOL filesystem::CreateSignatureFile
+(
+	SLIST<HASH_LIST>* HashList,
+	WCHAR* SignatureName,
+	BYTE* SignatureRoot,
+	DWORD sig_len
+)
 {
 	VER = TRUE;
-	locker::PHLIST DataHash = NULL;
+	PHASH_LIST DataHash = NULL;
 	HANDLE hFile = NULL;
 	BOOL success = FALSE;
 
-	WCHAR* locale_hash = (WCHAR*)memory::m_malloc((MAX_PATH + 21) * sizeof(WCHAR));
-	GetCurrentDirectoryW(MAX_PATH, locale_hash);
-	wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], 20, L"\\signature.laced.txt", 20);
+	WCHAR* locale_hash = (WCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * sizeof(WCHAR));
+	DWORD len = GetCurrentDirectoryW(MAX_PATH, locale_hash);
+	if(!SignatureName)
+		wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], 20, L"\\signature.laced.txt", 20);
+	else 
+		wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], memory::StrLen(SignatureName), SignatureName, memory::StrLen(SignatureName));
 
 	BYTE HASH_SHA[32];
 	sha256_state ctx;
@@ -1366,16 +1376,35 @@ BOOL filesystem::CraeteSignatureFile(SLIST<locker::HLIST>* HashList)
 		sha256_update_context(&ctx, (CONST u8*)DataHash->hash, DataHash->hash_size);		
 	sha256_final_context(&ctx, HASH_SHA);
 
-	DWORD sig_len;
-	BYTE signature[4096] = {0};
 	HCRYPTPROV CryptoProvider = 0;
 	HCRYPTKEY RsaKey = 0;
-	HCRYPTHASH hHash = 0;
+	HCRYPTHASH hHash = 0;	
+	BYTE* signature = NULL;
 
-	if (!ReadRSAFile(global::GetPathSignRSAKey(), signature, &RsaKey, &CryptoProvider))
+	if (SignatureRoot == NULL)
 	{
-		printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
-		goto END;
+		signature = (BYTE*)memory::m_malloc(4096);
+		if (!ReadRSAFile(global::GetPathSignRSAKey(), signature, &RsaKey, &CryptoProvider))
+		{
+			printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
+			goto END;
+		}
+		sig_len = 4096;
+	}
+	else
+	{		
+		signature = SignatureRoot;
+		if (!CryptAcquireContextA(&CryptoProvider, NULL, NULL, PROV_RSA_AES, 0))
+		{
+			printf_s("Failed create provider. GetLastError = %lu.\n", GetLastError());
+			return FALSE;
+		}
+		
+		if (!CryptImportKey(CryptoProvider, SignatureRoot, sig_len, 0, 0, &RsaKey))
+		{
+			printf("CryptImportKey failed. GetLastError() = %lu\n", GetLastError());
+			return FALSE;
+		}
 	}
 	
 	if (!CryptCreateHash(CryptoProvider, CALG_SHA_256, 0, 0, &hHash)) 
@@ -1388,13 +1417,13 @@ BOOL filesystem::CraeteSignatureFile(SLIST<locker::HLIST>* HashList)
 		printf_s("Failed CryptHashData. GetLastError = %lu\n", GetLastError());
 		goto END;
 	}	
-	sig_len = sizeof(signature);
-	if (!CryptSignHashA(hHash, AT_KEYEXCHANGE, NULL, 0, signature, &sig_len)) 
+	
+	if (!CryptSignHashA(hHash, AT_KEYEXCHANGE, NULL, 0, signature, &sig_len)) 	
 	{
 		printf_s("Failed CryptSignHash. GetLastError() =  %lu\n", GetLastError());
 		goto END;
 	}
-	CryptDestroyHash(hHash);
+	
 
 	hFile = CreateFileW(locale_hash, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 	if (hFile == INVALID_HANDLE_VALUE)
@@ -1406,26 +1435,41 @@ BOOL filesystem::CraeteSignatureFile(SLIST<locker::HLIST>* HashList)
 	if (!WriteFullData(hFile, signature, sig_len))
 	{
 		printf_s("Failed WriteFullData. GetLastError = %lu\n", GetLastError());
+		goto END;
 	}
-	CloseHandle(hFile);
-	printf("Crypted Hash Sum saved in: %ls\n", locale_hash);
+	
+	if(!SignatureName)
+		printf("Crypted Hash Sum saved in: %ls\n", locale_hash);
+	else
+		printf("Crypted hash of public key saved in: %ls\n", SignatureName);
+
 	success = TRUE;
 	
 END:
+	if(hFile) CloseHandle(hFile);
+	if(hHash) CryptDestroyHash(hHash);
 	if (RsaKey) CryptDestroyKey(RsaKey);
 	if (CryptoProvider) CryptReleaseContext(CryptoProvider, 0);
 	memory::m_free(locale_hash);
+	if (!SignatureRoot && signature)
+		memory::m_free(signature);
 
 	return success;
 }
 
-BOOL filesystem::VerifycationSignatureFile(SLIST<locker::HLIST>* HashList)
+BOOL filesystem::VerificationSignatureFile
+(
+	SLIST<HASH_LIST>* HashList,
+	WCHAR* SignatureName,
+	BYTE* SignatureRoot,
+	DWORD sig_len
+)
 {
 	VER = TRUE;
 	BOOL success = FALSE;
 	HANDLE hFile = NULL;
 	locker::FILE_INFO FileInfo;
-	locker::PHLIST DataHash = NULL;
+	PHASH_LIST DataHash = NULL;
 	DWORD dwread;
 	BYTE* Buffer = NULL;
 
@@ -1434,17 +1478,45 @@ BOOL filesystem::VerifycationSignatureFile(SLIST<locker::HLIST>* HashList)
 	HCRYPTHASH hHash = 0;
 
 	BYTE HASH_SHA[32] = { 0 };
-	BYTE key[4096] = { 0 };
+
+	BYTE* key = NULL;
+	if (!SignatureRoot)
+	{
+		key = (BYTE*)memory::m_malloc(4096);
+		if (!ReadRSAFile(global::GetPathSignRSAKey(), key, &RsaKey, &CryptoProvider))
+		{
+			printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
+			return FALSE;
+		}
+	}
+	else
+	{
+		key = SignatureRoot;
+		if (!CryptAcquireContextA(&CryptoProvider, NULL, NULL, PROV_RSA_AES, 0))
+		{
+			printf_s("Failed create provider. GetLastError = %lu.\n", GetLastError());
+			return FALSE;
+		}
+
+		if (!CryptImportKey(CryptoProvider, SignatureRoot, sig_len, 0, 0, &RsaKey))
+		{
+			printf("CryptImportKey failed. GetLastError() = %lu\n", GetLastError());
+			return FALSE;
+		}
+	}
 
 
-	WCHAR* locale = (WCHAR*)memory::m_malloc((MAX_PATH + 21) * sizeof(WCHAR));
+	WCHAR* locale = (WCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * sizeof(WCHAR));
 	GetCurrentDirectoryW(MAX_PATH, locale);
-	wmemcpy_s(&locale[memory::StrLen(locale)], 20, L"\\signature.laced.txt", 20);
+	if(!SignatureName)
+		wmemcpy_s(&locale[memory::StrLen(locale)], 20, L"\\signature.laced.txt", 20);
+	else
+		wmemcpy_s(&locale[memory::StrLen(locale)], memory::StrLen(SignatureName), SignatureName, memory::StrLen(SignatureName));
 
 	FileInfo.FilePath = locale;
 	if (!getParseFile(&FileInfo))
 	{
-		printf_s("Failed getParseFile. Verify hash file %ls; GetLastError = %lu\n", locale, GetLastError());
+		printf_s("Failed getParseFile file doesnt exist. Verify hash file %ls; GetLastError = %lu\n", locale, GetLastError());
 		goto END;
 	}
 
@@ -1454,7 +1526,6 @@ BOOL filesystem::VerifycationSignatureFile(SLIST<locker::HLIST>* HashList)
 		printf_s("Failed ReadFile %ls; GetLastError = %lu\n", locale, GetLastError());
 		goto END;
 	}
-	CloseHandle(FileInfo.FileHandle);
 
 	sha256_state ctx;
 	sha256_init_context(&ctx);
@@ -1462,12 +1533,6 @@ BOOL filesystem::VerifycationSignatureFile(SLIST<locker::HLIST>* HashList)
 		sha256_update_context(&ctx, (CONST u8*)DataHash->hash, DataHash->hash_size);
 	sha256_final_context(&ctx, HASH_SHA);
 
-	
-	if (!ReadRSAFile(global::GetPathSignRSAKey(), key, &RsaKey, &CryptoProvider))
-	{
-		printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
-		goto END;
-	}
 
 	if (!CryptCreateHash(CryptoProvider, CALG_SHA_256, 0, 0, &hHash)) 
 	{
@@ -1492,16 +1557,62 @@ BOOL filesystem::VerifycationSignatureFile(SLIST<locker::HLIST>* HashList)
 	success = TRUE;
 
 END:
+	if(FileInfo.FileHandle) CloseHandle(FileInfo.FileHandle);
 	if (hHash) CryptDestroyHash(hHash);
 	if (RsaKey) CryptDestroyKey(RsaKey);
 	if (CryptoProvider) CryptReleaseContext(CryptoProvider, 0);
 	memory::m_free(locale);
 	if (Buffer)
 		memory::m_free(Buffer);
-
+	if (!SignatureRoot && key)
+		memory::m_free(key);
 
 
 	return success;
+}
+
+INLINE VOID memzero_explicit(BYTE* buff, DWORD size)
+{
+	volatile BYTE* ptr = buff;
+	while (size--) *ptr++ = 0;
+}
+
+VOID filesystem::RootKeySignatureTrust(VOID)
+{
+	SLIST<HASH_LIST>* HashListRoot = new SLIST<HASH_LIST>;
+	BYTE* g_PublicKeyRoot = NULL;
+	BYTE* g_PrivateKeyRoot = NULL;
+	DWORD size = 0;
+	HashSignatureFile(HashListRoot, global::GetPath(), (WCHAR*)L"CHECK-RSA_public_key_laced.txt");	
+	
+	if (global::GetStatus())
+	{
+		locker::LoadPrivateRootKey(&g_PrivateKeyRoot, &size);
+		CreateSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PrivateKeyRoot, size);
+	}
+	else
+	{		
+		locker::LoadPublicRootKey(&g_PublicKeyRoot, &size);
+		VerificationSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PublicKeyRoot, size);
+	}
+
+	
+	if (g_PublicKeyRoot)
+	{
+		memzero_explicit(g_PublicKeyRoot, size);
+		memory::m_free(g_PublicKeyRoot);
+	}
+		
+	if (g_PrivateKeyRoot)
+	{
+		memzero_explicit(g_PrivateKeyRoot, size);
+		memory::m_free(g_PrivateKeyRoot);
+	}
+	
+	PHASH_LIST Data = NULL;
+	SLIST_FOREACH(Data, HashListRoot)
+		delete[] Data->hash;
+	delete HashListRoot;
 }
 
 

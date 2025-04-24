@@ -7,6 +7,7 @@ A encryption tool implementing both hybrid encryption (RSA + ChaCha), pure asymm
 * Pure RSA encryption: encrypts data directly using RSA.
 * Pure ChaCha encryption: encrypts data with secret key using ChaCha.
 * Generate RSA pair (public and private) keys.
+* Signature: This module is responsible for digitally signing file hash values as well as signing the public key to ensure its authenticity and integrity.
 
  
 ## Usage Options:
@@ -48,11 +49,11 @@ A encryption tool implementing both hybrid encryption (RSA + ChaCha), pure asymm
    -d / -delete     File flag delete on close. (default: false)
 
 EXAMPLE USAGE:
-Config:     laced.exe config -path C:\\Config.laced\tlaced.exe config
+Config:     laced.exe config -path C:\Config.laced	laced.exe config
 ASYMMETRIC: laced.exe -path C:/FolderFiles -name -mode full -cat dir -what asym -key "C:/FullPathToRSAkeys" crypt
 SYMMETRIC:  laced.exe -path C:/FolderFiles -name -mode full -cat dir -what sym -key "secret key"
 RSA ONLY:   laced.exe -path C:/File.txt -name -what rsa -key "C:/FullPathToRSAkeys" crypt
-Signature:  laced.exe -p C:/FolderFiles -w asym -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt
+Signature:  laced.exe -p C:/FolderFiles -w asym -k C:\key\public_RSA $ C:\key\private_RSA -s crypt
 
 RSA Generate Keys OPTIONS:
 
@@ -64,6 +65,14 @@ RSA Generate Keys OPTIONS:
 
 EXAMPLE USAGE:
 laced.exe RSAGenKey -path C:/GenTofolder -B64 -bit 4096
+
+Signature with Root RSA keys. Before signing the public key, you must first generate a key pair using the -print command
+and then insert the byte array into the locker::LoadRootKey function and compile it.
+   -s_g / -sign_root    Command options for signing with RootRSAKey.
+   -sign                Signature with Root private key. (default: -sign)
+   -verify              Verification with Root public key. (default: -sign)
+   -p / -path           Path to the public key file. Required field.
+EXAMPLE USAGE Signature:   laced.exe -sign_root -p C:/key/RSA_public_key_laced.txt -sign/-verify
 ```
 
 

