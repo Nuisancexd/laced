@@ -37,6 +37,12 @@ enum name
 	HASH_NAME = 18
 };
 
+enum overwrite
+{
+	ZEROS = 19,
+	RANDOM = 20,
+	DOD = 21
+};
 
 namespace global
 {
@@ -71,6 +77,10 @@ namespace global
 	VOID SetFlagDelete(BOOL flag);
 	BOOL GetFlagDelete();
 	VOID free_global();
+	VOID SetStatusOverWrite(BOOL Stat, int mode, int count);
+	BOOL GetStatusOverWrite();
+	int GetModeOverWrite();
+	int GetCountOverWrite();
 }
 
 

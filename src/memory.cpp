@@ -310,4 +310,8 @@ unsigned char* memory::HexToBinary(const char* hexStr, size_t hexSize)
 	return outBuf;
 }
 
-	
+VOID memory::memzero_explicit(volatile VOID* ptr, size_t size_of_ptr)
+{
+	volatile char* p = (volatile char*)ptr;
+	while (size_of_ptr--) *p = 0;
+}

@@ -20,6 +20,9 @@ STATIC unsigned long g_BitKey = 0x08000000;
 STATIC BOOL g_print_hex = FALSE;
 STATIC int g_CryptName = 0;
 STATIC BOOL g_FlagDelete = FALSE;
+STATIC BOOL g_OverWrite = FALSE;
+STATIC int g_OverWriteMode = ZEROS;
+STATIC int g_OverWriteCount = 1;
 
 VOID global::SetEncrypt(int Encrypt)
 {
@@ -171,34 +174,60 @@ BOOL global::GetFlagDelete()
 	return g_FlagDelete;
 }
 
+VOID global::SetStatusOverWrite(BOOL Stat, int mode, int count)
+{
+
+	g_OverWrite = Stat;
+	g_OverWriteMode = mode;
+	g_OverWriteCount = count;
+}
+
+BOOL global::GetStatusOverWrite()
+{
+	return g_OverWrite;
+}
+
+int global::GetModeOverWrite()
+{
+	return g_OverWriteMode;
+}
+
+int global::GetCountOverWrite()
+{
+	return g_OverWriteCount;
+}
+
 VOID global::free_global()
 {
 	if (g_Key)
 	{
-		memset(g_Key, 0, 32);
+		memory::memzero_explicit(g_Key, 32);
 		memory::m_free(g_Key);
 		g_Key = NULL;
 	}
 	if (g_IV)
 	{
-		memset(g_IV, 0, 8);
+		memory::memzero_explicit(g_IV, 8);
 		memory::m_free(g_IV);
 		g_IV = NULL;
 	}
 	if (g_PathRSAKey)
 	{
+		memory::memzero_explicit(g_PathRSAKey, memory::StrLen(g_PathRSAKey));
 		memory::m_free(g_PathRSAKey);
 		g_PathRSAKey = NULL;
 	}
 
 	if (g_Path)
 	{
+		memory::memzero_explicit(g_Path, memory::StrLen(g_Path));
 		memory::m_free(g_Path);
 		g_Path = NULL;
 	}
 
 	if (g_PathSignRSAKey)
 	{
+		memory::memzero_explicit(g_PathSignRSAKey, memory::StrLen(g_PathSignRSAKey));
 		memory::m_free(g_PathSignRSAKey);
 		g_PathSignRSAKey = NULL;
 	}

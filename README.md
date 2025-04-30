@@ -47,6 +47,11 @@ A encryption tool implementing both hybrid encryption (RSA + ChaCha), pure asymm
    -e / -enable     Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)
    -B64 / -Base64   If RSA key is in Base64 format. (default: false)
    -d / -delete     File flag delete on close. (default: false)
+   -ow / -overwrite Overwriting the original file. (default: false; zeros, count: 1)
+                    zeros    -- ZEROS: overwrite the file with zeros.          
+		    random   -- RANDOM: overwrite the file with random crypt symbols.
+		    DOD      -- DOD: overwrite the file with zeros and random crypt symbols.
+		    -count       Number of times to overwrite the file.
 
 EXAMPLE USAGE:
 Config:     laced.exe config -path C:\Config.laced	laced.exe config

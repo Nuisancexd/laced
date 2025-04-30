@@ -220,7 +220,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
 
     if (EncryptMode)
     {
-        if (memory::StrStrCW(EncryptCat, L"a") || memory::StrStrCW(EncryptCat, L"auto"))
+        if (memory::StrStrCW(EncryptMode, L"a") || memory::StrStrCW(EncryptMode, L"auto"))
         {
             global::SetEncMode(AUTO_ENCRYPT);
         }
@@ -334,45 +334,82 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
                 WCHAR* keypath = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
                 wmemcpy_s(keypath, len, EcnryptChoice, len);
                 global::SetPathRSAKey(keypath);
-            }                      
+            }
         }
         else if (memory::StrStrCW(EcnryptChoice, L"sym"))
         {
             global::SetEncrypt(SYMMETRIC);
 
-            CHAR* key = GetCommandLineArgCh(argc, argv, "-k");
-            if (!key) key = GetCommandLineArgCh(argc, argv, "-key");
+            CHAR* key = GetCommandLineArgChCurr(argc, argv, "-r");
+            if(!key) key = GetCommandLineArgChCurr(argc, argv, "-root");
             if (key)
             {
-                size_t size_key = memory::StrLen(key) + 1;
-                BYTE* key = (BYTE*)memory::m_malloc(33);
-                memcpy_s(key, 32, key, min(size_key, size_t(32)));
-                global::SetKey(key);
-                RtlSecureZeroMemory(key, size_key);
+                BYTE* key = NULL;
+                BYTE* iv = NULL;
+                locker::LoadRootSymmetricKey(&key, &iv);
+                if (key && iv)
+                {
+                    global::SetKey(key);
+                    global::SetIV(iv);                    
+                }
+                else exit(0);
             }
             else
             {
-                printf_s("Type -key \"...\" for are symmetrical encrypts.Size key must be beetwen 1 nad 32\n");
-                CommandLineHelper();
-            }
-            CHAR* IV = GetCommandLineArgCh(argc, argv, "-iv");
-            if (IV)
-            {
-                BYTE* ivbuff = (BYTE*)memory::m_malloc(9);
-                memcpy_s(ivbuff, 9, IV, 8);
-                global::SetIV(ivbuff);
-            }
-            else
-            {
-                unsigned chachaIV = memory::MurmurHash2A(global::GetKey(), 32, HASHING_SEED);
-                std::string s = std::to_string(chachaIV);
-                BYTE* iv = (BYTE*)memory::m_malloc(9);
-                memcpy_s(iv, 9, s.c_str(), min(s.size(), size_t(8)));
-                global::SetIV(iv);
-            }
+                key = GetCommandLineArgCh(argc, argv, "-k");
+                if (!key) key = GetCommandLineArgCh(argc, argv, "-key");
+                if (key)
+                {
+                    size_t size_key = memory::StrLen(key) + 1;
+                    BYTE* key = (BYTE*)memory::m_malloc(33);
+                    memcpy_s(key, 32, key, min(size_key, size_t(32)));
+                    global::SetKey(key);
+                    RtlSecureZeroMemory(key, size_key);
+                }
+                else
+                {
+                    printf_s("Type -key \"...\" for are symmetrical encrypts.Size key must be beetwen 1 nad 32\n");
+                    CommandLineHelper();
+                }
+                CHAR* IV = GetCommandLineArgCh(argc, argv, "-iv");
+                if (IV)
+                {
+                    BYTE* ivbuff = (BYTE*)memory::m_malloc(9);
+                    memcpy_s(ivbuff, 9, IV, 8);
+                    global::SetIV(ivbuff);
+                }
+                else
+                {
+                    unsigned chachaIV = memory::MurmurHash2A(global::GetKey(), 32, HASHING_SEED);
+                    std::string s = std::to_string(chachaIV);
+                    BYTE* iv = (BYTE*)memory::m_malloc(9);
+                    memcpy_s(iv, 9, s.c_str(), min(s.size(), size_t(8)));
+                    global::SetIV(iv);
+                }
+            }        
         }
     }
 
+    WCHAR* OverWrite = GetCommandLineArg(argc, wargv, L"-ow");
+    if (!OverWrite) OverWrite = GetCommandLineArg(argc, wargv, L"-overwrite");
+    if (OverWrite)
+    {
+        int mode = 0; 
+        int count = 1;
+        if (memory::StrStrCW(OverWrite, L"random"))
+        {
+            mode = RANDOM;
+        }
+        else if (memory::StrStrCW(OverWrite, L"DOD"))
+        {
+            mode = DOD;
+        }
+
+        CHAR* Count = GetCommandLineArgCh(argc, argv, "-count");
+        if(Count) count = memory::my_stoi2(Count);        
+        if (count == 0) {printf("Make sure -ow -count num; num doesnt have symbols\n"); exit(1);}        
+        global::SetStatusOverWrite(TRUE, mode, count);
+    }
 
     WCHAR* EnableThreads = GetCommandLineArgCurr(argc, wargv, L"-e");
     if (!EnableThreads) EnableThreads = GetCommandLineArgCurr(argc, wargv, L"-enable");
@@ -380,7 +417,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     WCHAR* FileFlagDelete = GetCommandLineArgCurr(argc, wargv, L"-d");
     if (!FileFlagDelete) FileFlagDelete = GetCommandLineArgCurr(argc, wargv, L"-delete");
     if (FileFlagDelete) global::SetFlagDelete(TRUE);
-    
+
     if(cmd)
         RtlSecureZeroMemory(cmd, sizeof(cmd));    
 }
@@ -585,6 +622,7 @@ int main(int argc, char** argv)
     LIST<pathsystem::DRIVE_INFO>* DriveInfo = new LIST<pathsystem::DRIVE_INFO>;
     pathsystem::PDRIVE_INFO data = NULL;
     size_t f = pathsystem::StartLocalSearch(DriveInfo, global::GetPath());
+    if (f == 0) { printf("No files. null\n");goto exit; }
     LIST_FOREACH(data, DriveInfo)
     {
         printf_s("Filename: %ls\n", data->Filename);
@@ -619,13 +657,14 @@ int main(int argc, char** argv)
     
     if (Signature)
     {
-        filesystem::sort_hashList(HashList);
+        filesystem::sort_hash_list(HashList);
         if(global::GetDeCrypt() == CRYPT)
             filesystem::CreateSignatureFile(HashList, NULL, NULL, 0);
         else if(global::GetDeCrypt() == DECRYPT)
             filesystem::VerificationSignatureFile(HashList, NULL, NULL, 0);
     }
 
+exit:
     pathsystem::FreeList(DriveInfo);
     global::free_global();
     UnLoadCrypt32();
@@ -694,7 +733,8 @@ VOID CommandLineHelper()
     printf("[*]  -s / -sign       Signature and Verification (default: false). When using the signature\n");
     printf("                      first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
     printf("[*]  -p / -path       Path to the file to encrypt. Optional field. If null, encrypts in local path.\n");
-    printf("[*]  -n / -name       Encrypt FILENAME with Base64. (default: false)\n");
+    printf("[*]  -n_b / -name_base Encrypt FILENAME with Base64. (default: false)\n");
+    printf("[*]  -n_h / -name_hash Irrevocably Hash FILENAME with sha256. (default: false)\n");
     printf("[*]  -m / -mode       Select the encryption mode. (default: FULL_ENCRYPT)\n");
     printf("                      a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n");
     printf("                      f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n");
@@ -716,15 +756,23 @@ VOID CommandLineHelper()
     printf("                      For ASYMMETRIC: the full path to private/public RSA key.\n");
     printf("                      For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n");
     printf("[*]  -iv              For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n");
+    printf("[*]  -r / root        For SYMMETRIC   Command option for load Root key and iv\n");
     printf("[*]  -e / -enable     Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n");
     printf("[*]  -B64 / -Base64   If RSA key in Base64 format. (default: false)\n");
-    printf("[*]  -d / -delete     File flag delete on close. (default: false)\n");    
+    printf("[*]  -d / -delete     File flag delete on close if success. (default: false)\n");
+    printf("[*]  -ow / -overwrite Overwriting the original file. (default: false; -zeros, count: 1)\n");
+    printf("                      zeros    -- ZEROS: overwrite the file with zeros.\n");
+    printf("                      random   -- RANDOM: overwrite the file with random crypt symbols.\n");
+    printf("                      DOD      -- DOD: overwrite the file with zeros and random crypt symbols.\n");
+    printf("                      -count       Number of times to overwrite the file.\n\n");
+    
 
-    printf("EXAMPLE USAGE     Config:  laced.exe config -path C:\\Config.laced\tlaced.exe config\n");
-    printf("EXAMPLE USAGE ASYMMETRIC:  laced.exe -path C:/FolderFiles -name -mode full -cat dir -what asym -key \"C:/FullPathToRSAkeys\" crypt\n");
-    printf("EXAMPLE USAGE  SYMMETRIC:  laced.exe -path C:/FolderFiles -name -mode full -cat dir -what sym -key \"secret key\"\n");
-    printf("EXAMPLE USAGE   RSA_ONLY:  laced.exe -path C:/File.txt -name -what rsa -key \"C:/FullPathToRSAkeys\" crypt\n");
-    printf("EXAMPLE USAGE  Signature:  laced.exe -p C:/FolderFiles -w asym -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n\n\n");
+    printf("EXAMPLE USAGE     Config:  laced config -path C:\\Config.laced\tlaced.exe config\n");
+    printf("EXAMPLE USAGE ASYMMETRIC:  laced -path C:/FolderFiles -name_base -mode full -cat dir -what asym -key \"C:/FullPathToRSAkeys\" crypt\n");
+    printf("EXAMPLE USAGE  SYMMETRIC:  laced -path C:/FolderFiles -name_base -mode full -cat dir -what sym -key \"secret key\"\n");
+    printf("EXAMPLE USAGE   RSA_ONLY:  laced -path C:/File.txt -name_base -what rsa -key \"C:/FullPathToRSAkeys\" crypt\n");
+    printf("EXAMPLE USAGE  Signature:  laced -p C:/FolderFiles -w asym -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n");
+    printf("EXAMPLE USAGE  Overwrite:  laced -p C:/FolderFiles -w sym -k \"...\" -ow random -count 2 -delete\n\n\n");
 
     printf("RSA Generate Keys OPTIONS:\n");
     printf("[*]  Gen / RSAGenKey     Command generate RSA keys. This is a required field.\n");

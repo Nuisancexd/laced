@@ -46,7 +46,7 @@ private:
     std::condition_variable condition;
     std::condition_variable cv_wait;
 
-    size_t threads_done = 0;
+    std::atomic<size_t> threads_done = 0;
     size_t active;
 };
 
@@ -114,7 +114,7 @@ ThreadPool::~ThreadPool()
     PTHREADS mark = NULL;
     LIST_FOREACH(mark, work)
     {
-        mark->thread.join();
+        mark->thread.join();     
     }
 
     delete qtask;

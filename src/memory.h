@@ -27,4 +27,5 @@ namespace memory
 	size_t FindCharI(const char* Str, char ch);
 	unsigned char* BinaryToHex(unsigned char* src, size_t size);
 	unsigned char* HexToBinary(const char* hexStr, size_t hexSize);
+	VOID memzero_explicit(volatile VOID* ptr, size_t size_of_ptr);
 }

