@@ -4,12 +4,14 @@
 #include "macro.h"
 #include "pathsystem.h"
 #include "chacha20/ecrypt-sync.h"
+#include "aes/aes256.h"
 
 namespace locker
 {
 	typedef struct file_info
 	{
 		laced_ctx CryptCtx;
+		crypto_aes_ctx CryptCtxAES;
 		LPCWSTR Filename;
 		WCHAR* newFilename;
 		LPCWSTR FilePath;

@@ -312,6 +312,15 @@ unsigned char* memory::HexToBinary(const char* hexStr, size_t hexSize)
 
 VOID memory::memzero_explicit(volatile VOID* ptr, size_t size_of_ptr)
 {
+	if (!ptr || size_of_ptr == 0) return;
 	volatile char* p = (volatile char*)ptr;
-	while (size_of_ptr--) *p = 0;
+
+#if defined(__GNUC__)
+	asm volatile ("" : : "r"(p) : "memory");
+#endif
+	while (size_of_ptr--) *p++ = 0;
+
+#ifdef _MSC_VER
+	_ReadWriteBarrier();
+#endif
 }

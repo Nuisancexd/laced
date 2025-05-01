@@ -10,8 +10,6 @@
 
 
 // hash public key -> signature this hash with root private kay. verify signature with root public key
-
-// TODO: CRYPT KEYS
 VOID locker::LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size)
 {
 	BYTE pub[] = "__public_key__"; // "\x06\x02\x00" Root RSA Public key / Type -print while gen keys
