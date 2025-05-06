@@ -1,21 +1,21 @@
 # Laced - Hybrid, Symmetric, and Asymmetric Encryption Tool.
 
 A versatile encryption tool implementing:
-*Hybrid encryption (RSA + ChaCha20 / RSA + AES)
-*Pure asymmetric encryption (RSA)
-*Pure symmetric encryption (ChaCha20 or AES)
-*supports digital signatures and RSA key generation.
+* Hybrid encryption (RSA + ChaCha20 / RSA + AES)
+* Pure asymmetric encryption (RSA)
+* Pure symmetric encryption (ChaCha20 or AES)
+* supports digital signatures and RSA key generation.
 
 ## Options:
-*Hybrid encryption
+* Hybrid encryption
 Encrypts a random symmetric key (ChaCha20 or AES) using RSA and then encrypts the file with that symmetric key.
-*Pure RSA encryption
+* Pure RSA encryption
 Encrypts the data directly using RSA.
-*Pure symmetric encryption
+* Pure symmetric encryption
 Encrypts data using a secret key with ChaCha20 or AES.
-*RSA key generation
-*Generates RSA public/private key pairs (supports Base64 export).
-*Digital signatures
+* RSA key generation
+* Generates RSA public/private key pairs (supports Base64 export).
+* Digital signatures
 Signs files or RSA public keys to verify their authenticity and integrity (supports Root key signing).
  
 ## Usage Options:
