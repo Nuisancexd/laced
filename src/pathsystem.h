@@ -27,6 +27,8 @@ namespace pathsystem
     VOID FreeList(LIST<DRIVE_INFO>* DriveInfo);
 }
 
+typedef pathsystem::DRIVE_INFO  DRIVE_INFO;
+typedef pathsystem::PDRIVE_INFO PDRIVE_INFO;
 
 
 #endif

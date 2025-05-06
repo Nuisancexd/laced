@@ -4,13 +4,13 @@
 #include "memory.h"
 
 /*		default		*/
-STATIC int g_Encrypt = 0;
-STATIC int g_DeCrypt = 0;
+STATIC EncryptCipher g_Encrypt = EncryptCipher::NONE;
+STATIC EncryptCipher g_DeCrypt = EncryptCipher::NONE;
 STATIC WCHAR* g_Path = NULL;
 STATIC WCHAR* g_PathRSAKey = NULL;
 STATIC WCHAR* g_PathSignRSAKey = NULL;
-STATIC int g_EncryptMode = FULL_ENCRYPT;
-STATIC int g_EncryptCat = DIR_CAT;
+STATIC EncryptModes g_EncryptMode = EncryptModes::FULL_ENCRYPT;
+STATIC EncryptCatalog g_EncryptCat = EncryptCatalog::DIR_CAT;
 STATIC BOOL g_Status = TRUE;
 STATIC int g_Percent = 20;
 STATIC unsigned char* g_Key = NULL;
@@ -18,28 +18,39 @@ STATIC unsigned char* g_IV = NULL;
 STATIC BOOL g_DropMode = FALSE;
 STATIC unsigned long g_BitKey = 0x08000000;
 STATIC BOOL g_print_hex = FALSE;
-STATIC int g_CryptName = 0;
+STATIC Name g_CryptName = Name::NONE;
 STATIC BOOL g_FlagDelete = FALSE;
 STATIC BOOL g_OverWrite = FALSE;
 STATIC int g_OverWriteMode = ZEROS;
 STATIC int g_OverWriteCount = 1;
+STATIC CryptoPolicy g_EncryptMethod = CHACHA;
 
-VOID global::SetEncrypt(int Encrypt)
+VOID global::SetEncryptMethod(CryptoPolicy method)
+{
+	g_EncryptMethod = method;
+}
+
+CryptoPolicy global::GetEncryptMethod()
+{
+	return g_EncryptMethod;
+}
+
+VOID global::SetEncrypt(EncryptCipher Encrypt)
 {
 	g_Encrypt = Encrypt;
 }
 
-int global::GetEncrypt()
+EncryptCipher global::GetEncrypt()
 {
 	return g_Encrypt;
 }
 
-VOID global::SetDeCrypt(int DeCrypt)
+VOID global::SetDeCrypt(EncryptCipher DeCrypt)
 {
 	g_DeCrypt = DeCrypt;
 }
 
-int global::GetDeCrypt()
+EncryptCipher global::GetDeCrypt()
 {
 	return g_DeCrypt;
 }
@@ -74,22 +85,22 @@ WCHAR* global::GetPathSignRSAKey()
 	return g_PathSignRSAKey;
 }
 
-VOID global::SetEncMode(int EncryptMode)
+VOID global::SetEncMode(EncryptModes EncryptMode)
 {
 	g_EncryptMode = EncryptMode;
 }
 
-int global::GetEncMode()
+EncryptModes global::GetEncMode()
 {
 	return g_EncryptMode;
 }
 
-VOID global::SetEncCat(int EncCat)
+VOID global::SetEncCat(EncryptCatalog EncCat)
 {
 	g_EncryptCat = EncCat;
 }
 
-int global::GetnEncCat()
+EncryptCatalog global::GetnEncCat()
 {
 	return g_EncryptCat;
 }
@@ -154,12 +165,12 @@ BOOL global::GetPrintHex()
 	return g_print_hex;
 }
 
-VOID global::SetCryptName(int name)
+VOID global::SetCryptName(Name name)
 {
 	g_CryptName = name;
 }
 
-int global::GetCryptName()
+Name global::GetCryptName()
 {
 	return g_CryptName;
 }

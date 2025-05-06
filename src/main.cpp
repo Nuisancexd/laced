@@ -174,12 +174,12 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
 
     WCHAR* CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-n_hash");    
     if (!CryptFileName) CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-name_hash");
-    if(CryptFileName) global::SetCryptName(HASH_NAME);    
+    if(CryptFileName) global::SetCryptName(Name::HASH_NAME);
     else
     {
         CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-n_base");
         if (!CryptFileName) CryptFileName = GetCommandLineArgCurr(argc, wargv, L"-name_base");
-        if (CryptFileName) global::SetCryptName(BASE64_NAME);
+        if (CryptFileName) global::SetCryptName(Name::BASE64_NAME);
     }
     
 
@@ -222,23 +222,23 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     {
         if (memory::StrStrCW(EncryptMode, L"a") || memory::StrStrCW(EncryptMode, L"auto"))
         {
-            global::SetEncMode(AUTO_ENCRYPT);
+            global::SetEncMode(EncryptModes::AUTO_ENCRYPT);
         }
         else if (memory::StrStrCW(EncryptMode, L"f") || memory::StrStrCW(EncryptMode, L"full"))
         {
-            global::SetEncMode(FULL_ENCRYPT);
+            global::SetEncMode(EncryptModes::FULL_ENCRYPT);
         }
         else if (memory::StrStrCW(EncryptMode, L"p") || memory::StrStrCW(EncryptMode, L"part"))
         {
-            global::SetEncMode(PARTLY_ENCRYPT);
+            global::SetEncMode(EncryptModes::PARTLY_ENCRYPT);
         }
         else if (memory::StrStrCW(EncryptMode, L"h") || memory::StrStrCW(EncryptMode, L"head"))
         {
-            global::SetEncMode(HEADER_ENCRYPT);
+            global::SetEncMode(EncryptModes::HEADER_ENCRYPT);
         }
         else if (memory::StrStrCW(EncryptMode, L"b") || memory::StrStrCW(EncryptMode, L"block"))
         {
-            global::SetEncMode(BLOCK_ENCRYPT);
+            global::SetEncMode(EncryptModes::BLOCK_ENCRYPT);
         }
         else if (memory::StrStrCW(EncryptMode, L"r") || memory::StrStrCW(EncryptMode, L"read"))
         {
@@ -249,18 +249,18 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     {
         if (memory::StrStrCW(EncryptCat, L"dir"))
         {
-            global::SetEncCat(DIR_CAT);
+            global::SetEncCat(EncryptCatalog::DIR_CAT);
         }
         else if (memory::StrStrCW(EncryptCat, L"indir"))
         {
-            global::SetEncCat(INDIR_CAT);
+            global::SetEncCat(EncryptCatalog::INDIR_CAT);
         }
         else if (memory::StrStrCW(EncryptCat, L"file"))
         {
-            global::SetEncCat(FILE_CAT);
+            global::SetEncCat(EncryptCatalog::FILE_CAT);
         }
     }
-
+    
 
     WCHAR* EcnryptChoice = GetCommandLineArg(argc, wargv, L"-w");
     if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-what");
@@ -269,18 +269,30 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
         if (memory::StrStrCW(EcnryptChoice, L"asym") || memory::StrStrCW(EcnryptChoice, L"rsa"))
         {
             if(memory::StrStrCW(EcnryptChoice, L"asym"))
-                global::SetEncrypt(ASYMMETRIC);
+                global::SetEncrypt(EncryptCipher::ASYMMETRIC);
             else
-                global::SetEncrypt(RSA_ONLY);
+            {
+                global::SetEncrypt(EncryptCipher::RSA_ONLY);
+                global::SetEncryptMethod(RSA);
+            }
 
+            WCHAR* method = GetCommandLineArg(argc, wargv, L"-algo");
+            if (method)
+            {
+                if (memory::StrStrCW(method, L"aes"))
+                    global::SetEncryptMethod(AES256);
+                else
+                    global::SetEncryptMethod(CHACHA);
+            }            
+            
             EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"crypt");
             if (EcnryptChoice)
-                global::SetDeCrypt(CRYPT);
+                global::SetDeCrypt(EncryptCipher::CRYPT);
             else if (!EcnryptChoice)
             {
                 EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"decrypt");
                 if (EcnryptChoice)
-                    global::SetDeCrypt(DECRYPT);
+                    global::SetDeCrypt(EncryptCipher::DECRYPT);
                 else
                 {
                     printf_s("Type: crypt or decrypt. This is a required field. (default: null)\n");
@@ -301,7 +313,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
             if (signature)
             {
                 Signature = TRUE;
-                WCHAR* smb = GetCommandLineArg(argc, wargv, L"$");                
+                WCHAR* smb = GetCommandLineArg(argc, wargv, L"$");
                 if (!smb)
                 {
                     printf("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
@@ -317,7 +329,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
                 wmemcpy_s(private_key, len, smb, len);
                 printf_s("public key:\t%ls\n", public_key);
                 printf_s("private key:\t%ls\n", private_key);
-                if (global::GetDeCrypt() == CRYPT)
+                if (global::GetDeCrypt() == EncryptCipher::CRYPT)
                 {
                     global::SetPathRSAKey(public_key);                    
                     global::SetPathSignRSAKey(private_key);
@@ -338,7 +350,30 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
         }
         else if (memory::StrStrCW(EcnryptChoice, L"sym"))
         {
-            global::SetEncrypt(SYMMETRIC);
+            global::SetEncrypt(EncryptCipher::SYMMETRIC);
+
+            WCHAR* method = GetCommandLineArg(argc, wargv, L"-algo");
+            if (method)
+            {
+                if(memory::StrStrCW(method, L"aes"))
+                    global::SetEncryptMethod(AES256);
+                else 
+                    global::SetEncryptMethod(CHACHA);
+                EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"crypt");
+                if (EcnryptChoice)
+                    global::SetDeCrypt(EncryptCipher::CRYPT);
+                else if (!EcnryptChoice)
+                {
+                    EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"decrypt");
+                    if (EcnryptChoice)
+                        global::SetDeCrypt(EncryptCipher::DECRYPT);
+                    else
+                    {
+                        printf_s("Type: crypt or decrypt. This is a required field. (default: null)\n");
+                        exit(1);
+                    }
+                }
+            }            
 
             CHAR* key = GetCommandLineArgChCurr(argc, argv, "-r");
             if(!key) key = GetCommandLineArgChCurr(argc, argv, "-root");
@@ -385,7 +420,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
                     BYTE* iv = (BYTE*)memory::m_malloc(9);
                     memcpy_s(iv, 9, s.c_str(), min(s.size(), size_t(8)));
                     global::SetIV(iv);
-                }
+                }                
             }        
         }
     }
@@ -394,7 +429,7 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     if (!OverWrite) OverWrite = GetCommandLineArg(argc, wargv, L"-overwrite");
     if (OverWrite)
     {
-        int mode = 0; 
+        int mode = 0;
         int count = 1;
         if (memory::StrStrCW(OverWrite, L"random"))
         {
@@ -567,10 +602,11 @@ STATIC BOOL ParseFileConfig(int argc, char** argv, std::vector<CHAR*>* strings, 
 
 STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* stringsW);
 STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList);
+STATIC VOID LeadTime(LONGLONG end, LONGLONG start, LONGLONG freq);
 int main(int argc, char** argv)
-{
-    CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");
-    if (pars)    
+{  
+    CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");    
+    if (pars)
     {
         std::vector<CHAR*>* strings = new std::vector<CHAR*>;
         std::vector<WCHAR*>* stringsW = new std::vector<WCHAR*>;
@@ -592,22 +628,32 @@ int main(int argc, char** argv)
     else
         ParsingCommandLine(argc, argv, NULL);
 
+    LARGE_INTEGER start, end, freq;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&start);
+
     SLIST<HASH_LIST>* HashList = NULL;
     if (Signature)
         HashList = new SLIST<HASH_LIST>;
-
     
-    if (global::GetCryptName() || global::GetRsaBase64())
+    CRYPTO_SYSTEM system;
+    CRYPT_INFO* CryptInfo = locker::GeneratePolicy(&system);
+    if (!CryptInfo)
+    {
+        printf("Not found algorithm.\n");
+        return EXIT_SUCCESS;
+    }
+    
+    if (static_cast<int>(global::GetCryptName()) || global::GetRsaBase64())
     {
         if (!LoadCrypt32())
         {
             printf("Failed to load Crypt32.dll; GetLastError = %lu\n", GetLastError());
-            if (global::GetRsaBase64() && global::GetEncrypt() != SYMMETRIC)
+            if (global::GetRsaBase64() && global::GetEncrypt() != EncryptCipher::SYMMETRIC)
                 return EXIT_FAILURE;
-            global::SetCryptName(FALSE);
+            global::SetCryptName(Name::NONE);
         }
     }
-
 
     if (Gen)
     {
@@ -620,7 +666,7 @@ int main(int argc, char** argv)
     }
 
     LIST<pathsystem::DRIVE_INFO>* DriveInfo = new LIST<pathsystem::DRIVE_INFO>;
-    pathsystem::PDRIVE_INFO data = NULL;
+    PDRIVE_INFO data = NULL;
     size_t f = pathsystem::StartLocalSearch(DriveInfo, global::GetPath());
     if (f == 0) { printf("No files. null\n");goto exit; }
     LIST_FOREACH(data, DriveInfo)
@@ -632,7 +678,7 @@ int main(int argc, char** argv)
     {
         LIST_FOREACH(data, DriveInfo)
         {
-            locker::HandlerCrypt(data->Filename, data->FullPath, data->Path, data->Exst, HashList);
+            locker::HandlerCrypt(CryptInfo, data, HashList);
         }
     }
     else
@@ -648,7 +694,7 @@ int main(int argc, char** argv)
         {
             pool.put_task([=]()
                 {
-                    locker::HandlerCrypt(data->Filename, data->FullPath, data->Path, data->Exst, HashList);
+                    locker::HandlerCrypt(CryptInfo, data, HashList);
                 });
         }
         pool.run_main_thread();
@@ -658,9 +704,9 @@ int main(int argc, char** argv)
     if (Signature)
     {
         filesystem::sort_hash_list(HashList);
-        if(global::GetDeCrypt() == CRYPT)
+        if(global::GetDeCrypt() == EncryptCipher::CRYPT)
             filesystem::CreateSignatureFile(HashList, NULL, NULL, 0);
-        else if(global::GetDeCrypt() == DECRYPT)
+        else if(global::GetDeCrypt() == EncryptCipher::DECRYPT)
             filesystem::VerificationSignatureFile(HashList, NULL, NULL, 0);
     }
 
@@ -671,7 +717,11 @@ exit:
     if (HashList)
         free_HashList(HashList);
     
-    printf_s("SUCCESS\n");    
+    printf_s("SUCCESS\n");
+    QueryPerformanceCounter(&end);
+    LeadTime(end.QuadPart, start.QuadPart, freq.QuadPart);
+
+    
     _CrtDumpMemoryLeaks(); 
     
     return EXIT_SUCCESS;
@@ -695,6 +745,21 @@ STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList)
         delete[] dataHash->hash;     
 
     delete HashList;
+}
+
+STATIC VOID LeadTime(LONGLONG end, LONGLONG start, LONGLONG freq)
+{
+    double elapsed_sec = static_cast<double>(end - start) / freq;
+    auto total_seconds = static_cast<long long>(elapsed_sec);
+
+    if (total_seconds >= 60)
+    {
+        auto minutes = total_seconds / 60;
+        auto seconds = total_seconds % 60;
+        printf_s("LeadTime: %lld min %lld seconds\n", minutes, seconds);        
+    }
+    else
+        printf_s("LeadTime: %lld seconds\n", total_seconds);
 }
 
 VOID CommandLineHelper()

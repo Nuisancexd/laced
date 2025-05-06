@@ -1,9 +1,10 @@
 #ifndef _GLOBAL_PARAMETERS_H_
 #define _GLOBAL_PARAMETERS_H_
 
+#include "locker.h"
 #include "macro.h"
 
-enum EncryptModes
+enum class EncryptModes
 {
 
 	FULL_ENCRYPT = 10,
@@ -13,7 +14,7 @@ enum EncryptModes
 	AUTO_ENCRYPT = 14
 };
 
-enum EncryptCatalog
+enum class EncryptCatalog
 {
 	FILE_CAT = 13,
 	DIR_CAT = 14,
@@ -21,18 +22,21 @@ enum EncryptCatalog
 	AUTO_CAT = 16
 };
 
-enum
+enum class EncryptCipher
 {
 	ASYMMETRIC = 5,
 	SYMMETRIC = 6,
 	RSA_ONLY = 7,
 
 	CRYPT = 8,
-	DECRYPT = 9
+	DECRYPT = 9,
+
+	NONE = 0
 };
 
-enum name
+enum class Name
 {
+	NONE = 0,
 	BASE64_NAME = 17,
 	HASH_NAME = 18
 };
@@ -46,21 +50,23 @@ enum overwrite
 
 namespace global
 {
-	int GetEncrypt();
-	VOID SetEncrypt(int Encrypt);
-	int GetDeCrypt();
-	VOID SetDeCrypt(int DeCrypt);
+	VOID SetEncryptMethod(CryptoPolicy method);
+	CryptoPolicy GetEncryptMethod();
+	EncryptCipher GetEncrypt();
+	VOID SetEncrypt(EncryptCipher Encrypt);
+	EncryptCipher GetDeCrypt();
+	VOID SetDeCrypt(EncryptCipher DeCrypt);
 	WCHAR* GetPath();
 	VOID SetPath(WCHAR* set_path);
 	WCHAR* GetPathRSAKey();
 	VOID SetPathSignRSAKey(WCHAR* path_sing);
 	WCHAR* GetPathSignRSAKey();
 	VOID SetPathRSAKey(WCHAR* set_path);
-	int GetEncMode();
-	VOID SetEncMode(int g_EncryptCat_);
+	EncryptModes GetEncMode();
+	VOID SetEncMode(EncryptModes g_EncryptModes);
 	VOID SetStatus(BOOL g_Status_);
-	int GetnEncCat();
-	VOID SetEncCat(int EncCat);
+	VOID SetEncCat(EncryptCatalog EncCat);
+	EncryptCatalog GetnEncCat();
 	BOOL GetStatus();
 	VOID SetKey(unsigned char* key);
 	unsigned char* GetKey();
@@ -72,8 +78,8 @@ namespace global
 	unsigned long GetBitKey();
 	VOID SetPrintHex(BOOL hex);
 	BOOL GetPrintHex();
-	VOID SetCryptName(int stat);
-	BOOL GetCryptName();
+	VOID SetCryptName(Name stat);
+	Name GetCryptName();
 	VOID SetFlagDelete(BOOL flag);
 	BOOL GetFlagDelete();
 	VOID free_global();

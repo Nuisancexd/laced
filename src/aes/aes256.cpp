@@ -1,8 +1,5 @@
 #include "aes256.h"
 
-#include <cstring>
-#include <cstdlib>
-#include <stdio.h>
 
 
 STATIC CONST u8 aes_sbox[] =
@@ -306,23 +303,25 @@ u32 aes256_padding(u32 bytes)
 	return (bytes / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 }
 
-VOID aes_encrypt_blocks(crypto_aes_ctx* ctx, u8* out, CONST u8* in, u32 bytes, u32* size_padding, u32 mode)
+VOID aes_encrypt_blocks(crypto_aes_ctx* ctx, CONST u8* in, u8* out, u32 bytes, u32* size_padding, u32 mode)
 {
 	u32 end_bytes = bytes % AES_BLOCK_SIZE;
 	u32 full_blocks_len = bytes - end_bytes;
-
-	if (mode == MODE_AES::AES_CRYPT)
+	if (mode == MODE_AES::AES_CRYPT || mode == MODE_AES::AES_CRYPT_NO_PADDING)
 	{
 		for (u32 i = 0; i < full_blocks_len; i += AES_BLOCK_SIZE)
 		{
 			aes_encrypt(ctx, out + i, in + i);
 		}
 
+		if (mode == MODE_AES::AES_CRYPT_NO_PADDING)
+			return;
+
 		if (end_bytes != 0)
 		{
 			u8 last_block[AES_BLOCK_SIZE];
 			u32 padding_len = AES_BLOCK_SIZE - end_bytes;
-
+			*size_padding = padding_len;
 			memcpy(last_block, in + full_blocks_len, end_bytes);
 
 			for (size_t i = end_bytes; i < AES_BLOCK_SIZE; ++i)
@@ -333,17 +332,21 @@ VOID aes_encrypt_blocks(crypto_aes_ctx* ctx, u8* out, CONST u8* in, u32 bytes, u
 		}
 		else
 		{
+			*size_padding = AES_BLOCK_SIZE;
 			u8 padding_block[AES_BLOCK_SIZE];
 			memset(padding_block, AES_BLOCK_SIZE, AES_BLOCK_SIZE);
 			aes_encrypt(ctx, out + full_blocks_len, padding_block);
 		}
 	}
-	else if (mode == MODE_AES::AES_DECRYPT)
+	else if (mode == MODE_AES::AES_DECRYPT || mode == MODE_AES::AES_DECRYPT_NO_PADDING)
 	{
 		for (u32 i = 0; i < full_blocks_len; i += AES_BLOCK_SIZE)
 		{
 			aes_decrypt(ctx, out + i, in + i);
 		}
+
+		if (mode == MODE_AES::AES_DECRYPT_NO_PADDING)
+			return;
 
 		BOOL padding_success = TRUE;
 		u8 padding = out[bytes - 1];
@@ -357,8 +360,7 @@ VOID aes_encrypt_blocks(crypto_aes_ctx* ctx, u8* out, CONST u8* in, u32 bytes, u
 		for (int i = 0; i < padding; ++i)
 		{
 			if (out[bytes - 1 - i] != padding)
-			{
-				printf("Failed padding\n");
+			{				
 				padding_success = FALSE;
 			}
 			else
@@ -366,10 +368,12 @@ VOID aes_encrypt_blocks(crypto_aes_ctx* ctx, u8* out, CONST u8* in, u32 bytes, u
 		}
 
 		if (padding_success)
-			*size_padding = bytes - padding;
+			//*size_padding = bytes - padding;
+			*size_padding = padding;
 		else
+		{
 			*size_padding = 0;
+			printf("Failed padding\n");
+		}
 	}
-
 }
-

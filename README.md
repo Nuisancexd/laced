@@ -1,14 +1,22 @@
-# Laced Hybrid Encryption, Symmetric Encryption and RSA Only by key.
+# Laced - Hybrid, Symmetric, and Asymmetric Encryption Tool.
 
-A encryption tool implementing both hybrid encryption (RSA + ChaCha), pure asymmetric encryption (RSA) and symmetric encryption (ChaCha).
+A versatile encryption tool implementing:
+*Hybrid encryption (RSA + ChaCha20 / RSA + AES)
+*Pure asymmetric encryption (RSA)
+*Pure symmetric encryption (ChaCha20 or AES)
+*supports digital signatures and RSA key generation.
 
 ## Options:
-* Hybrid encryption: encrypts a random symmetric key (ChaCha) with RSA.
-* Pure RSA encryption: encrypts data directly using RSA.
-* Pure ChaCha encryption: encrypts data with secret key using ChaCha.
-* Generate RSA pair (public and private) keys.
-* Signature: This module is responsible for digitally signing file hash values as well as signing the public key to ensure its authenticity and integrity.
-
+*Hybrid encryption
+Encrypts a random symmetric key (ChaCha20 or AES) using RSA and then encrypts the file with that symmetric key.
+*Pure RSA encryption
+Encrypts the data directly using RSA.
+*Pure symmetric encryption
+Encrypts data using a secret key with ChaCha20 or AES.
+*RSA key generation
+*Generates RSA public/private key pairs (supports Base64 export).
+*Digital signatures
+Signs files or RSA public keys to verify their authenticity and integrity (supports Root key signing).
  
 ## Usage Options:
 ```shell
@@ -52,13 +60,17 @@ A encryption tool implementing both hybrid encryption (RSA + ChaCha), pure asymm
 		    random   -- RANDOM: overwrite the file with random crypt symbols.
 		    DOD      -- DOD: overwrite the file with zeros and random crypt symbols.
 		    -count       Number of times to overwrite the file.
+   -algo            Symmetric encryption algorithm. (default: chacha)
+                    chacha - use ChaCha20
+                    aes    - use AES256_CBE
 
 EXAMPLE USAGE:
-Config:     laced.exe config -path C:\Config.laced	laced.exe config
-ASYMMETRIC: laced.exe -path C:/FolderFiles -name -mode full -cat dir -what asym -key "C:/FullPathToRSAkeys" crypt
-SYMMETRIC:  laced.exe -path C:/FolderFiles -name -mode full -cat dir -what sym -key "secret key"
-RSA ONLY:   laced.exe -path C:/File.txt -name -what rsa -key "C:/FullPathToRSAkeys" crypt
-Signature:  laced.exe -p C:/FolderFiles -w asym -k C:\key\public_RSA $ C:\key\private_RSA -s crypt
+Config:     laced config -path C:\Config.laced	laced config
+ASYMMETRIC: laced -path C:/FolderFiles -name -mode full -cat dir -what asym -key "C:/FullPathToRSAkeys" crypt
+SYMMETRIC:  laced -path C:/FolderFiles -name -mode full -cat dir -what sym -key "secret key"
+RSA ONLY:   laced -path C:/File.txt -name -what rsa -key "C:/FullPathToRSAkeys" crypt
+Signature:  laced -p C:/FolderFiles -w asym -k C:\key\public_RSA $ C:\key\private_RSA -s crypt
+AES256:     laced -p C:/FolderFiles -w sym -k "key" -algo aes -delete de/crypt
 
 RSA Generate Keys OPTIONS:
 
@@ -82,19 +94,10 @@ EXAMPLE USAGE Signature:   laced.exe -sign_root -p C:/key/RSA_public_key_laced.t
 
 
  # Installation
-This project can be compiled with both MSVC (Microsoft Visual C++) and g++ (GNU Compiler Collection).
+This project builds with MSVC and MinGW (g++).
 Clone the repository and build the project:
 git clone https://github.com/Nuisancexd/laced.git
 make -f Makefile.txt
-
-# Download 
-Download the laced.exe from the [Releases] https://github.com/Nuisancexd/laced/releases/tag/Crypt section.  
-
-* OS: Windows 10
-* Architecture: x86
-* Compiler Support: MSVC, MinGW (G++)
-This program is only compatible with Windows 10 (x86).
-It does not support 64-bit versions or other operating systems.
 
 ## Contact
 ilnur.sadykov.03@gmail.com

