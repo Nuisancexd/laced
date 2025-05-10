@@ -8,6 +8,7 @@
 #include "filesystem.h"
 #include "global_parameters.h"
 #include "memory.h"
+#include "logs.h"
 
 typedef struct directory_info
 {
@@ -229,7 +230,7 @@ size_t pathsystem::StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, WCHAR* dir)
     PDIRECTORY_INFO dir_ = NULL;
     LIST_FOREACH(dir_, DirectoryInfo)
     {
-        printf_s("DIRECTORIES\t %ls \n", dir_->Directory);
+        LOG_INFO(L"DIRECTORIES: %ls", dir_->Directory);
         memory::m_free(dir_->Directory);
     }
     delete DirectoryInfo;

