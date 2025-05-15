@@ -33,7 +33,7 @@ VOID logs::initLog(BOOL append)
 		return;
 	}
 	wmemcpy(&curr_dir[size], L"\\LACED_LOG.txt", 15);
-	printf("LOGs saved in: %ls\n", curr_dir);
+	printf("LOGs saved in:  %ls\n", curr_dir);
 	DWORD flag = append ? OPEN_ALWAYS : CREATE_ALWAYS;
 	g_LogHandle = CreateFileW
 	(

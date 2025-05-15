@@ -113,11 +113,12 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     if (!helper) helper = GetCommandLineArg(argc, wargv, L"-help");
     if (helper) CommandLineHelper();
 
-    
+    /*      TODO     */  
     WCHAR* RootSignature = GetCommandLineArgCurr(argc, wargv, L"-s_r");
     if (!RootSignature) RootSignature = GetCommandLineArgCurr(argc, wargv, L"-sign_root");
     if (RootSignature)
     {        
+        exit(1);
         SignatureRoot = TRUE;
         RootSignature = GetCommandLineArg(argc, wargv, L"-p");
         if(!RootSignature)RootSignature = GetCommandLineArg(argc, wargv, L"-path");
@@ -197,13 +198,13 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
         if (!GenKey) GenKey = GetCommandLineArg(argc, wargv, L"-bit");
         if (GenKey)
         {
-            if (memory::StrStrCW(GenKey, L"1024"))
+            if (memory::StrStrCW(GenKey, L"2048"))
             {
-                global::SetBitKey(0x04000000);
+                global::SetBitKey(2048);
             }
-            else if (memory::StrStrCW(GenKey, L"4096"))
+            else if (memory::StrStrCW(GenKey, L"3072"))
             {
-                global::SetBitKey(0x10000000);
+                global::SetBitKey(3072);
             }
         }
         GenKey = GetCommandLineArgCurr(argc, wargv, L"-print");
@@ -263,103 +264,11 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
     }
     
 
-    WCHAR* EcnryptChoice = GetCommandLineArg(argc, wargv, L"-w");
-    if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-what");
+    WCHAR* EcnryptChoice = GetCommandLineArg(argc, wargv, L"-algo");    
     if (EcnryptChoice)
     {
-        if (memory::StrStrCW(EcnryptChoice, L"asym") || memory::StrStrCW(EcnryptChoice, L"rsa"))
-        {
-            if(memory::StrStrCW(EcnryptChoice, L"asym"))
-                global::SetEncrypt(EncryptCipher::ASYMMETRIC);
-            else
+        auto funcDeCrypt = ([&EcnryptChoice, &argc, &wargv]
             {
-                global::SetEncrypt(EncryptCipher::RSA_ONLY);
-                global::SetEncryptMethod(RSA);
-            }
-
-            WCHAR* method = GetCommandLineArg(argc, wargv, L"-algo");
-            if (method)
-            {
-                if (memory::StrStrCW(method, L"aes"))
-                    global::SetEncryptMethod(RSA_AES256);
-                else
-                    global::SetEncryptMethod(RSA_CHACHA);
-            }            
-            
-            EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"crypt");
-            if (EcnryptChoice)
-                global::SetDeCrypt(EncryptCipher::CRYPT);
-            else if (!EcnryptChoice)
-            {
-                EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"decrypt");
-                if (EcnryptChoice)
-                    global::SetDeCrypt(EncryptCipher::DECRYPT);
-                else
-                {
-                    printf_s("Type: crypt or decrypt. This is a required field. (default: null)\n");
-                    exit(1);
-                }
-            }
-
-            EcnryptChoice = GetCommandLineArg(argc, wargv, L"-k");
-            if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-key");
-            if (!EcnryptChoice)
-            {
-                printf_s("Type -key \"C:/path\" RSA private/public key or generate RSA Key\n");
-                CommandLineHelper();
-            }
-
-            WCHAR* signature = GetCommandLineArgCurr(argc, wargv, L"-s");
-            if (!signature) signature = GetCommandLineArgCurr(argc, wargv, L"-sign");
-            if (signature)
-            {
-                Signature = TRUE;
-                WCHAR* smb = GetCommandLineArg(argc, wargv, L"$");
-                if (!smb)
-                {
-                    printf("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
-                    printf("example: -key C:\\key\\public_key_rsa.txt $ C:\\key\\private_key_rsa.txt");
-                    exit(1);
-                }
-
-                size_t len = memory::StrLen(EcnryptChoice);
-                WCHAR* public_key = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
-                wmemcpy_s(public_key, len, EcnryptChoice, len);
-                len = memory::StrLen(smb);
-                WCHAR* private_key = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
-                wmemcpy_s(private_key, len, smb, len);
-                printf_s("public key:\t%ls\n", public_key);
-                printf_s("private key:\t%ls\n", private_key);
-                if (global::GetDeCrypt() == EncryptCipher::CRYPT)
-                {
-                    global::SetPathRSAKey(public_key);                    
-                    global::SetPathSignRSAKey(private_key);
-                }
-                else
-                {
-                    global::SetPathRSAKey(private_key);
-                    global::SetPathSignRSAKey(public_key);
-                }
-            }
-            else
-            {
-                size_t len = memory::StrLen(EcnryptChoice);
-                WCHAR* keypath = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
-                wmemcpy_s(keypath, len, EcnryptChoice, len);
-                global::SetPathRSAKey(keypath);
-            }
-        }
-        else if (memory::StrStrCW(EcnryptChoice, L"sym"))
-        {
-            global::SetEncrypt(EncryptCipher::SYMMETRIC);
-
-            WCHAR* method = GetCommandLineArg(argc, wargv, L"-algo");
-            if (method)
-            {
-                if(memory::StrStrCW(method, L"aes"))
-                    global::SetEncryptMethod(AES256);
-                else 
-                    global::SetEncryptMethod(CHACHA);
                 EcnryptChoice = GetCommandLineArgCurr(argc, wargv, L"crypt");
                 if (EcnryptChoice)
                     global::SetDeCrypt(EncryptCipher::CRYPT);
@@ -374,39 +283,68 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
                         exit(1);
                     }
                 }
-            }            
+            });
 
-            CHAR* key = GetCommandLineArgChCurr(argc, argv, "-r");
-            if(!key) key = GetCommandLineArgChCurr(argc, argv, "-root");
-            if (key)
+        auto funcKey = ([&EcnryptChoice, &argc, &wargv]
             {
-                BYTE* key = NULL;
-                BYTE* iv = NULL;
-                locker::LoadRootSymmetricKey(&key, &iv);
-                if (key && iv)
+                EcnryptChoice = GetCommandLineArg(argc, wargv, L"-k");
+                if (!EcnryptChoice) EcnryptChoice = GetCommandLineArg(argc, wargv, L"-key");
+                if (!EcnryptChoice) { printf_s("Type -key \"C:/path\" RSA private/public key or generate RSA Key\n"); exit(1); }
+
+                WCHAR* signature = GetCommandLineArgCurr(argc, wargv, L"-s");
+                if (!signature) signature = GetCommandLineArgCurr(argc, wargv, L"-sign");
+                if (signature)
                 {
-                    global::SetKey(key);
-                    global::SetIV(iv);                    
+                    Signature = TRUE;
+                    WCHAR* smb = GetCommandLineArg(argc, wargv, L"$");
+                    if (!smb)
+                    {
+                        printf("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
+                        printf("example: -key C:\\key\\public_key_rsa.txt $ C:\\key\\private_key_rsa.txt");
+                        exit(1);
+                    }
+
+                    size_t len = memory::StrLen(EcnryptChoice);
+                    WCHAR* public_key = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
+                    wmemcpy_s(public_key, len, EcnryptChoice, len);
+                    len = memory::StrLen(smb);
+                    WCHAR* private_key = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
+                    wmemcpy_s(private_key, len, smb, len);
+                    printf_s("public key:\t%ls\n", public_key);
+                    printf_s("private key:\t%ls\n", private_key);
+                    if (global::GetDeCrypt() == EncryptCipher::CRYPT)
+                    {
+                        global::SetPathRSAKey(public_key);
+                        global::SetPathSignRSAKey(private_key);
+                    }
+                    else
+                    {
+                        global::SetPathRSAKey(private_key);
+                        global::SetPathSignRSAKey(public_key);
+                    }
                 }
-                else exit(0);
-            }
-            else
+                else
+                {
+                    size_t len = memory::StrLen(EcnryptChoice);
+                    WCHAR* keypath = (WCHAR*)memory::m_malloc((len + 1) * sizeof(WCHAR));
+                    wmemcpy_s(keypath, len, EcnryptChoice, len);
+                    global::SetPathRSAKey(keypath);
+                }
+            });
+
+        auto funcKeySym([&argc, &argv]
             {
-                key = GetCommandLineArgCh(argc, argv, "-k");
+                CHAR* key = GetCommandLineArgCh(argc, argv, "-k");
                 if (!key) key = GetCommandLineArgCh(argc, argv, "-key");
                 if (key)
                 {
                     size_t size_key = memory::StrLen(key) + 1;
-                    BYTE* key = (BYTE*)memory::m_malloc(33);
-                    memcpy_s(key, 32, key, min(size_key, size_t(32)));
-                    global::SetKey(key);
-                    RtlSecureZeroMemory(key, size_key);
+                    BYTE* key_set = (BYTE*)memory::m_malloc(33);
+                    memcpy_s(key_set, 32, key, min(size_key, size_t(32)));
+                    global::SetKey(key_set);
                 }
-                else
-                {
-                    printf_s("Type -key \"...\" for are symmetrical encrypts.Size key must be beetwen 1 nad 32\n");
-                    CommandLineHelper();
-                }
+                else printf_s("Type -key \"...\" for are symmetrical encrypts.Size key must be beetwen 1 nad 32\n");
+
                 CHAR* IV = GetCommandLineArgCh(argc, argv, "-iv");
                 if (IV)
                 {
@@ -421,10 +359,62 @@ VOID ParsingCommandLine(int argc_, char** argv, WCHAR** wargv_)
                     BYTE* iv = (BYTE*)memory::m_malloc(9);
                     memcpy_s(iv, 9, s.c_str(), min(s.size(), size_t(8)));
                     global::SetIV(iv);
-                }                
-            }        
+                }
+            });
+
+        if (memory::StrStrCW(EcnryptChoice, L"chacha"))
+        {
+            global::SetEncrypt(EncryptCipher::SYMMETRIC);
+            global::SetEncryptMethod(CHACHA);
+            funcKeySym();
         }
+        else if(memory::StrStrCW(EcnryptChoice, L"aes"))
+        {
+            global::SetEncrypt(EncryptCipher::SYMMETRIC);
+            global::SetEncryptMethod(AES256);
+            funcDeCrypt();
+            funcKeySym();
+        }
+        else if (memory::StrStrCW(EcnryptChoice, L"rsa_chacha"))
+        {
+            global::SetEncrypt(EncryptCipher::ASYMMETRIC);
+            global::SetEncryptMethod(RSA_CHACHA);
+            funcDeCrypt();
+            funcKey();
+        }
+        else if (memory::StrStrCW(EcnryptChoice, L"rsa_aes"))
+        {
+            global::SetEncrypt(EncryptCipher::ASYMMETRIC);
+            global::SetEncryptMethod(RSA_AES256);
+            funcDeCrypt();
+            funcKey();
+        }
+        else if (memory::StrStrCW(EcnryptChoice, L"rsa"))
+        {
+            global::SetEncrypt(EncryptCipher::RSA_ONLY);
+            global::SetEncryptMethod(RSA);
+            funcDeCrypt();
+            funcKey();
+        }
+        /*-------------*/
+        /*TODO*/
+        //    CHAR* key = GetCommandLineArgChCurr(argc, argv, "-r");
+        //    if(!key) key = GetCommandLineArgChCurr(argc, argv, "-root");
+        //    if (key)
+        //    {
+        //        BYTE* key = NULL;
+        //        BYTE* iv = NULL;
+        //        locker::LoadRootSymmetricKey(&key, &iv);
+        //        if (key && iv)
+        //        {
+        //            global::SetKey(key);
+        //            global::SetIV(iv);                    
+        //        }
+        //        else exit(0);
+        //    }
+        /*-------------*/
     }
+    else { printf("[ParsingCommandLine] Miss the command -algo"); exit(1); }
 
     WCHAR* OverWrite = GetCommandLineArg(argc, wargv, L"-ow");
     if (!OverWrite) OverWrite = GetCommandLineArg(argc, wargv, L"-overwrite");
@@ -635,38 +625,39 @@ int main(int argc, char** argv)
     logs::initLog();
 
     SLIST<HASH_LIST>* HashList = NULL;
-    if (Signature)
-        HashList = new SLIST<HASH_LIST>;
+    if (Signature)  HashList = new SLIST<HASH_LIST>;
     
-    CRYPTO_SYSTEM system;
-    CRYPT_INFO* CryptInfo = locker::GeneratePolicy(&system);
-    if (!CryptInfo)
-    {
-        LOG_ERROR(L"Not found algorithm.\n");
-        return EXIT_SUCCESS;
-    }
-
     if (static_cast<int>(global::GetCryptName()) || global::GetRsaBase64())
     {
         if (!LoadCrypt32())
         {
-            LOG_ERROR(L"Failed to load Crypt32.dll; GetLastError = %lu\n", GetLastError());
+            LOG_ERROR(L"Failed to load Crypt32.dll; GetLastError = %lu", GetLastError());
             if (global::GetRsaBase64() && global::GetEncrypt() != EncryptCipher::SYMMETRIC)
                 return EXIT_FAILURE;
             global::SetCryptName(Name::NONE);
         }
     }
 
+    CRYPT_INFO* CryptInfo = new CRYPT_INFO;
+    if (!locker::GeneratePolicy(CryptInfo))
+    {
+        LOG_ERROR(L"Failed to Generate Policy.");
+        LOG_ERROR(L"EXIT_FAILURE");
+        delete CryptInfo;
+        return EXIT_FAILURE;
+    }
+
+
     if (Gen)
     {
-        if (!locker::HandlerGenKeyPairRSA())
+        if (!filesystem::HandlerGenKeyPairRSA())
         {
             LOG_ERROR(L"Failed to create keys");
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;
     }
-
+    
     LIST<pathsystem::DRIVE_INFO>* DriveInfo = new LIST<pathsystem::DRIVE_INFO>;
     PDRIVE_INFO data = NULL;
     size_t f = pathsystem::StartLocalSearch(DriveInfo, global::GetPath());
@@ -677,7 +668,7 @@ int main(int argc, char** argv)
     }
     data = NULL;
     if (f == 1 || THREAD_ENABLE)
-    {
+    {        
         LIST_FOREACH(data, DriveInfo)
         {
             locker::HandlerCrypt(CryptInfo, data, HashList);
@@ -707,17 +698,17 @@ int main(int argc, char** argv)
     {
         filesystem::sort_hash_list(HashList);
         if(global::GetDeCrypt() == EncryptCipher::CRYPT)
-            filesystem::CreateSignatureFile(HashList, NULL, NULL, 0);
-        else if(global::GetDeCrypt() == EncryptCipher::DECRYPT)
-            filesystem::VerificationSignatureFile(HashList, NULL, NULL, 0);
+            filesystem::CreateSignatureFile(HashList);
+        else if(global::GetDeCrypt() == EncryptCipher::DECRYPT)            
+            filesystem::VerificationSignatureFile(HashList);
     }
 
 exit:
+    locker::FreeCryptInfo(CryptInfo);
     pathsystem::FreeList(DriveInfo);
     global::free_global();
     UnLoadCrypt32();
-    if (HashList)
-        free_HashList(HashList);
+    if (HashList) free_HashList(HashList);
     
     LOG_SUCCESS(L"EXIT_SUCCESS");
     QueryPerformanceCounter(&end);
@@ -772,7 +763,7 @@ VOID CommandLineHelper()
     printf("\t\t|  |       /  /_\\  \\ |  |     |   __|  |  |  |  |\n");
     printf("\t\t|  `----. /  _____  \\|  `----.|  |____ |  '--'  |\n");
     printf("\t\t|_______|/__/     \\__\\\\______||_______||_______/\n\n");
-    printf("laced ver. 2.0\n");
+    printf("laced ver. 3.0\n");
     printf_s("%s\n\n", std::string(120, '-').c_str());
 
     /*
@@ -813,17 +804,21 @@ VOID CommandLineHelper()
     printf("                      dir       -- Encrypts all files in current directory.\n");
     printf("                      indir     -- Encrypts all files in subdirectories of the current directory.\n");
     printf("                      file      -- Encrypts a single file. The \"-path\" field must contain the full path to the file.\n");
-    printf("[*]  -w / -what       Select the encryption type: asym, sym or rsa. (default: null)\n");
-    printf("                      asym      -- ASYMMETRIC: uses RSA and ChaCha20 encryption.\n");
+    printf("[*]  -algo            Select the encryption type: chacha, aes, rsa_chacha, rsa_aes or rsa. (default: null)\n");
+    printf("                      chacha    -- SYMMETRIC: uses ChaCha20 encryption.\n");
+    printf("                      aes       -- SYMMETRIC: uses AES256 CBE encryption.\n");
     printf("                                   Type: crypt or decrypt. This is a required field. (default: null)\n");
-    printf("                      sym       -- SYMMETRIC:  uses only ChaCha20 encryption.\n");
-    printf("                      rsa       -- RSA_ONLY    uses only RSA encryption.\n");
+    printf("                      rsa_chacha -- HYBRID: uses RSA and ChaCha20 encryption.\n");
     printf("                                   Type: crypt or decrypt. This is a required field. (default: null)\n");
-    printf("[*]  -k / -key        Required for ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n");
-    printf("                      For ASYMMETRIC: the full path to private/public RSA key.\n");
+    printf("                      rsa_aes   -- HYBRID: uses RSA and AES256 CBE encryption.\n");
+    printf("                                   Type: crypt or decrypt. This is a required field. (default: null)\n");
+    printf("                      rsa       -- RSA_ONLY: uses only RSA encryption.\n");
+    printf("                                   Type: crypt or decrypt. This is a required field. (default: null)\n");
+    printf("[*]  -k / -key        Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n");
+    printf("                      For HYBRID & ASYMMETRIC: the full path to private/public RSA key.\n");
     printf("                      For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n");
     printf("[*]  -iv              For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n");
-    printf("[*]  -r / root        For SYMMETRIC   Command option for load Root key and iv\n");
+    printf("[*]  -r / root        TODO;For SYMMETRIC   Command option for load Root key and iv\n");
     printf("[*]  -e / -enable     Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n");
     printf("[*]  -B64 / -Base64   If RSA key in Base64 format. (default: false)\n");
     printf("[*]  -d / -delete     File flag delete on close if success. (default: false)\n");
@@ -835,21 +830,21 @@ VOID CommandLineHelper()
     
 
     printf("EXAMPLE USAGE     Config:  laced config -path C:\\Config.laced\tlaced.exe config\n");
-    printf("EXAMPLE USAGE ASYMMETRIC:  laced -path C:/FolderFiles -name_base -mode full -cat dir -what asym -key \"C:/FullPathToRSAkeys\" crypt\n");
-    printf("EXAMPLE USAGE  SYMMETRIC:  laced -path C:/FolderFiles -name_base -mode full -cat dir -what sym -key \"secret key\"\n");
-    printf("EXAMPLE USAGE   RSA_ONLY:  laced -path C:/File.txt -name_base -what rsa -key \"C:/FullPathToRSAkeys\" crypt\n");
-    printf("EXAMPLE USAGE  Signature:  laced -p C:/FolderFiles -w asym -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n");
+    printf("EXAMPLE USAGE     HYBRID:  laced -path C:/FolderFiles -name_base -mode full -cat dir -algo rsa_chacha -key \"C:/FullPathToRSAkeys\" crypt\n");
+    printf("EXAMPLE USAGE  SYMMETRIC:  laced -path C:/FolderFiles -name_base -mode full -cat dir -algo chacha -key \"secret key\"\n");
+    printf("EXAMPLE USAGE   RSA_ONLY:  laced -path C:/File.txt -name_base -algo rsa -key \"C:/FullPathToRSAkeys\" crypt\n");
+    printf("EXAMPLE USAGE  Signature:  laced -p C:/FolderFiles -algo rsa -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n");
     printf("EXAMPLE USAGE  Overwrite:  laced -p C:/FolderFiles -w sym -k \"...\" -ow random -count 2 -delete\n\n\n");
 
     printf("RSA Generate Keys OPTIONS:\n");
     printf("[*]  Gen / RSAGenKey     Command generate RSA keys. This is a required field.\n");
     printf("[*]  -B64 / -Base64      Save RSA keys in Base64 format. (default: false)\n");
-    printf("[*]  -b / -bit           RSA bit(key) length. Available options: 1024, 2048 or 4096. (default: 2048)\n");
+    printf("[*]  -b / -bit           RSA bit(key) length. Available options: 2048, 3072 or 4096. (default: 4096)\n");
     printf("[*]  -p / -path          Path to save the generated keys. Optional field. If null, saves in local path.\n");
     printf("[*]  -print              Print the generated keys in HEX format. (default: false)\n");
-    printf("EXAMPLE USAGE:           laced.exe RSAGenKey -path C:/GenTofolder -B64 -bit 4096\n\n");
+    printf("EXAMPLE USAGE:           laced.exe RSAGenKey -path C:/GenTofolder -B64 -bit 3072\n\n");
     
-    printf("Signature with Root RSA keys. Before signing the public key, you must first generate a key pair using the -print command");
+    printf("TODO:;Signature with Root RSA keys. Before signing the public key, you must first generate a key pair using the -print command");
     printf("and then insert the byte array into the locker::LoadRootKey function and compile it.\n");
     printf("[*]    -s_g / -sign_root    Command options for signing with RootRSAKey.\n");
     printf("[*]    -sign                Signature with Root private key. (default: -sign)\n");

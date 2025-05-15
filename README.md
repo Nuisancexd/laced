@@ -40,16 +40,20 @@ Signs files or RSA public keys to verify their authenticity and integrity (suppo
                     indir -- Encrypts all files in subdirectories of the current directory.
                     file -- Encrypts a single file. The -path field must contain the full path to the file.
 
-   -w / -what       Select the encryption type: asym, sym, or rsa. (default: null)
-                    asym -- ASYMMETRIC: uses RSA and ChaCha20 encryption.
-                    Type: crypt or decrypt. This is a required field. (default: null)
-                    sym -- SYMMETRIC: uses only ChaCha20 encryption.
-                    rsa -- RSA_ONLY: uses only RSA encryption.
-                    Type: crypt or decrypt. This is a required field. (default: null)
+   -algo            Select the encryption type: asym, sym, or rsa. (default: null)
+                    chacha    -- SYMMETRIC: uses ChaCha20 encryption.
+                    aes       -- SYMMETRIC: uses AES256 CBE encryption.
+                                   Type: crypt or decrypt. This is a required field. (default: null)
+                    rsa_chacha -- HYBRID: uses RSA and ChaCha20 encryption.
+                                   Type: crypt or decrypt. This is a required field. (default: null)
+                    rsa_aes   -- HYBRID: uses RSA and AES256 CBE encryption.
+                                   Type: crypt or decrypt. This is a required field. (default: null)
+                    rsa       -- RSA_ONLY: uses only RSA encryption.
+                                   Type: crypt or decrypt. This is a required field. (default: null)
 
-   -k / -key        Required for ASYMMETRIC & SYMMETRIC encryption.
-                    - ASYMMETRIC: the full path to the private/public RSA key.
-                    - SYMMETRIC: the secret key. The key size must be between 1 and 32 bytes.
+   -k / -key        Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.
+                    HYBRID & ASYMMETRIC: the full path to private/public RSA key.
+                    SYMMETRIC: the secret key. The key size must be between 1 and 32 bytes.
 
    -iv              For SYMMETRIC: The initialization vector (IV). Size must be between 1 and 8 bytes. Optional field.
    -e / -enable     Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)
@@ -60,9 +64,6 @@ Signs files or RSA public keys to verify their authenticity and integrity (suppo
 		    random   -- RANDOM: overwrite the file with random crypt symbols.
 		    DOD      -- DOD: overwrite the file with zeros and random crypt symbols.
 		    -count       Number of times to overwrite the file.
-   -algo            Symmetric encryption algorithm. (default: chacha)
-                    chacha - use ChaCha20
-                    aes    - use AES256_CBE
 
 EXAMPLE USAGE:
 Config:     laced config -path C:\Config.laced	laced config
@@ -76,7 +77,7 @@ RSA Generate Keys OPTIONS:
 
    Gen / RSAGenKey     Command to generate RSA keys. This is a required field.
    -B64 / -Base64      Save RSA keys in Base64 format. (default: false)
-   -b / -bit           RSA key length. Available options: 1024, 2048, or 4096. (default: 2048)
+   -b / -bit           RSA key length. Available options: 2048, 3072, or 4096. (default: 4096)
    -p / -path          Path to save the generated keys. This is a required field.
    -print              Print the generated keys in HEX format. (default: false)
 

