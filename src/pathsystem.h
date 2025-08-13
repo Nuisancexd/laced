@@ -8,10 +8,10 @@ namespace pathsystem
 {
     typedef struct drive_info
     {
-        WCHAR* Filename;
-        WCHAR* Exst;
-        WCHAR* FullPath;
-        WCHAR* Path;
+        TCHAR* Filename;
+        TCHAR* Exst;
+        TCHAR* FullPath;
+        TCHAR* Path;
         LIST_ENTRY(drive_info);
     }DRIVE_INFO, * PDRIVE_INFO;
 
@@ -23,7 +23,7 @@ namespace pathsystem
     STATIC pathsystem::INFO f;
     
     
-    size_t StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, WCHAR* dir);
+    size_t StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir);
     VOID FreeList(LIST<DRIVE_INFO>* DriveInfo);
 }
 

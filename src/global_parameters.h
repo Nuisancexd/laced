@@ -4,6 +4,7 @@
 #include "locker.h"
 #include "macro.h"
 
+
 enum class EncryptModes
 {
 
@@ -50,18 +51,28 @@ enum overwrite
 
 namespace global
 {
+	BOOL print_command_g();
+#ifdef _WIN32
+	WCHAR* GetPath();
+	VOID SetPath(WCHAR* set_path);
+	WCHAR* GetPathRSAKey();
+	VOID SetPathRSAKey(WCHAR* set_path);
+	WCHAR* GetPathSignRSAKey();
+	VOID SetPathSignRSAKey(WCHAR* path_sing);
+#else
+	CHAR* GetPath();
+	VOID SetPath(CHAR* set_path);
+	CHAR* GetPathRSAKey();
+	VOID SetPathRSAKey(CHAR* set_path);
+	CHAR* GetPathSignRSAKey();
+	VOID SetPathSignRSAKey(CHAR* path_sing);
+#endif
 	VOID SetEncryptMethod(CryptoPolicy method);
 	CryptoPolicy GetEncryptMethod();
 	EncryptCipher GetEncrypt();
 	VOID SetEncrypt(EncryptCipher Encrypt);
 	EncryptCipher GetDeCrypt();
 	VOID SetDeCrypt(EncryptCipher DeCrypt);
-	WCHAR* GetPath();
-	VOID SetPath(WCHAR* set_path);
-	WCHAR* GetPathRSAKey();
-	VOID SetPathSignRSAKey(WCHAR* path_sing);
-	WCHAR* GetPathSignRSAKey();
-	VOID SetPathRSAKey(WCHAR* set_path);
 	EncryptModes GetEncMode();
 	VOID SetEncMode(EncryptModes g_EncryptModes);
 	VOID SetStatus(BOOL g_Status_);
@@ -87,6 +98,9 @@ namespace global
 	BOOL GetStatusOverWrite();
 	int GetModeOverWrite();
 	int GetCountOverWrite();
+	BOOL PrintHashSum();
+	void SetPrintHashSum(BOOL print_h);
+
 }
 
 

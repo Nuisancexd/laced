@@ -1,17 +1,92 @@
+#include <iostream>
 #include <cstddef>
 #include <cstring>
+#include <string>
+
+
 #include "global_parameters.h"
 #include "memory.h"
+#include "logs.h"
+#include "CommandParser.h"
 
 /*		default		*/
-STATIC EncryptCipher g_Encrypt = EncryptCipher::NONE;
-STATIC EncryptCipher g_DeCrypt = EncryptCipher::NONE;
+#ifdef _WIN32
 STATIC WCHAR* g_Path = NULL;
 STATIC WCHAR* g_PathRSAKey = NULL;
 STATIC WCHAR* g_PathSignRSAKey = NULL;
+
+VOID global::SetPath(WCHAR* set_path)
+{
+	g_Path = set_path;
+}
+
+WCHAR* global::GetPath()
+{
+	return g_Path;
+}
+
+VOID global::SetPathRSAKey(WCHAR* set_path)
+{
+	g_PathRSAKey = set_path;
+}
+
+WCHAR* global::GetPathRSAKey()
+{
+	return g_PathRSAKey;
+}
+
+VOID global::SetPathSignRSAKey(WCHAR* path_sing)
+{
+	g_PathSignRSAKey = path_sing;
+}
+
+WCHAR* global::GetPathSignRSAKey()
+{
+	return g_PathSignRSAKey;
+}
+
+#else
+STATIC CHAR* g_Path = NULL;
+STATIC CHAR* g_PathRSAKey = NULL;
+STATIC CHAR* g_PathSignRSAKey = NULL;
+
+VOID global::SetPath(CHAR* set_path)
+{
+	g_Path = set_path;
+}
+
+CHAR* global::GetPath()
+{
+	return g_Path;
+}
+
+VOID global::SetPathRSAKey(CHAR* set_path)
+{
+	g_PathRSAKey = set_path;
+}
+
+CHAR* global::GetPathRSAKey()
+{
+	return g_PathRSAKey;
+}
+
+VOID global::SetPathSignRSAKey(CHAR* path_sing)
+{
+	g_PathSignRSAKey = path_sing;
+}
+
+CHAR* global::GetPathSignRSAKey()
+{
+	return g_PathSignRSAKey;
+}
+
+#endif
+STATIC EncryptCipher g_Encrypt = EncryptCipher::NONE;
+STATIC EncryptCipher g_DeCrypt = EncryptCipher::NONE;
 STATIC EncryptModes g_EncryptMode = EncryptModes::FULL_ENCRYPT;
 STATIC EncryptCatalog g_EncryptCat = EncryptCatalog::DIR_CAT;
 STATIC BOOL g_Status = TRUE;
+STATIC BOOL g_print_hash = FALSE;
 STATIC int g_Percent = 20;
 STATIC unsigned char* g_Key = NULL;
 STATIC unsigned char* g_IV = NULL;
@@ -23,7 +98,7 @@ STATIC BOOL g_FlagDelete = FALSE;
 STATIC BOOL g_OverWrite = FALSE;
 STATIC int g_OverWriteMode = ZEROS;
 STATIC int g_OverWriteCount = 1;
-STATIC CryptoPolicy g_EncryptMethod = CHACHA;
+STATIC CryptoPolicy g_EncryptMethod = CryptoPolicy::CHACHA;
 
 VOID global::SetEncryptMethod(CryptoPolicy method)
 {
@@ -55,35 +130,7 @@ EncryptCipher global::GetDeCrypt()
 	return g_DeCrypt;
 }
 
-VOID global::SetPath(WCHAR* set_path)
-{
-	g_Path = set_path;
-}
 
-WCHAR* global::GetPath()
-{
-	return g_Path;
-}
-
-VOID global::SetPathRSAKey(WCHAR* set_path)
-{
-	g_PathRSAKey = set_path;
-}
-
-WCHAR* global::GetPathRSAKey()
-{
-	return g_PathRSAKey;
-}
-
-VOID global::SetPathSignRSAKey(WCHAR* path_sing)
-{
-	g_PathSignRSAKey = path_sing;
-}
-
-WCHAR* global::GetPathSignRSAKey()
-{
-	return g_PathSignRSAKey;
-}
 
 VOID global::SetEncMode(EncryptModes EncryptMode)
 {
@@ -187,7 +234,6 @@ BOOL global::GetFlagDelete()
 
 VOID global::SetStatusOverWrite(BOOL Stat, int mode, int count)
 {
-
 	g_OverWrite = Stat;
 	g_OverWriteMode = mode;
 	g_OverWriteCount = count;
@@ -207,6 +253,189 @@ int global::GetCountOverWrite()
 {
 	return g_OverWriteCount;
 }
+
+BOOL global::PrintHashSum()
+{
+	return g_print_hash;
+}
+
+void global::SetPrintHashSum(BOOL print_h)
+{
+	g_print_hash = print_h;
+}
+
+#ifdef _WIN32
+#define str_ std::wstring
+#define str(s) std::wstring(s)
+#else
+#define str_ std::string
+#define str(s) std::string(s)
+#endif
+
+
+BOOL global::print_command_g()
+{
+	LOG_NONE("LACED parameters");
+	auto sprint_param = [](const std::string& key, const str_& value)
+		{
+			LOG_NONE("%s%s" log_str, key.c_str(), std::string(15 - key.size(), ' ').c_str(), value.c_str());
+		};
+	auto print_param = [](const std::string& key, const std::string& value)
+		{
+			LOG_NONE("%s%s%s", key.c_str(), std::string(15 - key.size(), ' ').c_str(), value.c_str());
+		};
+
+	std::string algo;
+	std::string method;
+	std::string mode;
+	std::string cat;
+	std::string dcrypt;
+
+	if (O_REWRITE)
+	{
+		if (g_OverWrite)
+			LOG_NONE("-overwrite");
+		if (g_Path)
+			LOG_NONE("-path " log_str, g_Path);
+
+		switch (g_OverWriteMode)
+		{
+		case ZEROS:
+			LOG_NONE("ZEROS");
+			break;
+		case DOD:
+			LOG_NONE("DOD");
+			break;
+		case RANDOM:
+			LOG_NONE("RANDOM");
+			break;
+		}
+
+		LOG_NONE("COUNT: %d", g_OverWriteCount);
+
+		goto end;
+	}
+
+	switch (g_Encrypt)
+	{
+	case EncryptCipher::ASYMMETRIC:
+		method = "HYBRID_METHOD";
+		break;
+	case EncryptCipher::SYMMETRIC:
+		method = "SYMMETRIC_METHOD";
+		break;
+	case EncryptCipher::RSA_ONLY:
+		method = "RSA METHOD";
+		break;
+	}
+
+	switch (g_DeCrypt)
+	{
+	case EncryptCipher::CRYPT:
+		dcrypt = "CRYPT";
+		break;
+	case EncryptCipher::DECRYPT:
+		dcrypt = "DECRYPT";
+		break;
+	}
+
+	switch (g_EncryptMode)
+	{
+	case EncryptModes::FULL_ENCRYPT:
+		mode = "FULL_ENCRYPT";
+		break;
+	case EncryptModes::PARTLY_ENCRYPT:
+		mode = "PARTLY_ENCRYPT";
+		break;
+	case EncryptModes::HEADER_ENCRYPT:
+		mode = "HEADER_ENCRYPT";
+		break;
+	case EncryptModes::BLOCK_ENCRYPT:
+		mode = "BLOCK_ENCRYPT";
+		break;
+	case EncryptModes::AUTO_ENCRYPT:
+		mode = "AUTO_ENCRYPT";
+		break;
+		// case EncryptModes::PIPELINE_ENCRYPT:
+		// 	printf("PIPELINE_ENCRYPT\n");
+		// 	break;
+	}
+
+	switch (g_EncryptCat)
+	{
+	case EncryptCatalog::FILE_CAT:
+		cat = "file";
+		break;
+	case EncryptCatalog::DIR_CAT:
+		cat = "dir";
+		break;
+	case EncryptCatalog::INDIR_CAT:
+		cat = "subdir";
+		break;
+	}
+
+	switch (g_CryptName)
+	{
+	case Name::BASE64_NAME:
+		LOG_NONE("BASE64_NAME");
+		break;
+	case Name::HASH_NAME:
+		LOG_NONE("HASH_NAME");
+		break;
+	}
+
+	switch (g_EncryptMethod)
+	{
+	case CryptoPolicy::AES256:
+		algo = "aes";
+		break;
+	case CryptoPolicy::CHACHA:
+		algo = "chacha";
+		break;
+	case CryptoPolicy::RSA_AES256:
+		algo = "rsa_aes";
+		break;
+	case CryptoPolicy::RSA_CHACHA:
+		algo = "rsa_chacha";
+		break;
+	case CryptoPolicy::RSA:
+		algo = "rsa";
+		break;
+	}
+
+	print_param("Category:", cat);
+	print_param("EncrMode:", mode);
+	print_param("Method:", method);
+	print_param("Algorithm:", algo);
+
+
+	if (g_Path)
+		sprint_param("Path:", str(g_Path));
+	if (g_PathRSAKey)
+		sprint_param("RSA:", str(g_PathRSAKey));
+	if (g_PathSignRSAKey)
+		sprint_param("sign RSA:", str(g_PathSignRSAKey));
+	if (g_DeCrypt != EncryptCipher::NONE)
+		print_param("DeCrypt:", dcrypt);
+
+	if (g_FlagDelete)
+		LOG_NONE("flag delete");
+	if (g_OverWrite)
+		LOG_NONE("flag overwrite");
+	if (THREAD_ENABLE)
+		LOG_NONE("thread enable");
+end:
+	std::string str;
+	LOG_ENABLE("Do you want to continue? [Y-enter/n]");
+	std::getline(std::cin, str);
+
+	if (str == "n") return FALSE;
+	else if (str.empty() || str == "y" || str == "Y" || str == "yes" || str == "YES")
+		return TRUE;
+	else { LOG_ENABLE("Type y/Y/yes/YES or press enter"); return FALSE; }
+}
+
+
 
 VOID global::free_global()
 {

@@ -1,7 +1,7 @@
 CC = g++
-CFLAGS = -m32 -march=native -O3 -std=c++20 -DNDEBUG
+CFLAGS = -m32 -march=native -O3 -std=c++20 -DNDEBUG -pthread
 LDFLAGS = -lbcrypt 
-SRC = pathsystem.cpp memory.cpp global_parameters.cpp main.cpp locker.cpp filesystem.cpp logs.cpp ChaCha20/laced.cpp sha/sha256.cpp aes/aes256.cpp
+SRC = main.cpp threadpool.cpp api.cpp logs.cpp memory.cpp global_parameters.cpp CommandParser.cpp pathsystem.cpp locker.cpp filesystem.cpp chacha20/laced.cpp sha/sha256.cpp aes/aes256.cpp base64/base64.cpp rsa/rsa.cpp
 OBJ = $(SRC:.cpp=.o)
 EXEC = laced
 

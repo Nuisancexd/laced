@@ -1,9 +1,0 @@
-* Symbol '*' is comment line;
-* Config for generate RSA key pair
-{
-	"-path": "C:\key"
-	"-Base64": "true"
-	"RSAGenKey": "true"
-	"-bit": "4096"
-	"-print": "false"
-}

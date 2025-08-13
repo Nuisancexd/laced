@@ -213,6 +213,24 @@ const wchar_t* memory::FindCharW(const wchar_t* Str, wchar_t Ch)
 	return NULL;
 }
 
+BOOL memory::StrStr(const TCHAR* Str, const TCHAR* StrEq)
+{
+	if (StrLen(Str) != StrLen(StrEq))
+	{
+		return FALSE;
+	}
+	while (*Str)
+	{
+		if (*Str != *StrEq)
+		{
+			return FALSE;
+		}
+		++Str;
+		++StrEq;
+	}
+
+	return TRUE;
+}
 
 BOOL memory::StrStrC(const char* Str, const char* StrEq)
 {
@@ -232,6 +250,8 @@ BOOL memory::StrStrC(const char* Str, const char* StrEq)
 
 	return TRUE;
 }
+
+
 
 BOOL memory::StrStrCW(const wchar_t* wstr, const wchar_t* wstreq)
 {

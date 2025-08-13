@@ -22,6 +22,7 @@ namespace memory
 	const char* FindChar(const char* Str, char Ch);
 	const wchar_t* FindCharW(const wchar_t* Str, wchar_t Ch);
 	size_t FindCharWI(const wchar_t* Str, wchar_t Ch);
+	BOOL StrStr(const TCHAR* Str, const TCHAR* StrEq);
 	BOOL StrStrC(const char* Str, const char* StrEq);
 	BOOL StrStrCW(const wchar_t* wstr, const wchar_t* wstreq);
 	size_t FindCharI(const char* Str, char ch);

