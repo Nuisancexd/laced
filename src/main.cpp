@@ -21,10 +21,8 @@ int main(int argc, char* argv[])
 
     if (GEN)
     {
-        bool gen = true;
-        if (!(gen = HandlerGenKeyPairRSA()))
+        if (!(success = HandlerGenKeyPairRSA()))
             LOG_ERROR("[HandlerGenKeyPairRSA] Failed");
-        success = gen;
         goto exit;
     }
 

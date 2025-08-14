@@ -160,6 +160,12 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 	if (!CryptInfo)
 		return;
 
+	if(GEN)
+	{
+		delete CryptInfo; 
+		return;
+	}
+
 	if (CryptInfo->zeros)
 		memory::m_free(CryptInfo->zeros);
 	if (CryptInfo->random)

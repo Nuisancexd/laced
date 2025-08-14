@@ -297,19 +297,19 @@ public:
 
 	inline VOID LIST_DELETE_HEAD()
 	{
-		VOID* f_ptr = LIST_HEAD();
+		TYPE* f_ptr = LIST_HEAD_T();
 		ptr = ptr->next;
 		if (ptr)
 			ptr->prev = NULL;
-		free(f_ptr);
+		delete f_ptr;
 	}
 
 	inline VOID LIST_DELETE_TAIL()
 	{
-		VOID* f_tptr = LIST_TAIL();
+		TYPE* f_tptr = LIST_TAIL();
 		tptr = tptr->prev;
 		tptr->next = NULL;
-		free(f_tptr);
+		delete f_tptr;
 	}
 
 	/*	NOT FROM HEAD & TAIL */
