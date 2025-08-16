@@ -10,77 +10,11 @@
 #include "CommandParser.h"
 
 /*		default		*/
-#ifdef _WIN32
-STATIC WCHAR* g_Path = NULL;
-STATIC WCHAR* g_PathRSAKey = NULL;
-STATIC WCHAR* g_PathSignRSAKey = NULL;
 
-VOID global::SetPath(WCHAR* set_path)
-{
-	g_Path = set_path;
-}
-
-WCHAR* global::GetPath()
-{
-	return g_Path;
-}
-
-VOID global::SetPathRSAKey(WCHAR* set_path)
-{
-	g_PathRSAKey = set_path;
-}
-
-WCHAR* global::GetPathRSAKey()
-{
-	return g_PathRSAKey;
-}
-
-VOID global::SetPathSignRSAKey(WCHAR* path_sing)
-{
-	g_PathSignRSAKey = path_sing;
-}
-
-WCHAR* global::GetPathSignRSAKey()
-{
-	return g_PathSignRSAKey;
-}
-
-#else
-STATIC CHAR* g_Path = NULL;
-STATIC CHAR* g_PathRSAKey = NULL;
-STATIC CHAR* g_PathSignRSAKey = NULL;
-
-VOID global::SetPath(CHAR* set_path)
-{
-	g_Path = set_path;
-}
-
-CHAR* global::GetPath()
-{
-	return g_Path;
-}
-
-VOID global::SetPathRSAKey(CHAR* set_path)
-{
-	g_PathRSAKey = set_path;
-}
-
-CHAR* global::GetPathRSAKey()
-{
-	return g_PathRSAKey;
-}
-
-VOID global::SetPathSignRSAKey(CHAR* path_sing)
-{
-	g_PathSignRSAKey = path_sing;
-}
-
-CHAR* global::GetPathSignRSAKey()
-{
-	return g_PathSignRSAKey;
-}
-
-#endif
+STATIC TCHAR* g_Path = NULL;
+STATIC TCHAR* g_PathRSAKey = NULL;
+STATIC TCHAR* g_PathSignRSAKey = NULL;
+STATIC TCHAR* g_Path_out = NULL;
 STATIC EncryptCipher g_Encrypt = EncryptCipher::NONE;
 STATIC EncryptCipher g_DeCrypt = EncryptCipher::NONE;
 STATIC EncryptModes g_EncryptMode = EncryptModes::FULL_ENCRYPT;
@@ -99,6 +33,49 @@ STATIC BOOL g_OverWrite = FALSE;
 STATIC int g_OverWriteMode = ZEROS;
 STATIC int g_OverWriteCount = 1;
 STATIC CryptoPolicy g_EncryptMethod = CryptoPolicy::CHACHA;
+
+
+VOID global::SetPath(TCHAR* set_path)
+{
+	g_Path = set_path;
+}
+
+TCHAR* global::GetPath()
+{
+	return g_Path;
+}
+
+VOID global::SetPathOut(TCHAR* set_path_out)
+{
+	g_Path_out = set_path_out;
+}
+
+TCHAR* global::GetPathOut()
+{
+	return g_Path_out;
+}
+
+VOID global::SetPathRSAKey(TCHAR* set_path)
+{
+	g_PathRSAKey = set_path;
+}
+
+TCHAR* global::GetPathRSAKey()
+{
+	return g_PathRSAKey;
+}
+
+VOID global::SetPathSignRSAKey(TCHAR* path_sing)
+{
+	g_PathSignRSAKey = path_sing;
+}
+
+TCHAR* global::GetPathSignRSAKey()
+{
+	return g_PathSignRSAKey;
+}
+
+
 
 VOID global::SetEncryptMethod(CryptoPolicy method)
 {
@@ -411,6 +388,8 @@ BOOL global::print_command_g()
 
 	if (g_Path)
 		sprint_param("Path:", str(g_Path));
+	if(g_Path_out)
+		sprint_param("Path out:", str(g_Path_out));
 	if (g_PathRSAKey)
 		sprint_param("RSA:", str(g_PathRSAKey));
 	if (g_PathSignRSAKey)
@@ -463,6 +442,13 @@ VOID global::free_global()
 		memory::memzero_explicit(g_Path, memory::StrLen(g_Path));
 		memory::m_free(g_Path);
 		g_Path = NULL;
+	}
+
+	if(g_Path_out)
+	{
+		memory::memzero_explicit(g_Path_out, memory::StrLen(g_Path_out));
+		memory::m_free(g_Path_out);
+		g_Path_out = NULL;
 	}
 
 	if (g_PathSignRSAKey)

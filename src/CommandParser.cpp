@@ -63,6 +63,7 @@ VOID parser::CommandLineHelper()
     printf("GENERAL OPTIONS:\n");
     printf("[*]  --h / --help       Provides Information about program.\n");
     printf("[*]  -p / --path        Path to the file to encrypt. Optional field. If null, encrypts in local path.\n");
+    printf("[*]  -o / --out         Path to directory for encrypted files. (default: false)");
     printf("[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n");
     printf("                        '--path' followed by the path to the configuration.\n");
     printf("[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n");
@@ -298,6 +299,14 @@ void parser::ParsingCommandLine(int argc, char** argv)
             TCHAR* spath = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
             memc(spath, p.second, len);
             global::SetPath(spath);
+        }
+
+        p = GetCommandsN(argc, argument, T("-o"), T("--out"));
+        if(p.first)
+        {
+            TCHAR* outpath = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
+            memc(outpath, p.second, memory::StrLen(p.second));
+            global::SetPathOut(outpath);
         }
     }
 

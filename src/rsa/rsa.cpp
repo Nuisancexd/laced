@@ -387,7 +387,9 @@ bool rsa::DecryptRSA(BIO* bio, EVP_PKEY* pkey, EVP_PKEY_CTX* ctx, BYTE* buffer_d
 		err();
 		goto end;
 	}
+
 	*buffer = (BYTE*)memory::m_malloc(key_size);
+	*bdecrypt_size = key_size;
 	if (EVP_PKEY_decrypt(ctx, *buffer, &key_size, buffer_decrypt, *bdecrypt_size) <= 0)
 	{
 		LOG_ERROR("EVP_PKEY_decrypt failed");
@@ -395,7 +397,6 @@ bool rsa::DecryptRSA(BIO* bio, EVP_PKEY* pkey, EVP_PKEY_CTX* ctx, BYTE* buffer_d
 		goto end;
 	}
 
-	*bdecrypt_size = key_size;
 	success = true;
 end:
 	EVP_PKEY_CTX_free(ctx);

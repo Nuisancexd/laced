@@ -103,6 +103,12 @@ bool filesystem::getParseFile
 
 	FileInfo->Filesize = st.st_size;
 #endif
+
+	if(FileInfo->Filesize == 0)
+	{
+		LOG_ERROR("[GetParseFile] Failed file is empty");
+		return FALSE;
+	}
 	return TRUE;
 }
 
@@ -191,11 +197,12 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 		|| FileInfo->CryptInfo->method_policy == CryptoPolicy::RSA_AES256;
 	if (isAes && global::GetDeCrypt() == EncryptCipher::CRYPT)
 		padding = aes256_padding(BytesRead) - BytesRead;
+		
 
-	BYTE* FileBuffer = (BYTE*)memory::m_malloc(BytesRead + padding);
+	BYTE* FileBuffer = (BYTE*)memory::m_malloc(BytesRead + AES_BLOCK_SIZE);
 	if (!FileBuffer)
 	{
-		LOG_ERROR("[EncryptFileFullData] Large File Size %ls. Buffer heap crash", FileInfo->Filename);
+		LOG_ERROR("[EncryptFileFullData] Large File Size. Buffer heap crash; " log_str, FileInfo->Filename);
 		goto end;
 	}
 
@@ -205,23 +212,19 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 		goto end;
 	}
 
-	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, BytesRead);
+	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
+	
+	if(isAes && global::GetDeCrypt() == EncryptCipher::DECRYPT)
+	{
+		memory::memzero_explicit(&FileBuffer[FileInfo->Filesize - FileInfo->padding], FileInfo->padding);
+		FileInfo->Filesize -= FileInfo->padding;
+		BytesRead -= FileInfo->padding;
+	}
 
 	if (!filesystem::WriteFullData(FileInfo->newFileHandle, FileBuffer, BytesRead + padding))
 	{
 		LOG_ERROR("[EncryptFileFullData] File is failed to write; " log_str, FileInfo->Filename);
 		goto end;
-	}
-
-	if (isAes && global::GetDeCrypt() == EncryptCipher::DECRYPT)
-	{
-#ifdef _WIN32
-		SetFilePointer(FileInfo->newFileHandle, -FileInfo->padding, NULL, FILE_END);
-		SetEndOfFile(FileInfo->newFileHandle);
-#else
-		if (ftruncate(FileInfo->newFileHandle, lseek(FileInfo->newFileHandle, -FileInfo->padding, SEEK_END)) == -1)
-			LOG_ERROR("Failed file truncate padding aes");
-#endif
 	}
 
 	success = TRUE;
@@ -952,7 +955,15 @@ static BYTE* ReadEncryptInfo
 	int mode = ReadInfo[0] - 100;
 	int size_bit = 0;
 	for (int i = 1; i < 4; ++i)
-		size_bit = size_bit * 10 + (ReadInfo[i] - '0');
+	{
+		if(ReadInfo[i] >= '0' && ReadInfo[i] <= '9')
+			size_bit = size_bit * 10 + (ReadInfo[i] - '0');
+		else
+		{
+			LOG_ERROR("[ReadEncryptInfo] Failed to read file info");
+			return NULL;
+		}
+	}
 	BYTE* read_key = (BYTE*)memory::m_malloc(size_bit);
 #ifdef _WIN32
 	Offset.QuadPart = -(size_bit + 4);
@@ -994,7 +1005,7 @@ bool filesystem::FileCryptDecrypt
 	BYTE* EncryptedKey = ReadEncryptInfo(FileInfo->FileHandle, &EncryptedKeySize);
 	if (EncryptedKey == NULL)	goto END;
 	FileInfo->Filesize -= EncryptedKeySize + 4;
-
+	
 #ifdef _WIN32
 	if (SetFilePointer(FileInfo->FileHandle, FileInfo->Filesize, NULL, FILE_BEGIN))
 	{
@@ -1351,24 +1362,20 @@ end:
 
 TCHAR* filesystem::OptionNameStandart(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath)
 {
-	size_t len_path = memory::StrLen(Path);
-	size_t len_FPath = memory::StrLen(FPath);
+	size_t len_filename = memory::StrLen(Filename);
+	TCHAR* name = (TCHAR*)memory::m_malloc((MAX_PATH + 1) * Tsize);
 
 	if (memory::StrStr(exst, ECRYPT_NAME_P))
-	{
-		size_t len = len_FPath - ECRYPT_NAME_LEN;
-		TCHAR* name = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
-		memc(name, FPath, len);
-		return name;
-	}
+		memc(name, Filename, len_filename - ECRYPT_NAME_LEN);
 	else
 	{
-		TCHAR* name = (TCHAR*)memory::m_malloc((len_FPath + ECRYPT_NAME_LEN + 1) * Tsize);
-		memc(name, FPath, len_FPath);
-		memc(&name[len_FPath], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
-		return name;
+		memc(name, Filename, len_filename);
+		memc(&name[len_filename], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	}
+
+	return name;
 }
+
 
 
 #ifdef _WIN32
@@ -1403,49 +1410,30 @@ static std::string Utf8ToTCHAR(const char* str, size_t len)
 
 TCHAR* filesystem::OptionNameHash(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath)
 {
-	size_t len_path = memory::StrLen(Path);
 	size_t len_filename = memory::StrLen(Filename);
-	size_t len_FPath = memory::StrLen(FPath);
-	if (len_FPath >= (4095 - 255))
-	{
-		LOG_ERROR("[OptionName] Failed; FULL PATH TOO LONG; " log_str, FPath);
-		return NULL;
-	}
+	TCHAR* name = (TCHAR*)memory::m_malloc((MAX_PATH + 1) * Tsize);
+
 	if (memory::StrStr(exst, ECRYPT_NAME_P))
-	{
-		size_t len = len_FPath - ECRYPT_NAME_LEN;
-		TCHAR* name = (TCHAR*)memory::m_malloc((len_FPath + 1) * Tsize);
-		memc(name, FPath, len);
-		return name;
-	}
+		memc(name, Filename, len_filename - ECRYPT_NAME_LEN);
 	else
 	{
-		auto str = TCHARToUtf8(Filename, len_filename);
+	 	auto str = TCHARToUtf8(Filename, len_filename);
 		unsigned char out[32] = { 0 };
 		sha256((BYTE*)str.c_str(), len_filename, out);
-		unsigned char* name = memory::BinaryToHex(out, 32);
-		TCHAR* FullPath = (TCHAR*)memory::m_malloc((len_path + 64 + ECRYPT_NAME_LEN + 2) * Tsize);
-		memc(FullPath, Path, len_path);
-		memc(&FullPath[len_path], slash, 1);
-		auto str_name = Utf8ToTCHAR((char*)name, 64);
-		memc(&FullPath[len_path + 1], str_name.c_str(), 64);
-		memc(&FullPath[memory::StrLen(FullPath)], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
-		memory::m_free(name);
-		return FullPath;
+		unsigned char* name_h = memory::BinaryToHex(out, 32);
+		auto str_name = Utf8ToTCHAR((char*)name_h, 64);
+		memc(name, str_name.c_str(), 64);
+		memc(&name[64], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
+		memory::m_free(name_h);
 	}
-}
 
+	return name;
+}
 
 TCHAR* filesystem::OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath)
 {
-	size_t len_path = memory::StrLen(Path);
 	size_t len_filename = memory::StrLen(Filename);
-	size_t len_FPath = memory::StrLen(FPath);
-	if (len_FPath >= 3840)
-	{
-		LOG_ERROR("[OptionName] Failed; FULL PATH TOO LONG; " log_str, FPath);
-		return NULL;
-	}
+	TCHAR* name = (TCHAR*)memory::m_malloc((MAX_PATH + 1) * Tsize);
 
 	if (memory::StrStr(exst, ECRYPT_NAME_P))
 	{
@@ -1459,18 +1447,12 @@ TCHAR* filesystem::OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCH
 			decoded, &bsize))
 		{
 			LOG_ERROR("[OptionNameBase] Failed; " log_str, Filename);
+			memory::m_free(name);
 			return OptionNameStandart(Path, Filename, exst, FPath);
 		}
 
 		auto wide_decoded = Utf8ToTCHAR(decoded, bsize);
-
-		TCHAR* name = (TCHAR*)memory::m_malloc((len_FPath + MAX_PATH) * Tsize);
-		memc(name, Path, len_path);
-		memc(&name[len_path], slash, 1);
-		memcpy(&name[len_path + 1], wide_decoded.data(),
-			wide_decoded.size() * sizeof(TCHAR));
-
-		return name;
+		memc(name, wide_decoded.data(), wide_decoded.size());
 	}
 	else
 	{
@@ -1483,28 +1465,57 @@ TCHAR* filesystem::OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCH
 			encoded, &bsize))
 		{
 			LOG_ERROR("[OptionNameBase] Failed; " log_str, Filename);
+			memory::m_free(name);
 			return OptionNameStandart(Path, Filename, exst, FPath);
 		}
 
 		if (bsize > MAX_PATH)
 		{
 			LOG_ERROR("[OptionNameBase] Failed; ENAME TOO LONG; " log_str, Filename);
+			memory::m_free(name);
 			return OptionNameStandart(Path, Filename, exst, FPath);
 		}
 
 		auto wide_encoded = Utf8ToTCHAR(encoded, bsize);
-
-		TCHAR* FullPath = (TCHAR*)memory::m_malloc(
-			(len_path + wide_encoded.size() + ECRYPT_NAME_LEN + 2) * Tsize);
-		memc(FullPath, Path, len_path);
-		memc(&FullPath[len_path], slash, 1);
-		memcpy(&FullPath[len_path + 1], wide_encoded.data(),
-			wide_encoded.size() * sizeof(TCHAR));
-		memc(&FullPath[memory::StrLen(FullPath)], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
-
-		return FullPath;
+		memc(name, wide_encoded.data(), wide_encoded.size());
+		memc(&name[wide_encoded.size()], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	}
+
+	return name;
 }
+
+
+TCHAR* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
+{
+	size_t len_path = memory::StrLen(data->Path);
+	size_t len_FPath = memory::StrLen(data->FullPath);
+	if (len_FPath >= 3840)
+	{
+		LOG_ERROR("[OptionName] Failed; FULL PATH TOO LONG; " log_str, data->FullPath);
+		return NULL;
+	}
+	
+	TCHAR* name = CryptInfo->name_method(data->Path, data->Filename, data->Exst, data->FullPath);
+	if(name == NULL)
+		return NULL;
+	if(memory::StrLen(name) > MAX_PATH)
+	{
+		LOG_ERROR("[NameMethodState] Failed; filename too long; " log_str, data->Filename);
+		return NULL;
+	}
+
+	TCHAR* fullpath = (TCHAR*)memory::m_malloc((MAX_PATH + memory::StrLen(data->Path)) * Tsize);
+	if(global::GetPathOut())
+		memc(fullpath, global::GetPathOut(), memory::StrLen(global::GetPathOut()));
+	else
+		memc(fullpath, data->Path, len_path);
+
+	memc(&fullpath[memory::StrLen(fullpath)], slash, 1);
+	memc(&fullpath[memory::StrLen(fullpath)], name, memory::StrLen(name));
+	memory::m_free(name);
+	return fullpath;
+}
+
 
 static bool Write(DESC desc_file, unsigned filesize, BYTE* buff)
 {

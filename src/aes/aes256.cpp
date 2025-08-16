@@ -350,13 +350,14 @@ VOID aes_encrypt_blocks(crypto_aes_ctx* ctx, CONST u8* in, u8* out, u32 bytes, u
 
 		BOOL padding_success = TRUE;
 		u8 padding = out[bytes - 1];
-
+		
 		if (padding == 0 || padding > AES_BLOCK_SIZE)
 		{
 			printf("Failed padding\n");
 			padding_success = FALSE;
+			return;
 		}
-
+		
 		for (int i = 0; i < padding; ++i)
 		{
 			if (out[bytes - 1 - i] != padding)

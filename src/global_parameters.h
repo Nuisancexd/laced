@@ -52,21 +52,14 @@ enum overwrite
 namespace global
 {
 	BOOL print_command_g();
-#ifdef _WIN32
-	WCHAR* GetPath();
-	VOID SetPath(WCHAR* set_path);
-	WCHAR* GetPathRSAKey();
-	VOID SetPathRSAKey(WCHAR* set_path);
-	WCHAR* GetPathSignRSAKey();
-	VOID SetPathSignRSAKey(WCHAR* path_sing);
-#else
-	CHAR* GetPath();
-	VOID SetPath(CHAR* set_path);
-	CHAR* GetPathRSAKey();
-	VOID SetPathRSAKey(CHAR* set_path);
-	CHAR* GetPathSignRSAKey();
-	VOID SetPathSignRSAKey(CHAR* path_sing);
-#endif
+	TCHAR* GetPath();
+	VOID SetPath(TCHAR* set_path);
+	TCHAR* GetPathOut();
+	VOID SetPathOut(TCHAR* set_path_out);
+	TCHAR* GetPathRSAKey();
+	VOID SetPathRSAKey(TCHAR* set_path);
+	TCHAR* GetPathSignRSAKey();
+	VOID SetPathSignRSAKey(TCHAR* path_sing);
 	VOID SetEncryptMethod(CryptoPolicy method);
 	CryptoPolicy GetEncryptMethod();
 	EncryptCipher GetEncrypt();

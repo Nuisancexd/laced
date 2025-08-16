@@ -35,7 +35,7 @@ namespace filesystem
 	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
 	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
 
-	TCHAR* MakeCopyFile(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
+	TCHAR* NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data);
 	TCHAR* OptionNameStandart(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
 	TCHAR* OptionNameHash(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
 	TCHAR* OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
