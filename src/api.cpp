@@ -52,6 +52,25 @@ BOOL api::GetCurrentDir(CHAR* dir_buf, size_t size)
     return TRUE;
 }
 
+BOOL api::GetExecPath(WCHAR* dir_buf, size_t size)
+{
+    DWORD count = GetModuleFileNameW(NULL, dir_buf, MAX_PATH);
+    if(count == 0 || count == MAX_PATH)
+    {
+        printf("[GetExecPath] Failed");
+        return false;
+    }
+
+    std::wstring wstr(dir_buf);
+    size_t pos = wstr.find_last_of("\\");
+    if(pos != std::wstring::npos)
+        wstr = wstr.substr(0, pos);
+
+    memory::memzero_explicit(dir_buf, count);
+    wmemcpy(dir_buf, wstr.c_str(), wstr.size());
+    return TRUE;
+}
+
 BOOL api::SetPoint(HANDLE desc, int seek)
 {
     if (SetFilePointer(desc, 0, NULL, seek) == INVALID_SET_FILE_POINTER)
@@ -71,7 +90,7 @@ VOID api::CloseDesc(HANDLE desc_file)
 
 #include <fcntl.h>
 #include <unistd.h> 
-
+#include <libgen.h> 
 
 int api::OpenFile(CONST CHAR* pathaname)
 {
@@ -120,6 +139,21 @@ BOOL api::GetCurrentDir(CHAR* dir_buf, size_t size)
     if (getcwd(dir_buf, size))
         return TRUE;
     return FALSE;
+}
+
+BOOL api::GetExecPath(CHAR* dir_buf, size_t size)
+{
+    if(size < 255)
+        return FALSE;
+    size_t count = readlink("/proc/self/exe", dir_buf, 255);
+    if (count == -1)
+    {
+        printf("Failed readlink\n");
+        return FALSE;
+    }
+    size_t sz = memory::StrLen(dirname(dir_buf));
+    memory::memzero_explicit(&dir_buf[sz], count - sz);
+    return TRUE;
 }
 
 BOOL api::SetPoint(int desc, int seek)

@@ -27,7 +27,7 @@ VOID parser::subCommandHelper()
     printf("\to  Secure file overwrite\n");
     printf("\to  Recursive directory encryption\n");
     printf("\to  Thread pool parallel processing\n\n");
-    exit(1);
+    exit(0);
 }
 
 
@@ -464,8 +464,21 @@ void parser::ParsingCommandLine(int argc, char** argv)
             });
 
         auto funcKeySym([&argc, &argv]
-            {
-                auto pair = GetCommandsNext(argc, argv, "-k", "--key");
+            {   
+                auto pair = GetCommandsNext(argc, argv, "-r", "--root");
+                if(pair.first)
+                {
+                    BYTE* key = NULL;
+                    BYTE* iv = NULL;
+                    locker::LoadRootSymmetricKey(&key, &iv);
+                    if(key && iv)
+                    {
+                        global::SetKey(key);
+                        global::SetIV(iv);
+                        return;
+                    } else exit(0);
+                }
+                pair = GetCommandsNext(argc, argv, "-k", "--key");
                 if (pair.first)
                 {
                     size_t size_key = memory::StrLen(pair.second) + 1;
@@ -526,23 +539,6 @@ void parser::ParsingCommandLine(int argc, char** argv)
             funcDeCrypt();
             funcKey();
         }
-        /*-------------*/
-        /*TODO*/
-        //    CHAR* key = GetCommandLineArgChCurr(argc, argv, "-r");
-        //    if(!key) key = GetCommandLineArgChCurr(argc, argv, "-root");
-        //    if (key)
-        //    {
-        //        BYTE* key = NULL;
-        //        BYTE* iv = NULL;
-        //        locker::LoadRootSymmetricKey(&key, &iv);
-        //        if (key && iv)
-        //        {
-        //            global::SetKey(key);
-        //            global::SetIV(iv);                    
-        //        }
-        //        else exit(0);
-        //    }
-        /*-------------*/
     }
     else { LOG_ERROR("[ParsingCommandLine] Miss the command --algo"); exit(1); }
 

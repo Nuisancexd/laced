@@ -62,13 +62,12 @@ VOID logs::initLog(BOOL append)
 {
 	CONST unsigned max_path = MAX_PATH + MAX_PATH;
 	TCHAR* curr_dir = (TCHAR*)memory::m_malloc(max_path);
-
-	if (!api::GetCurrentDir(curr_dir, MAX_PATH))
+	if (!api::GetExecPath(curr_dir, MAX_PATH))
 	{
 		printf("FAILED iNIT log\n");
+		memory::m_free(curr_dir);
 		return;
 	}
-
 	memc(&curr_dir[memory::StrLen(curr_dir)], slash, 1);
 	memc(&curr_dir[memory::StrLen(curr_dir)], T("LACED_LOG.txt"), 13);
 	ptr_dir = curr_dir;

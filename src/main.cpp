@@ -76,6 +76,7 @@ int main(int argc, char* argv[])
                         filesystem::RewriteSDelete(CryptInfo, data->FullPath);
                     });
             }
+            pool.run_main_thread();
         }
         else
         {
