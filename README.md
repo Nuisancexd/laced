@@ -44,9 +44,11 @@ o  Thread pool parallel processing
  # Installation
 This project builds with MinGW (g++).
 Clone the repository and build the project:
+```bash
 git clone https://github.com/Nuisancexd/laced.git
-for Windows make -f Makefile.txt
-for Linux   make
+cd laced/src
+make
+```
 
 ## Contact
 ilnur.sadykov.03@gmail.com

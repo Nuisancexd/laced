@@ -1,5 +1,6 @@
 #include "api.h"
 
+#include "memory.h"
 
 #if defined(_WIN32)
 
@@ -61,13 +62,14 @@ BOOL api::GetExecPath(WCHAR* dir_buf, size_t size)
         return false;
     }
 
-    std::wstring wstr(dir_buf);
-    size_t pos = wstr.find_last_of("\\");
-    if(pos != std::wstring::npos)
-        wstr = wstr.substr(0, pos);
+    int i = 0;
+    for (i = count - 1; i >= 0; --i)
+    {
+        if (dir_buf[i] == L'\\')
+            break;
+    }
 
-    memory::memzero_explicit(dir_buf, count);
-    wmemcpy(dir_buf, wstr.c_str(), wstr.size());
+    memory::memzero_explicit(&dir_buf[i], count - i);
     return TRUE;
 }
 

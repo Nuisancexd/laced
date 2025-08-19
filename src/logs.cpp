@@ -71,6 +71,7 @@ VOID logs::initLog(BOOL append)
 	memc(&curr_dir[memory::StrLen(curr_dir)], slash, 1);
 	memc(&curr_dir[memory::StrLen(curr_dir)], T("LACED_LOG.txt"), 13);
 	ptr_dir = curr_dir;
+
 	if (!check_file_exist(curr_dir))
 		append = false;
 

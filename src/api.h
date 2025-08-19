@@ -3,7 +3,6 @@
 
 #if defined(_WIN32)
 #include <Windows.h>
-#include <string>
 #endif
 
 #ifdef __linux__
@@ -12,7 +11,6 @@
 #endif
 
 #include "macro.h"
-#include "memory.h"
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -28,7 +26,7 @@ namespace api
     BOOL ReadFile(HANDLE desc_file, VOID* buf, size_t size, size_t* BytesRead);
     BOOL GetCurrentDir(WCHAR* dir_buf, size_t size);
     BOOL GetCurrentDir(CHAR* dir_buf, size_t size);
-    BOOL GetExecPath(CHAR* dir_buf, size_t size);
+    BOOL GetExecPath(WCHAR* dir_buf, size_t size);
     BOOL SetPoint(HANDLE desc, int seek);
 #else
     int OpenFile(const char* pathaname);
