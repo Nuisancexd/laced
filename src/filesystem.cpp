@@ -18,6 +18,7 @@
 #include "aes/aes256.h"
 #include "rsa/rsa.h"
 #include "base64/base64.h"
+#include "global_parameters.h"
 
 #ifdef __linux__
 #include <sys/stat.h>
@@ -195,7 +196,7 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 	DWORD padding = 0;
 	bool isAes = FileInfo->CryptInfo->method_policy == CryptoPolicy::AES256
 		|| FileInfo->CryptInfo->method_policy == CryptoPolicy::RSA_AES256;
-	if (isAes && global::GetDeCrypt() == EncryptCipher::CRYPT)
+	if (isAes && GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
 		padding = aes256_padding(BytesRead) - BytesRead;
 		
 
@@ -214,7 +215,7 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 
 	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
 	
-	if(isAes && global::GetDeCrypt() == EncryptCipher::DECRYPT)
+	if(isAes && GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT)
 	{
 		memory::memzero_explicit(&FileBuffer[FileInfo->Filesize - FileInfo->padding], FileInfo->padding);
 		FileInfo->Filesize -= FileInfo->padding;
@@ -525,9 +526,9 @@ bool filesystem::ReadRSAFile
 		return FALSE;
 	}
 
-	CONST WCHAR* bcrpyt_blob = global::GetDeCrypt() == EncryptCipher::CRYPT ? BCRYPT_RSAPUBLIC_BLOB : BCRYPT_RSAPRIVATE_BLOB;
+	CONST WCHAR* bcrpyt_blob = GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT ? BCRYPT_RSAPUBLIC_BLOB : BCRYPT_RSAPRIVATE_BLOB;
 
-	if (global::GetRsaBase64())
+	if (GLOBAL_STATE.g_RsaBase64)
 	{
 		int bsize;
 		char* buffer = (char*)memory::m_malloc(4096);
@@ -590,7 +591,7 @@ bool filesystem::ReadRSAFile
 	}
 #else
 
-	if (global::GetRsaBase64())
+	if (GLOBAL_STATE.g_RsaBase64)
 	{
 		int bsize;
 		char* buffer = (char*)memory::m_malloc(4096);
@@ -601,7 +602,7 @@ bool filesystem::ReadRSAFile
 		CryptInfo->desc.key_data = (BYTE*)buffer;
 		CryptInfo->desc.size = bsize;
 	}
-
+	
 	if (!(CryptInfo->desc.bio = BIO_new_mem_buf(CryptInfo->desc.key_data, CryptInfo->desc.size)))
 	{
 		LOG_ERROR("[ReadRSAFile] Failed create BIO");
@@ -609,14 +610,14 @@ bool filesystem::ReadRSAFile
 		goto END;
 	}
 
-	if (global::GetDeCrypt() == EncryptCipher::CRYPT &&
+	if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT &&
 		!(CryptInfo->desc.PKEY = d2i_PUBKEY_bio(CryptInfo->desc.bio, NULL)))
 	{
 		LOG_ERROR("[ReadRSAFile] Failed load DER key");
 		err();
 		goto END;
 	}
-	else if (global::GetDeCrypt() == EncryptCipher::DECRYPT &&
+	else if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT &&
 		!(CryptInfo->desc.PKEY = d2i_PrivateKey_bio(CryptInfo->desc.bio, NULL)))
 	{
 		LOG_ERROR("[ReadRSAFile] Failed load DER key");
@@ -643,8 +644,8 @@ bool filesystem::EncryptRSA
 )
 {
 	bool success = false;
-	bool g_decrypt = global::GetDeCrypt() == EncryptCipher::DECRYPT ? true : false;
-	bool g_crypt = global::GetDeCrypt() == EncryptCipher::CRYPT ? true : false;
+	bool g_decrypt = GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT ? true : false;
+	bool g_crypt = GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT ? true : false;
 	if (g_crypt && FileInfo->Filesize > FileInfo->CryptInfo->desc.size - 11)
 	{
 		LOG_ERROR("[EncryptRSA] Invalid Size File >= RSA_BYTE - PADDING(11); " log_str, FileInfo->Filename);
@@ -892,7 +893,7 @@ bool filesystem::FileCryptEncrypt
 )
 {
 	BOOL success = FALSE;
-	EncryptModes mode = global::GetEncMode();
+	EncryptModes mode = GLOBAL_ENUM.g_EncryptMode;
 	BYTE* EncryptedKey = (BYTE*)memory::m_malloc(FileInfo->CryptInfo->desc.size);
 	BYTE CryptIV[8];
 	BYTE CryptKey[32];
@@ -1125,7 +1126,7 @@ bool filesystem::HashSumFile(PCRYPT_INFO CryptInfo, DESC desc_file, TCHAR* Filen
 	hash->hash = out;
 	hash->hash_size = 32;
 	CryptInfo->hash_data.HashList->SLIST_INSERT_HEAD_SAFE(hash);
-	if (global::PrintHashSum())
+	if (GLOBAL_STATE.g_print_hash)
 	{
 		unsigned char* hex = memory::BinaryToHex(out, 32);
 		LOG_INFO("HashSum  %s\tFilename " log_str, hex, Filename);
@@ -1150,14 +1151,14 @@ bool filesystem::VerifySignatureRSA
 )
 {
 	BOOL success = FALSE;
-	bool isCrypt = global::GetDeCrypt() == EncryptCipher::CRYPT ? true : false;
+	bool isCrypt = GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT ? true : false;
 	PHASH_LIST DataHash = NULL;
 	CRYPT_INFO CryptInfo = {};
 	DESC desc = INVALID_HANDLE_VALUE;
 	TCHAR* PathLocale = NULL;
 	BYTE* SignatureBuffer = NULL;
 
-	if (global::GetPathSignRSAKey() == NULL)
+	if (GLOBAL_PATH.g_PathSignRSAKey == NULL)
 	{
 		LOG_ERROR("[VerifySignatureRSA] Failed; missing path key to signature");
 		return FALSE;
@@ -1174,11 +1175,11 @@ bool filesystem::VerifySignatureRSA
 	CryptInfo.desc.PKEY = NULL;
 	CryptInfo.desc.bio = NULL;
 #endif
-	CryptInfo.desc.rsa_path = global::GetPathSignRSAKey();
+	CryptInfo.desc.rsa_path = GLOBAL_PATH.g_PathSignRSAKey;
 	if (isCrypt)
-		global::SetDeCrypt(EncryptCipher::DECRYPT);
+		GLOBAL_ENUM.g_DeCrypt = EncryptCipher::DECRYPT;
 	else
-		global::SetDeCrypt(EncryptCipher::CRYPT);
+		GLOBAL_ENUM.g_DeCrypt = EncryptCipher::CRYPT;
 	if (!ReadRSAFile(&CryptInfo))
 	{
 		LOG_ERROR("[ReadRSAFile] Failed; " log_str, CryptInfo.desc.rsa_path);
@@ -1505,8 +1506,8 @@ TCHAR* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
 	}
 
 	TCHAR* fullpath = (TCHAR*)memory::m_malloc((MAX_PATH + memory::StrLen(data->Path)) * Tsize);
-	if(global::GetPathOut())
-		memc(fullpath, global::GetPathOut(), memory::StrLen(global::GetPathOut()));
+	if(GLOBAL_PATH.g_Path_out)
+		memc(fullpath, GLOBAL_PATH.g_Path_out, memory::StrLen(GLOBAL_PATH.g_Path_out));
 	else
 		memc(fullpath, data->Path, len_path);
 
@@ -1546,7 +1547,7 @@ bool filesystem::nopOverWriteFile(PCRYPT_INFO CryptInfo, DESC desc_file, unsigne
 
 bool filesystem::ZerosOverWriteFile(PCRYPT_INFO CryptInfo, DESC desc_file, unsigned filesize)
 {
-	for (int i = 0; i < global::GetCountOverWrite(); ++i)
+	for (int i = 0; i < GLOBAL_OVERWRITE.g_OverWriteCount; ++i)
 	{
 		if (!Write(desc_file, filesize, CryptInfo->zeros))
 			return false;
@@ -1556,7 +1557,7 @@ bool filesystem::ZerosOverWriteFile(PCRYPT_INFO CryptInfo, DESC desc_file, unsig
 
 bool filesystem::RandomOverWriteFile(PCRYPT_INFO CryptInfo, DESC desc_file, unsigned filesize)
 {
-	for (int i = 0; i < global::GetCountOverWrite(); ++i)
+	for (int i = 0; i < GLOBAL_OVERWRITE.g_OverWriteCount; ++i)
 	{
 		if (!Write(desc_file, filesize, CryptInfo->random))
 			return false;
@@ -1566,7 +1567,7 @@ bool filesystem::RandomOverWriteFile(PCRYPT_INFO CryptInfo, DESC desc_file, unsi
 
 bool filesystem::DODOverWriteFile(PCRYPT_INFO CryptInfo, DESC desc_file, unsigned filesize)
 {
-	for (int i = 0; i < global::GetCountOverWrite(); ++i)
+	for (int i = 0; i < GLOBAL_OVERWRITE.g_OverWriteCount; ++i)
 	{
 		if (!Write(desc_file, filesize, CryptInfo->zeros))
 			return false;

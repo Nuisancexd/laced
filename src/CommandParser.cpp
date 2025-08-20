@@ -12,21 +12,21 @@ VOID parser::subCommandHelper()
     printf("laced - crypto line program. version 1.0\n");
     printf("laced -h/--help -- provides general instructions\n");
 
-    printf("laced [command] [options ... ] [ parameters ... ]\n");
-    printf("DESCRIPTION\n");
-    printf("\tLACED is a cryptography toolkit implementing crpyto standarts.\n");
-    printf("\tThe laced program is a command-line utility providing various crypto funcs:\n");
-    printf("\to  Uses for RSA crypt/gen OpenSSL for Linux, BCrypt for Win\n");
-    printf("\to  Creation of public/private RSA keys\n");
-    printf("\to  Symmetric encryption (ChaCha20, AES256)\n");
-    printf("\to  Hybrid encryption (RSA + ChaCha20 / AES256)\n");
-    printf("\to  Pure RSA encryption and decryption\n");
-    printf("\to  Digital sigantures and verification\n");
-    printf("\to  File hashing with SHA256\n");
-    printf("\to  Base64 encoding/decoding\n");
-    printf("\to  Secure file overwrite\n");
-    printf("\to  Recursive directory encryption\n");
-    printf("\to  Thread pool parallel processing\n\n");
+    printf("laced [command] [options ... ] [ parameters ... ]\n"
+          "DESCRIPTION\n"
+          "\tLACED is a cryptography toolkit implementing crpyto standarts.\n"
+          "\tThe laced program is a command-line utility providing various crypto funcs:\n"
+          "\to  Uses for RSA crypt/gen OpenSSL for Linux, BCrypt for Win\n"
+          "\to  Creation of public/private RSA keys\n"
+          "\to  Symmetric encryption (ChaCha20, AES256)\n"
+          "\to  Hybrid encryption (RSA + ChaCha20 / AES256)\n"
+          "\to  Pure RSA encryption and decryption\n"
+          "\to  Digital sigantures and verification\n"
+          "\to  File hashing with SHA256\n"
+          "\to  Base64 encoding/decoding\n"
+          "\to  Secure file overwrite\n"
+          "\to  Recursive directory encryption\n"
+          "\to  Thread pool parallel processing\n\n");
     exit(0);
 }
 
@@ -61,62 +61,62 @@ VOID parser::CommandLineHelper()
     */
 
     printf("GENERAL OPTIONS:\n");
-    printf("[*]  --h / --help       Provides Information about program.\n");
-    printf("[*]  -p / --path        Path to the file to encrypt. Optional field. If null, encrypts in local path.\n");
-    printf("[*]  -o / --out         Path to directory for encrypted files. (default: false)");
-    printf("[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n");
-    printf("                        '--path' followed by the path to the configuration.\n");
-    printf("[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n");
-    printf("                        first specify the public key, followed by the private key, separating them with the '$'/'$$' symbol.\n");
-    printf("[*]  -n / --name        Encrypt FILENAME with: (default: false)\n");
-    printf("                        hash Irrevocably Hash FILENAME with sha256. (default: false)\n");
-    printf("                        encrypt FILENAME with Base64. (default: false)\n");
-    printf("[*]  -m / --mode        Select the encryption mode. (default: FULL_ENCRYPT)\n");
-    printf("                        a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n");
-    printf("                        f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n");
-    printf("                        p / part  -- PARTLY_ENCRYPT: Encrypts only part of the file.\n");
-    printf("                        h / head  -- HEADER_ENCRYPT: Encrypts file first 1 MB of the file.\n");
-    printf("                        b / block -- BLOCK_ENCRYPT:  Encrypts file 1 MB blocks.\n");
-    printf("[*]  -c / --cat         Encryption Category. (default: dir)\n");
-    printf("                        dir       -- Encrypts all files in current directory.\n");
-    printf("                        indir     -- Encrypts all files in subdirectories of the current directory.\n");
-    printf("                        file      -- Encrypts a single file. The \"-path\" field must contain the full path to the file.\n");
-    printf("[*]  -al / --algo       Select the encryption type: chacha, aes, rsa_chacha, rsa_aes or rsa. (default: null)\n");
-    printf("                        chacha    -- SYMMETRIC: uses ChaCha20 encryption.\n");
-    printf("                        aes       -- SYMMETRIC: uses AES256 CBE encryption.\n");
-    printf("                        rsa_chacha -- HYBRID: uses RSA and ChaCha20 encryption.\n");
-    printf("                        rsa_aes   -- HYBRID: uses RSA and AES256 CBE encryption.\n");
-    printf("                        rsa       -- RSA_ONLY: uses only RSA encryption.\n");
-    printf("                                     Type:(for aes&rsa) crypt or decrypt. This is a required field. (default: null)\n");
-    printf("[*]  -b64 / --base64    If RSA key in Base64 format. (default: false)\n");
-    printf("[*]  -k / --key         Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n");
-    printf("                        For HYBRID & ASYMMETRIC: the full path to private/public RSA key.\n");
-    printf("                        For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n");
-    printf("[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n");
-    printf("[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n");
-    printf("[*]  -e / --enable      Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n");
-    printf("[*]  -d / --delete      File flag delete on close if success. (default: false)\n");
-    printf("[*]  -ow / --overwrite  Overwriting the original file. (default: false; -zeros, count: 1)\n");
-    printf("[*]  -rw / --rewrite    Only Overwriting the files. (default: false)\n");
-    printf("                        zeros    -- ZEROS: overwrite the file with zeros.\n");
-    printf("                        random   -- RANDOM: overwrite the file with random crypt symbols.\n");
-    printf("                        DOD      -- DOD: overwrite the file with zeros and random crypt symbols.\n");
-    printf("                        -count       Number of times to overwrite the file.\n\n");
+    printf("[*]  --h / --help       Provides Information about program.\n"
+           "[*]  -p / --path        Path to the file to encrypt. Optional field. If null, encrypts in local path.\n"
+           "[*]  -o / --out         Path to directory for encrypted files. (default: false)\n"
+           "[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n"
+           "                        '--path' followed by the path to the configuration.\n"
+           "[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n"
+           "                        first specify the public key, followed by the private key, separating them with the '$'/'$$' symbol.\n"
+           "[*]  -n / --name        Encrypt FILENAME with: (default: false)\n"
+           "                        hash Irrevocably Hash FILENAME with sha256. (default: false)\n"
+           "                        encrypt FILENAME with Base64. (default: false)\n"
+           "[*]  -m / --mode        Select the encryption mode. (default: FULL_ENCRYPT)\n"
+           "                        a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n"
+           "                        f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n"
+           "                        p / part  -- PARTLY_ENCRYPT: Encrypts only part of the file.\n"
+           "                        h / head  -- HEADER_ENCRYPT: Encrypts file first 1 MB of the file.\n"
+           "                        b / block -- BLOCK_ENCRYPT:  Encrypts file 1 MB blocks.\n"
+           "[*]  -c / --cat         Encryption Category. (default: dir)\n"
+           "                        dir       -- Encrypts all files in current directory.\n"
+           "                        indir     -- Encrypts all files in subdirectories of the current directory.\n"
+           "                        file      -- Encrypts a single file. The \"-path\" field must contain the full path to the file.\n"
+           "[*]  -al / --algo       Select the encryption type: chacha, aes, rsa_chacha, rsa_aes or rsa. (default: null)\n"
+           "                        chacha    -- SYMMETRIC: uses ChaCha20 encryption.\n"
+           "                        aes       -- SYMMETRIC: uses AES256 CBE encryption.\n"
+           "                        rsa_chacha -- HYBRID: uses RSA and ChaCha20 encryption.\n"
+           "                        rsa_aes   -- HYBRID: uses RSA and AES256 CBE encryption.\n"
+           "                        rsa       -- RSA_ONLY: uses only RSA encryption.\n"
+           "                                     Type:(for aes&rsa) crypt or decrypt. This is a required field. (default: null)\n"
+           "[*]  -b64 / --base64    If RSA key in Base64 format. (default: false)\n"
+           "[*]  -k / --key         Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n"
+           "                        For HYBRID & ASYMMETRIC: the full path to private/public RSA key.\n"
+           "                        For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n"
+           "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
+           "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
+           "[*]  -e / --enable      Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n"
+           "[*]  -d / --delete      File flag delete on close if success. (default: false)\n"
+           "[*]  -ow / --overwrite  Overwriting the original file. (default: false; -zeros, count: 1)\n"
+           "[*]  -rw / --rewrite    Only Overwriting the files. (default: false)\n"
+           "                        zeros    -- ZEROS: overwrite the file with zeros.\n"
+           "                        random   -- RANDOM: overwrite the file with random crypt symbols.\n"
+           "                        DOD      -- DOD: overwrite the file with zeros and random crypt symbols.\n"
+           "                        -count       Number of times to overwrite the file.\n\n");
 
-    printf("EXAMPLE USAGE     Config:  laced config --path C:\\Config.laced\t\tlaced config\n");
-    printf("EXAMPLE USAGE     HYBRID:  laced --path C:/FolderFiles --name hash --mode full --cat dir --algo rsa_chacha --key \"C:/FullPathToRSAkeys\" crypt\n");
-    printf("EXAMPLE USAGE  SYMMETRIC:  laced --path C:/FolderFiles -name base --mode full --cat dir --algo chacha --key \"secret key\"\n");
-    printf("EXAMPLE USAGE   RSA_ONLY:  laced --path C:/File.txt -n hash -al rsa -k \"C:/FullPathToRSAkeys\" crypt\n");
-    printf("EXAMPLE USAGE  Signature:  laced --p C:/FolderFiles -al rsa -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n");
-    printf("EXAMPLE USAGE  Overwrite:  laced --p C:/FolderFiles --overwrite random -rw -e\n\n\n");
+    printf("EXAMPLE USAGE     Config:  laced config --path C:\\Config.laced\t\tlaced config\n"
+           "EXAMPLE USAGE     HYBRID:  laced --path C:/FolderFiles --name hash --mode full --cat dir --algo rsa_chacha --key \"C:/FullPathToRSAkeys\" crypt\n"
+           "EXAMPLE USAGE  SYMMETRIC:  laced --path C:/FolderFiles -name base --mode full --cat dir --algo chacha --key \"secret key\"\n"
+           "EXAMPLE USAGE   RSA_ONLY:  laced --path C:/File.txt -n hash -al rsa -k \"C:/FullPathToRSAkeys\" crypt\n"
+           "EXAMPLE USAGE  Signature:  laced --p C:/FolderFiles -al rsa -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n"
+           "EXAMPLE USAGE  Overwrite:  laced --p C:/FolderFiles --overwrite random -rw -e\n\n\n");
 
-    printf("RSA Generate Keys OPTIONS:\n");
-    printf("[*]  -g / --gen           Command generate RSA keys. This is a required field.\n");
-    printf("[*]  -b64 / --base64      Save RSA keys in Base64 format. (default: false)\n");
-    printf("[*]  -b / --bit           RSA bit(key) length. Available options: 2048, 3072 or 4096. (default: 4096)\n");
-    printf("[*]  -p / --path          Path to save the generated keys. Optional field. If null, saves in local path.\n");
-    printf("[*]  -print               Print the generated keys in HEX format. (default: false)\n");
-    printf("EXAMPLE USAGE:            laced -g --p C:/GenTofolder -b64 -b 4096\n\n");
+    printf("RSA Generate Keys OPTIONS:\n"
+           "[*]  -g / --gen           Command generate RSA keys. This is a required field.\n"
+           "[*]  -b64 / --base64      Save RSA keys in Base64 format. (default: false)\n"
+           "[*]  -b / --bit           RSA bit(key) length. Available options: 2048, 3072 or 4096. (default: 4096)\n"
+           "[*]  -p / --path          Path to save the generated keys. Optional field. If null, saves in local path.\n"
+           "[*]  -print               Print the generated keys in HEX format. (default: false)\n"
+           "EXAMPLE USAGE:            laced -g --p C:/GenTofolder -b64 -b 4096\n\n");
     printf("%s\n", std::string(120, '-').c_str());
     exit(0);
 }
@@ -291,14 +291,14 @@ void parser::ParsingCommandLine(int argc, char** argv)
         {
             TCHAR* locale = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
             api::GetCurrentDir(locale, MAX_PATH);
-            global::SetPath(locale);
+            GLOBAL_PATH.g_Path = locale;
         }
         else
         {
             size_t len = memory::StrLen(p.second);
             TCHAR* spath = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
             memc(spath, p.second, len);
-            global::SetPath(spath);
+            GLOBAL_PATH.g_Path = spath;
         }
 
         p = GetCommandsN(argc, argument, T("-o"), T("--out"));
@@ -306,13 +306,11 @@ void parser::ParsingCommandLine(int argc, char** argv)
         {
             TCHAR* outpath = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
             memc(outpath, p.second, memory::StrLen(p.second));
-            global::SetPathOut(outpath);
+            GLOBAL_PATH.g_Path_out = outpath;
         }
     }
-
     pair = GetCommandsCurr(argc, argv, "-b64", "--base64");
-    if (pair.first)
-        global::SetRsaBase64(TRUE);
+    if (pair.first) GLOBAL_STATE.g_RsaBase64 = true;
 
     pair = GetCommandsCurr(argc, argv, "-g", "--gen");
     if (pair.first)
@@ -321,12 +319,12 @@ void parser::ParsingCommandLine(int argc, char** argv)
         if (pair.first)
         {
             if (memory::StrStrC(pair.second, "2048"))
-                global::SetBitKey(2048);
+                GLOBAL_KEYS.g_BitKey = 2048;
             else if (memory::StrStrC(pair.second, "3072"))
-                global::SetBitKey(3072);
+                GLOBAL_KEYS.g_BitKey = 3072;
         }
         pair = GetCommandsCurr(argc, argv, "-pr", "--print");
-        if (pair.first) global::SetPrintHex(TRUE);
+        if (pair.first) GLOBAL_STATE.g_print_hex = true;
         GEN = true;
         return;
     }
@@ -348,7 +346,9 @@ void parser::ParsingCommandLine(int argc, char** argv)
         char* Count = GetCommandLineArgCh(argc, argv, "-count");
         if (Count) count = memory::my_stoi2(Count);
         if (count == 0) { LOG_ERROR("Make sure -ow -count num; num doesnt have symbols\n"); exit(1); }
-        global::SetStatusOverWrite(TRUE, mode, count);
+        GLOBAL_OVERWRITE.g_OverWrite = true;
+        GLOBAL_OVERWRITE.g_OverWriteMode = mode;
+        GLOBAL_OVERWRITE.g_OverWriteCount = count;
 
         pair = GetCommandsCurr(argc, argv, "-rw", "--rewrite");
         if (pair.first)
@@ -364,36 +364,34 @@ void parser::ParsingCommandLine(int argc, char** argv)
     if (pair.first)
     {
         if (memory::StrStrC(pair.second, "hash"))
-            global::SetCryptName(Name::HASH_NAME);
+            GLOBAL_ENUM.g_CryptName = NAME::HASH_NAME;
         else if (memory::StrStrC(pair.second, "base"))
-            global::SetCryptName(Name::BASE64_NAME);
+            GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME;
     }
 
     pair = GetCommandsNext(argc, argv, "-m", "--mode");
     if (pair.first)
     {
         if (memory::StrStrC(pair.second, "a") || memory::StrStrC(pair.second, "auto"))
-            global::SetEncMode(EncryptModes::AUTO_ENCRYPT);
+            GLOBAL_ENUM.g_EncryptMode = EncryptModes::AUTO_ENCRYPT;
         else if (memory::StrStrC(pair.second, "f") || memory::StrStrC(pair.second, "full"))
-            global::SetEncMode(EncryptModes::FULL_ENCRYPT);
+            GLOBAL_ENUM.g_EncryptMode = EncryptModes::FULL_ENCRYPT;
         else if (memory::StrStrC(pair.second, "p") || memory::StrStrC(pair.second, "part"))
-            global::SetEncMode(EncryptModes::PARTLY_ENCRYPT);
+            GLOBAL_ENUM.g_EncryptMode = EncryptModes::PARTLY_ENCRYPT;
         else if (memory::StrStrC(pair.second, "h") || memory::StrStrC(pair.second, "head"))
-            global::SetEncMode(EncryptModes::HEADER_ENCRYPT);
+            GLOBAL_ENUM.g_EncryptMode = EncryptModes::HEADER_ENCRYPT;
         else if (memory::StrStrC(pair.second, "b") || memory::StrStrC(pair.second, "block"))
-            global::SetEncMode(EncryptModes::BLOCK_ENCRYPT);
-        else if (memory::StrStrC(pair.second, "r") || memory::StrStrC(pair.second, "read"))
-            global::SetStatus(TRUE);
+            GLOBAL_ENUM.g_EncryptMode = EncryptModes::BLOCK_ENCRYPT;
     }
     pair = GetCommandsNext(argc, argv, "-c", "--cat");
     if (pair.first)
     {
         if (memory::StrStrC(pair.second, "dir"))
-            global::SetEncCat(EncryptCatalog::DIR_CAT);
+            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
         else if (memory::StrStrC(pair.second, "indir"))
-            global::SetEncCat(EncryptCatalog::INDIR_CAT);
+            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
         else if (memory::StrStrC(pair.second, "file"))
-            global::SetEncCat(EncryptCatalog::FILE_CAT);
+            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
     }
 
     pair = GetCommandsNext(argc, argv, "-al", "--algo");
@@ -403,12 +401,12 @@ void parser::ParsingCommandLine(int argc, char** argv)
             {
                 auto EcnryptChoice = GetCommandLineArgChCurr(argc, argv, "crypt");
                 if (EcnryptChoice)
-                    global::SetDeCrypt(EncryptCipher::CRYPT);
+                    GLOBAL_ENUM.g_DeCrypt = EncryptCipher::CRYPT; 
                 else if (!EcnryptChoice)
                 {
                     EcnryptChoice = GetCommandLineArgChCurr(argc, argv, "decrypt");
                     if (EcnryptChoice)
-                        global::SetDeCrypt(EncryptCipher::DECRYPT);
+                        GLOBAL_ENUM.g_DeCrypt = EncryptCipher::DECRYPT;
                     else
                     {
                         LOG_ERROR("Type: crypt or decrypt. This is a required field. (default: null)");
@@ -443,15 +441,15 @@ void parser::ParsingCommandLine(int argc, char** argv)
                     LOG_INFO("public  key:\t" log_str, public_key);
                     LOG_INFO("private key:\t" log_str, private_key);
 
-                    if (global::GetDeCrypt() == EncryptCipher::CRYPT)
+                    if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
                     {
-                        global::SetPathRSAKey(public_key);
-                        global::SetPathSignRSAKey(private_key);
+                        GLOBAL_PATH.g_PathRSAKey = public_key;
+                        GLOBAL_PATH.g_PathSignRSAKey = private_key;
                     }
                     else
                     {
-                        global::SetPathRSAKey(private_key);
-                        global::SetPathSignRSAKey(public_key);
+                        GLOBAL_PATH.g_PathRSAKey = private_key;
+                        GLOBAL_PATH.g_PathSignRSAKey = public_key;
                     }
                 }
                 else
@@ -459,7 +457,7 @@ void parser::ParsingCommandLine(int argc, char** argv)
                     size_t len = memory::StrLen(pair.second);
                     TCHAR* keypath = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
                     memc(keypath, pair.second, len);
-                    global::SetPathRSAKey(keypath);
+                    GLOBAL_PATH.g_PathRSAKey = keypath;
                 }
             });
 
@@ -473,8 +471,8 @@ void parser::ParsingCommandLine(int argc, char** argv)
                     locker::LoadRootSymmetricKey(&key, &iv);
                     if(key && iv)
                     {
-                        global::SetKey(key);
-                        global::SetIV(iv);
+                        GLOBAL_KEYS.g_Key = key;
+                        GLOBAL_KEYS.g_IV = iv;
                         return;
                     } else exit(0);
                 }
@@ -484,7 +482,7 @@ void parser::ParsingCommandLine(int argc, char** argv)
                     size_t size_key = memory::StrLen(pair.second) + 1;
                     BYTE* key_set = (BYTE*)memory::m_malloc(33);
                     memcpy(key_set, pair.second, min(size_key, size_t(32)));
-                    global::SetKey(key_set);
+                    GLOBAL_KEYS.g_Key = key_set;
                 }
                 else { LOG_ERROR("Type -key \"...\" for are symmetrical encrypts. Size key must be beetwen 1 nad 32"); exit(0); };
 
@@ -493,49 +491,49 @@ void parser::ParsingCommandLine(int argc, char** argv)
                 {
                     BYTE* ivbuff = (BYTE*)memory::m_malloc(9);
                     memcpy(ivbuff, IV, 8);
-                    global::SetIV(ivbuff);
+                    GLOBAL_KEYS.g_IV = ivbuff;
                 }
                 else
                 {
-                    unsigned chachaIV = memory::MurmurHash2A(global::GetKey(), 32, HASHING_SEED);
+                    unsigned chachaIV = memory::MurmurHash2A(GLOBAL_KEYS.g_Key, 32, HASHING_SEED);
                     std::string s = std::to_string(chachaIV);
                     BYTE* iv = (BYTE*)memory::m_malloc(9);
                     memcpy(iv, s.c_str(), min(s.size(), size_t(8)));
-                    global::SetIV(iv);
+                    GLOBAL_KEYS.g_IV = iv;
                 }
             });
 
         if (memory::StrStrC(pair.second, "chacha") || memory::StrStrC(pair.second, "CHACHA"))
         {
-            global::SetEncrypt(EncryptCipher::SYMMETRIC);
-            global::SetEncryptMethod(CryptoPolicy::CHACHA);
+            GLOBAL_ENUM.g_Encrypt = EncryptCipher::SYMMETRIC;
+            GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::CHACHA;
             funcKeySym();
         }
         else if (memory::StrStrC(pair.second, "aes") || memory::StrStrC(pair.second, "AES"))
         {
-            global::SetEncrypt(EncryptCipher::SYMMETRIC);
-            global::SetEncryptMethod(CryptoPolicy::AES256);
+            GLOBAL_ENUM.g_Encrypt = EncryptCipher::SYMMETRIC;
+            GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::AES256;
             funcDeCrypt();
             funcKeySym();
         }
         else if (memory::StrStrC(pair.second, "rsa_chacha") || memory::StrStrC(pair.second, "RSA_CHACHA"))
         {
-            global::SetEncrypt(EncryptCipher::ASYMMETRIC);
-            global::SetEncryptMethod(CryptoPolicy::RSA_CHACHA);
+            GLOBAL_ENUM.g_Encrypt = EncryptCipher::ASYMMETRIC;
+            GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::RSA_CHACHA;
             funcDeCrypt();
             funcKey();
         }
         else if (memory::StrStrC(pair.second, "rsa_aes") || memory::StrStrC(pair.second, "RSA_AES"))
         {
-            global::SetEncrypt(EncryptCipher::ASYMMETRIC);
-            global::SetEncryptMethod(CryptoPolicy::RSA_AES256);
+            GLOBAL_ENUM.g_Encrypt = EncryptCipher::ASYMMETRIC;
+            GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::RSA_AES256;
             funcDeCrypt();
             funcKey();
         }
         else if (memory::StrStrC(pair.second, "rsa") || memory::StrStrC(pair.second, "RSA"))
         {
-            global::SetEncrypt(EncryptCipher::RSA_ONLY);
-            global::SetEncryptMethod(CryptoPolicy::RSA);
+            GLOBAL_ENUM.g_Encrypt = EncryptCipher::RSA_ONLY;
+            GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::RSA;
             funcDeCrypt();
             funcKey();
         }
@@ -543,10 +541,10 @@ void parser::ParsingCommandLine(int argc, char** argv)
     else { LOG_ERROR("[ParsingCommandLine] Miss the command --algo"); exit(1); }
 
     pair = GetCommandsCurr(argc, argv, "-hs", "--hashsum");
-    if (pair.first) global::SetPrintHashSum(TRUE);
+    if (pair.first) GLOBAL_STATE.g_print_hash = true;
 
     pair = GetCommandsCurr(argc, argv, "-d", "--delete");
-    if (pair.first) global::SetFlagDelete(TRUE);
+    if (pair.first) GLOBAL_STATE.g_FlagDelete = true;
 
     pair = GetCommandsCurr(argc, argv, "-e", "--enable");
     if (pair.first)THREAD_ENABLE = TRUE;
@@ -579,7 +577,22 @@ void parser::ParsingCommandLine(int argc, char** argv)
 #endif
     }
     logs::call_log();
-    LOG_INFO("DIR to execute:\t" log_str, global::GetPath());
+    LOG_INFO("DIR to execute:\t" log_str, GLOBAL_PATH.g_Path);
+}
+
+void ParsingOtherCommandLine(int argc, char** argv)
+{
+    std::pair<bool, char*> pair;
+    pair = GetCommandsNext(argc, argv, "-ip", "--ip");
+    //127.0.0.1
+    pair = GetCommandsNext(argc, argv, "-s", "--system");
+    //0-1023
+    pair = GetCommandsNext(argc, argv, "-u", "--user");
+    //1024-49151
+    pair = GetCommandsNext(argc, argv, "-p", "--private");
+    //49151-65535
+    pair = GetCommandsNext(argc, argv, "-a", "--all");
+    //0-65535
 }
 
 std::pair<int, char**> parser::ParseFileConfig(int argc, char** argv)

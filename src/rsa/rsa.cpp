@@ -39,9 +39,9 @@ bool HandlerGenKeyPairRSA()
 	BYTE* PublicKey = NULL;
 	BYTE* PrivateKey = NULL;
 
-	std::wstring s_prv = global::GetPath();
+	std::wstring s_prv = GLOBAL_PATH.g_Path;
 	s_prv += L"/RSA_private_key_laced.txt";
-	std::wstring s_pub = global::GetPath();
+	std::wstring s_pub = GLOBAL_PATH.g_Path;
 	s_pub += L"/RSA_public_key_laced.txt";
 	HANDLE desc_prv = CreateFileW(s_prv.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 	HANDLE desc_pub = CreateFileW(s_pub.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
@@ -60,7 +60,7 @@ bool HandlerGenKeyPairRSA()
 	}
 
 	if (!HandleError
-	(BCryptGenerateKeyPair(hProvider, &hKey, global::GetBitKey(), 0)))
+	(BCryptGenerateKeyPair(hProvider, &hKey, GLOBAL_KEYS.g_BitKey, 0)))
 	{
 		LOG_ERROR("[BCryptGenerateKeyPair] Failed");
 		goto end;
@@ -103,7 +103,7 @@ bool HandlerGenKeyPairRSA()
 		goto end;
 	}
 
-	if (global::GetRsaBase64())
+	if (GLOBAL_STATE.g_RsaBase64)
 	{
 		char bb_prv[4096];
 		char bb_pub[4096];
@@ -132,8 +132,8 @@ bool HandlerGenKeyPairRSA()
 	}
 
 
-	LOG_SUCCESS("Public Key (%lu bytes) generated and saved in: %ls", dwPublicKeySize, global::GetPath());
-	LOG_SUCCESS("Private Key (%lu bytes) generated and saved in: %ls", dwPrivateKeySize, global::GetPath());
+	LOG_SUCCESS("Public Key (%lu bytes) generated and saved in: %ls", dwPublicKeySize, GLOBAL_PATH.g_Path);
+	LOG_SUCCESS("Private Key (%lu bytes) generated and saved in: %ls", dwPrivateKeySize, GLOBAL_PATH.g_Path);
 
 end:
 	if (PublicKey)
@@ -164,7 +164,7 @@ end:
 
 
 typedef unsigned char byte;
-static unsigned bits = global::GetBitKey();
+static unsigned bits = GLOBAL_KEYS.g_BitKey;
 //static BIGNUM exp = 65537;
 
 static void PrintHex(const byte* data, size_t size)
@@ -213,9 +213,9 @@ bool HandlerGenKeyPairRSA()
 	int len_prv;
 	int len_pub;
 
-	std::string s_prv = global::GetPath();
+	std::string s_prv = GLOBAL_PATH.g_Path;
 	s_prv += "/RSA_private_key_laced.txt";
-	std::string s_pub = global::GetPath();
+	std::string s_pub = GLOBAL_PATH.g_Path;
 	s_pub += "/RSA_public_key_laced.txt";
 	int desc_prv = -1;
 	int desc_pub = -1;
@@ -266,7 +266,7 @@ bool HandlerGenKeyPairRSA()
 		goto end;
 	}
 
-	if (global::GetRsaBase64())
+	if (GLOBAL_STATE.g_RsaBase64)
 	{
 		char bb_prv[4096];
 		char bb_pub[4096];

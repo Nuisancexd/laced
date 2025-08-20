@@ -48,7 +48,7 @@ static void HandlerGenKeyAES(crypto_aes_ctx* CryptCtx, CONST BYTE* AESKey)
 static bool SymmetricMethodState(PFILE_INFO FileInfo)
 {
 	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
-		FileInfo->CryptInfo->gen_key_method(FileInfo->ctx, global::GetKey(), global::GetIV());
+		FileInfo->CryptInfo->gen_key_method(FileInfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
 
 	return FileInfo->CryptInfo->mode_method(FileInfo);
 }
@@ -223,13 +223,13 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	CRYPTO_SYSTEM sys;
 	CryptoSystemInit(&sys);
 
-	if (!CryptSystemGetMethod(&sys, global::GetEncryptMethod(), CryptInfo))
+	if (!CryptSystemGetMethod(&sys, GLOBAL_ENUM.g_EncryptMethod, CryptInfo))
 		return false;
 
 
-	if (global::GetStatusOverWrite())
+	if (GLOBAL_OVERWRITE.g_OverWrite)
 	{
-		switch (global::GetModeOverWrite())
+		switch (GLOBAL_OVERWRITE.g_OverWriteMode)
 		{
 		case overwrite::ZEROS:
 		{
@@ -286,9 +286,9 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	}
 
 
-	EncryptCipher state_crypt = global::GetDeCrypt();
+	EncryptCipher state_crypt = GLOBAL_ENUM.g_DeCrypt;
 	if (state_crypt == EncryptCipher::CRYPT) isCrypt = true;
-	EncryptModes state_mode = global::GetEncMode();
+	EncryptModes state_mode = GLOBAL_ENUM.g_EncryptMode;
 
 
 
@@ -319,7 +319,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 			LOG_ERROR("[METHOD_POLICY] Failed; missing method");
 			return false;
 		}
-		CryptInfo->gen_key_method(CryptInfo->ctx, global::GetKey(), global::GetIV());
+		CryptInfo->gen_key_method(CryptInfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
 	}
 
 	if (CryptInfo->method_policy == CryptoPolicy::RSA_CHACHA
@@ -327,7 +327,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		|| CryptInfo->method_policy == CryptoPolicy::RSA)
 	{
 		CryptInfo->desc.key_data = (BYTE*)memory::m_malloc(4096);
-		CryptInfo->desc.rsa_path = global::GetPathRSAKey();
+		CryptInfo->desc.rsa_path = GLOBAL_PATH.g_PathRSAKey;
 #ifdef _WIN32
 		CryptInfo->desc.crypto_provider = NULL;
 		CryptInfo->desc.handle_rsa_key = NULL;
@@ -344,8 +344,6 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 
 	if (CryptInfo->method_policy == CryptoPolicy::AES256 || CryptInfo->method_policy == CryptoPolicy::CHACHA)
 	{
-		//if(state_mode == EncryptModes::PIPELINE_ENCRYPT)
-			//CryptInfo->algo_method = (EncryptAlgoMethod)SymmetricMethodStatePipeLine;
 		CryptInfo->algo_method = (EncryptAlgoMethod)SymmetricMethodState;
 	}
 	else if (CryptInfo->method_policy == CryptoPolicy::RSA_AES256 || CryptInfo->method_policy == CryptoPolicy::RSA_CHACHA)
@@ -392,12 +390,12 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		return false;
 	}
 
-	switch (global::GetCryptName())
+	switch (GLOBAL_ENUM.g_CryptName)
 	{
-	case Name::BASE64_NAME:
+	case NAME::BASE64_NAME:
 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameBase;
 		break;
-	case Name::HASH_NAME:
+	case NAME::HASH_NAME:
 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameHash;
 		break;
 	default:
@@ -498,7 +496,7 @@ static void free_file_info(PFILE_INFO FileInfo, bool success)
 		api::CloseDesc(FileInfo->newFileHandle);
 
 	if (!success) SecureDelete(FileInfo->newFilename);
-	else if (global::GetFlagDelete())
+	else if (GLOBAL_STATE.g_FlagDelete)
 		if (!SecureDelete(FileInfo->FilePath))
 			LOG_ERROR("[SecureDelete] Failed; " log_str, FileInfo->Filename);
 	memory::m_free(FileInfo->newFilename);

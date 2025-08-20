@@ -6,12 +6,12 @@
 #include "rsa/rsa.h"
 #include "logs.h"
 
+
 int main(int argc, char* argv[])
 {
     logs::initLog(TRUE);
     parser::ParsingCommandLine(argc, argv);
     base64::init_table_base64_decode();
-
 
     BOOL success = FALSE;
     LIST<DRIVE_INFO>* DriveInfo = new LIST<DRIVE_INFO>;
@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
         goto exit;
     }
 
-    f = pathsystem::StartLocalSearch(DriveInfo, global::GetPath());
+    f = pathsystem::StartLocalSearch(DriveInfo, GLOBAL_PATH.g_Path);
     if (f == 0) { LOG_ERROR("No files. null."); goto exit; }
     LOG_ENABLE("After this operation %d files will be changed", f);
 

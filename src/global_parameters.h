@@ -35,7 +35,7 @@ enum class EncryptCipher
 	NONE = 0
 };
 
-enum class Name
+enum class NAME
 {
 	NONE = 0,
 	BASE64_NAME = 17,
@@ -51,52 +51,57 @@ enum overwrite
 
 namespace global
 {
-	BOOL print_command_g();
-	TCHAR* GetPath();
-	VOID SetPath(TCHAR* set_path);
-	TCHAR* GetPathOut();
-	VOID SetPathOut(TCHAR* set_path_out);
-	TCHAR* GetPathRSAKey();
-	VOID SetPathRSAKey(TCHAR* set_path);
-	TCHAR* GetPathSignRSAKey();
-	VOID SetPathSignRSAKey(TCHAR* path_sing);
-	VOID SetEncryptMethod(CryptoPolicy method);
-	CryptoPolicy GetEncryptMethod();
-	EncryptCipher GetEncrypt();
-	VOID SetEncrypt(EncryptCipher Encrypt);
-	EncryptCipher GetDeCrypt();
-	VOID SetDeCrypt(EncryptCipher DeCrypt);
-	EncryptModes GetEncMode();
-	VOID SetEncMode(EncryptModes g_EncryptModes);
-	VOID SetStatus(BOOL g_Status_);
-	VOID SetEncCat(EncryptCatalog EncCat);
-	EncryptCatalog GetnEncCat();
-	BOOL GetStatus();
-	VOID SetKey(unsigned char* key);
-	unsigned char* GetKey();
-	VOID SetIV(unsigned char* iv);
-	unsigned char* GetIV();
-	VOID SetRsaBase64(BOOL status);
-	BOOL GetRsaBase64();
-	VOID SetBitKey(unsigned long bit);
-	unsigned long GetBitKey();
-	VOID SetPrintHex(BOOL hex);
-	BOOL GetPrintHex();
-	VOID SetCryptName(Name stat);
-	Name GetCryptName();
-	VOID SetFlagDelete(BOOL flag);
-	BOOL GetFlagDelete();
-	VOID free_global();
-	VOID SetStatusOverWrite(BOOL Stat, int mode, int count);
-	BOOL GetStatusOverWrite();
-	int GetModeOverWrite();
-	int GetCountOverWrite();
-	BOOL PrintHashSum();
-	void SetPrintHashSum(BOOL print_h);
+	struct GlobalPath
+	{
+		TCHAR* g_Path = NULL;
+		TCHAR* g_PathRSAKey = NULL;
+		TCHAR* g_PathSignRSAKey = NULL;
+		TCHAR* g_Path_out = NULL;
+	};
 
+	struct GlobalEnum
+	{
+		EncryptCipher g_Encrypt = EncryptCipher::NONE;
+		EncryptCipher g_DeCrypt = EncryptCipher::NONE;
+		EncryptModes g_EncryptMode = EncryptModes::FULL_ENCRYPT;
+		EncryptCatalog g_EncryptCat = EncryptCatalog::DIR_CAT;
+		NAME g_CryptName = NAME::NONE;
+		CryptoPolicy g_EncryptMethod = CryptoPolicy::CHACHA;
+	};
+
+	struct alignas(8) GlobalState
+	{
+		bool g_Status = false;
+		bool g_print_hash = false;
+		bool g_DropMode = false;
+		bool g_print_hex = false;
+		bool g_FlagDelete = false;
+		bool g_RsaBase64 = false;
+	};
+
+	struct alignas(4) GlobalOverWrite
+	{
+		bool g_OverWrite = false;
+		int g_OverWriteMode = ZEROS;
+		int g_OverWriteCount = 1;
+	};
+
+	struct GlobalKeys
+	{
+		BYTE* g_Key = NULL;
+		BYTE* g_IV = NULL;
+		unsigned g_BitKey = 4096;
+	};
+
+	BOOL print_command_g();
+	VOID free_global();
 }
 
-
+extern global::GlobalPath GLOBAL_PATH;
+extern global::GlobalEnum GLOBAL_ENUM;
+extern global::GlobalKeys GLOBAL_KEYS;
+extern global::GlobalOverWrite GLOBAL_OVERWRITE;
+extern global::GlobalState GLOBAL_STATE;
 
 #endif
 

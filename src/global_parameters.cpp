@@ -9,237 +9,11 @@
 #include "logs.h"
 #include "CommandParser.h"
 
-/*		default		*/
-
-STATIC TCHAR* g_Path = NULL;
-STATIC TCHAR* g_PathRSAKey = NULL;
-STATIC TCHAR* g_PathSignRSAKey = NULL;
-STATIC TCHAR* g_Path_out = NULL;
-STATIC EncryptCipher g_Encrypt = EncryptCipher::NONE;
-STATIC EncryptCipher g_DeCrypt = EncryptCipher::NONE;
-STATIC EncryptModes g_EncryptMode = EncryptModes::FULL_ENCRYPT;
-STATIC EncryptCatalog g_EncryptCat = EncryptCatalog::DIR_CAT;
-STATIC BOOL g_Status = TRUE;
-STATIC BOOL g_print_hash = FALSE;
-STATIC int g_Percent = 20;
-STATIC unsigned char* g_Key = NULL;
-STATIC unsigned char* g_IV = NULL;
-STATIC BOOL g_DropMode = FALSE;
-STATIC unsigned long g_BitKey = 4096;
-STATIC BOOL g_print_hex = FALSE;
-STATIC Name g_CryptName = Name::NONE;
-STATIC BOOL g_FlagDelete = FALSE;
-STATIC BOOL g_OverWrite = FALSE;
-STATIC int g_OverWriteMode = ZEROS;
-STATIC int g_OverWriteCount = 1;
-STATIC CryptoPolicy g_EncryptMethod = CryptoPolicy::CHACHA;
-
-
-VOID global::SetPath(TCHAR* set_path)
-{
-	g_Path = set_path;
-}
-
-TCHAR* global::GetPath()
-{
-	return g_Path;
-}
-
-VOID global::SetPathOut(TCHAR* set_path_out)
-{
-	g_Path_out = set_path_out;
-}
-
-TCHAR* global::GetPathOut()
-{
-	return g_Path_out;
-}
-
-VOID global::SetPathRSAKey(TCHAR* set_path)
-{
-	g_PathRSAKey = set_path;
-}
-
-TCHAR* global::GetPathRSAKey()
-{
-	return g_PathRSAKey;
-}
-
-VOID global::SetPathSignRSAKey(TCHAR* path_sing)
-{
-	g_PathSignRSAKey = path_sing;
-}
-
-TCHAR* global::GetPathSignRSAKey()
-{
-	return g_PathSignRSAKey;
-}
-
-
-
-VOID global::SetEncryptMethod(CryptoPolicy method)
-{
-	g_EncryptMethod = method;
-}
-
-CryptoPolicy global::GetEncryptMethod()
-{
-	return g_EncryptMethod;
-}
-
-VOID global::SetEncrypt(EncryptCipher Encrypt)
-{
-	g_Encrypt = Encrypt;
-}
-
-EncryptCipher global::GetEncrypt()
-{
-	return g_Encrypt;
-}
-
-VOID global::SetDeCrypt(EncryptCipher DeCrypt)
-{
-	g_DeCrypt = DeCrypt;
-}
-
-EncryptCipher global::GetDeCrypt()
-{
-	return g_DeCrypt;
-}
-
-
-
-VOID global::SetEncMode(EncryptModes EncryptMode)
-{
-	g_EncryptMode = EncryptMode;
-}
-
-EncryptModes global::GetEncMode()
-{
-	return g_EncryptMode;
-}
-
-VOID global::SetEncCat(EncryptCatalog EncCat)
-{
-	g_EncryptCat = EncCat;
-}
-
-EncryptCatalog global::GetnEncCat()
-{
-	return g_EncryptCat;
-}
-
-VOID global::SetStatus(BOOL Status)
-{
-	g_Status = Status;
-}
-
-BOOL global::GetStatus()
-{
-	return g_Status;
-}
-
-VOID global::SetKey(unsigned char* key)
-{
-	g_Key = key;
-}
-
-unsigned char* global::GetKey()
-{
-	return g_Key;
-}
-
-VOID global::SetIV(unsigned char* iv)
-{
-	g_IV = iv;
-}
-
-unsigned char* global::GetIV()
-{
-	return g_IV;
-}
-
-VOID global::SetBitKey(unsigned long bit)
-{
-	g_BitKey = bit;
-}
-
-unsigned long global::GetBitKey()
-{
-	return g_BitKey;
-}
-
-VOID global::SetRsaBase64(BOOL status)
-{
-	g_DropMode = status;
-}
-
-BOOL global::GetRsaBase64()
-{
-	return g_DropMode;
-}
-
-VOID global::SetPrintHex(BOOL hex)
-{
-	g_print_hex = hex;
-}
-
-BOOL global::GetPrintHex()
-{
-	return g_print_hex;
-}
-
-VOID global::SetCryptName(Name name)
-{
-	g_CryptName = name;
-}
-
-Name global::GetCryptName()
-{
-	return g_CryptName;
-}
-
-VOID global::SetFlagDelete(BOOL flag)
-{
-	g_FlagDelete = flag;
-}
-
-BOOL global::GetFlagDelete()
-{
-	return g_FlagDelete;
-}
-
-VOID global::SetStatusOverWrite(BOOL Stat, int mode, int count)
-{
-	g_OverWrite = Stat;
-	g_OverWriteMode = mode;
-	g_OverWriteCount = count;
-}
-
-BOOL global::GetStatusOverWrite()
-{
-	return g_OverWrite;
-}
-
-int global::GetModeOverWrite()
-{
-	return g_OverWriteMode;
-}
-
-int global::GetCountOverWrite()
-{
-	return g_OverWriteCount;
-}
-
-BOOL global::PrintHashSum()
-{
-	return g_print_hash;
-}
-
-void global::SetPrintHashSum(BOOL print_h)
-{
-	g_print_hash = print_h;
-}
+global::GlobalPath GLOBAL_PATH;
+global::GlobalEnum GLOBAL_ENUM;
+global::GlobalKeys GLOBAL_KEYS;
+global::GlobalOverWrite GLOBAL_OVERWRITE;
+global::GlobalState GLOBAL_STATE;
 
 #ifdef _WIN32
 #define str_ std::wstring
@@ -270,12 +44,12 @@ BOOL global::print_command_g()
 
 	if (O_REWRITE)
 	{
-		if (g_OverWrite)
+		if (GLOBAL_OVERWRITE.g_OverWrite)
 			LOG_NONE("-overwrite");
-		if (g_Path)
-			LOG_NONE("-path " log_str, g_Path);
+		if (GLOBAL_PATH.g_Path)
+			LOG_NONE("-path " log_str, GLOBAL_PATH.g_Path);
 
-		switch (g_OverWriteMode)
+		switch (GLOBAL_OVERWRITE.g_OverWriteMode)
 		{
 		case ZEROS:
 			LOG_NONE("ZEROS");
@@ -288,12 +62,12 @@ BOOL global::print_command_g()
 			break;
 		}
 
-		LOG_NONE("COUNT: %d", g_OverWriteCount);
+		LOG_NONE("COUNT: %d", GLOBAL_OVERWRITE.g_OverWriteCount);
 
 		goto end;
 	}
 
-	switch (g_Encrypt)
+	switch (GLOBAL_ENUM.g_Encrypt)
 	{
 	case EncryptCipher::ASYMMETRIC:
 		method = "HYBRID_METHOD";
@@ -306,7 +80,7 @@ BOOL global::print_command_g()
 		break;
 	}
 
-	switch (g_DeCrypt)
+	switch (GLOBAL_ENUM.g_DeCrypt)
 	{
 	case EncryptCipher::CRYPT:
 		dcrypt = "CRYPT";
@@ -316,7 +90,7 @@ BOOL global::print_command_g()
 		break;
 	}
 
-	switch (g_EncryptMode)
+	switch (GLOBAL_ENUM.g_EncryptMode)
 	{
 	case EncryptModes::FULL_ENCRYPT:
 		mode = "FULL_ENCRYPT";
@@ -338,7 +112,7 @@ BOOL global::print_command_g()
 		// 	break;
 	}
 
-	switch (g_EncryptCat)
+	switch (GLOBAL_ENUM.g_EncryptCat)
 	{
 	case EncryptCatalog::FILE_CAT:
 		cat = "file";
@@ -351,17 +125,17 @@ BOOL global::print_command_g()
 		break;
 	}
 
-	switch (g_CryptName)
+	switch (GLOBAL_ENUM.g_CryptName)
 	{
-	case Name::BASE64_NAME:
+	case NAME::BASE64_NAME:
 		LOG_NONE("BASE64_NAME");
 		break;
-	case Name::HASH_NAME:
+	case NAME::HASH_NAME:
 		LOG_NONE("HASH_NAME");
 		break;
 	}
 
-	switch (g_EncryptMethod)
+	switch (GLOBAL_ENUM.g_EncryptMethod)
 	{
 	case CryptoPolicy::AES256:
 		algo = "aes";
@@ -386,20 +160,20 @@ BOOL global::print_command_g()
 	print_param("Algorithm:", algo);
 
 
-	if (g_Path)
-		sprint_param("Path:", str(g_Path));
-	if(g_Path_out)
-		sprint_param("Path out:", str(g_Path_out));
-	if (g_PathRSAKey)
-		sprint_param("RSA:", str(g_PathRSAKey));
-	if (g_PathSignRSAKey)
-		sprint_param("sign RSA:", str(g_PathSignRSAKey));
-	if (g_DeCrypt != EncryptCipher::NONE)
+	if (GLOBAL_PATH.g_Path)
+		sprint_param("Path:", str(GLOBAL_PATH.g_Path));
+	if(GLOBAL_PATH.g_Path_out)
+		sprint_param("Path out:", str(GLOBAL_PATH.g_Path_out));
+	if (GLOBAL_PATH.g_PathRSAKey)
+		sprint_param("RSA:", str(GLOBAL_PATH.g_PathRSAKey));
+	if (GLOBAL_PATH.g_PathSignRSAKey)
+		sprint_param("sign RSA:", str(GLOBAL_PATH.g_PathSignRSAKey));
+	if (GLOBAL_ENUM.g_DeCrypt != EncryptCipher::NONE)
 		print_param("DeCrypt:", dcrypt);
 
-	if (g_FlagDelete)
+	if (GLOBAL_STATE.g_FlagDelete)
 		LOG_NONE("flag delete");
-	if (g_OverWrite)
+	if (GLOBAL_OVERWRITE.g_OverWrite)
 		LOG_NONE("flag overwrite");
 	if (THREAD_ENABLE)
 		LOG_NONE("thread enable");
@@ -418,43 +192,43 @@ end:
 
 VOID global::free_global()
 {
-	if (g_Key)
+	if (GLOBAL_KEYS.g_Key)
 	{
-		memory::memzero_explicit(g_Key, 32);
-		memory::m_free(g_Key);
-		g_Key = NULL;
+		memory::memzero_explicit(GLOBAL_KEYS.g_Key, 32);
+		memory::m_free(GLOBAL_KEYS.g_Key);
+		GLOBAL_KEYS.g_Key = NULL;
 	}
-	if (g_IV)
+	if (GLOBAL_KEYS.g_IV)
 	{
-		memory::memzero_explicit(g_IV, 8);
-		memory::m_free(g_IV);
-		g_IV = NULL;
+		memory::memzero_explicit(GLOBAL_KEYS.g_IV, 8);
+		memory::m_free(GLOBAL_KEYS.g_IV);
+		GLOBAL_KEYS.g_IV = NULL;
 	}
-	if (g_PathRSAKey)
+	if (GLOBAL_PATH.g_PathRSAKey)
 	{
-		memory::memzero_explicit(g_PathRSAKey, memory::StrLen(g_PathRSAKey));
-		memory::m_free(g_PathRSAKey);
-		g_PathRSAKey = NULL;
-	}
-
-	if (g_Path)
-	{
-		memory::memzero_explicit(g_Path, memory::StrLen(g_Path));
-		memory::m_free(g_Path);
-		g_Path = NULL;
+		memory::memzero_explicit(GLOBAL_PATH.g_PathRSAKey, memory::StrLen(GLOBAL_PATH.g_PathRSAKey));
+		memory::m_free(GLOBAL_PATH.g_PathRSAKey);
+		GLOBAL_PATH.g_PathRSAKey = NULL;
 	}
 
-	if(g_Path_out)
+	if (GLOBAL_PATH.g_Path)
 	{
-		memory::memzero_explicit(g_Path_out, memory::StrLen(g_Path_out));
-		memory::m_free(g_Path_out);
-		g_Path_out = NULL;
+		memory::memzero_explicit(GLOBAL_PATH.g_Path, memory::StrLen(GLOBAL_PATH.g_Path));
+		memory::m_free(GLOBAL_PATH.g_Path);
+		GLOBAL_PATH.g_Path = NULL;
 	}
 
-	if (g_PathSignRSAKey)
+	if(GLOBAL_PATH.g_Path_out)
 	{
-		memory::memzero_explicit(g_PathSignRSAKey, memory::StrLen(g_PathSignRSAKey));
-		memory::m_free(g_PathSignRSAKey);
-		g_PathSignRSAKey = NULL;
+		memory::memzero_explicit(GLOBAL_PATH.g_Path_out, memory::StrLen(GLOBAL_PATH.g_Path_out));
+		memory::m_free(GLOBAL_PATH.g_Path_out);
+		GLOBAL_PATH.g_Path_out = NULL;
+	}
+
+	if (GLOBAL_PATH.g_PathSignRSAKey)
+	{
+		memory::memzero_explicit(GLOBAL_PATH.g_PathSignRSAKey, memory::StrLen(GLOBAL_PATH.g_PathSignRSAKey));
+		memory::m_free(GLOBAL_PATH.g_PathSignRSAKey);
+		GLOBAL_PATH.g_PathSignRSAKey = NULL;
 	}
 }
