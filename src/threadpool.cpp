@@ -2,6 +2,8 @@
 #include "api.h"
 #include "filesystem.h"
 #include "memory.h"
+#include "logs.h"
+
 
 ThreadPool::ThreadPool(size_t threads) : active(threads)
 {
@@ -100,140 +102,199 @@ VOID ThreadPool::wait()
 
 /*-----PIPE_LINE-----*/
 
-PipeLineEncrypt::PipeLineEncrypt()
+/*
+TODO:
+add shared_ptr
+add hybrid method
+fix some bugs
+*/
+
+ThreadPipeLine::ThreadPipeLine()
 {
-
     PTHREADS mark1 = new THREADS;
-    mark1->thread = std::jthread(&PipeLineEncrypt::work_read, this);
+    mark1->thread = std::thread(&ThreadPipeLine::work_read, this);
     work->LIST_INSERT_HEAD(mark1);
-
+    
     PTHREADS mark2 = new THREADS;
-    mark2->thread = std::jthread(&PipeLineEncrypt::work_encrypt, this);
+    mark2->thread = std::thread(&ThreadPipeLine::work_encrypt, this);
     work->LIST_INSERT_HEAD(mark2);
-
+    
     PTHREADS mark3 = new THREADS;
-    mark3->thread = std::jthread(&PipeLineEncrypt::work_write, this);
+    mark3->thread = std::thread(&ThreadPipeLine::work_write, this);
     work->LIST_INSERT_HEAD(mark3);
 }
 
-PipeLineEncrypt::~PipeLineEncrypt()
+ThreadPipeLine::~ThreadPipeLine()
 {
-    stop = true;
+    {
+        std::lock_guard<std::mutex> lck(mtx_wait);
+        stop = true;
+    }
+
     cv_read.notify_all();
     cv_encrypt.notify_all();
     cv_write.notify_all();
-    cv_wait.notify_all();
+
     THREADS* thread = NULL;
     LIST_FOREACH(thread, work)
         thread->thread.join();
 
     delete work;
+    delete que_re;
+    delete que_ew;
+    delete que_state;
 }
 
-VOID PipeLineEncrypt::INIT(PFILE_INFO a_FileInfo)
+ThreadPipeLine::StateContext* ThreadPipeLine::get_front_qstate()
 {
-    done_man = 0;
-    rsize = 0;
-    esize = 0;
-    wsize = 0;
-    FileInfo = a_FileInfo;
-    start_read = true;
-    cv_read.notify_one();
+    std::lock_guard<std::mutex> lck(mtx_state);
+    if(que_state->empty())
+        return NULL;
+    return que_state->front();
 }
 
-VOID PipeLineEncrypt::work_read()
+void ThreadPipeLine::work_read()
 {
-    while (!stop)
+    while(true)
     {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv_read.wait(lock, [this] { return start_read || stop; });
-        if (stop) break;
+        std::unique_lock<std::mutex> lock(mtx_read);
+        cv_read.wait(lock, [this] 
+            {
+                if(stop)
+                    return true;
+                auto* state = get_front_qstate();
+                return state && state->start_read; 
+            });
+        if(stop) break;
+
+        auto* state = get_front_qstate();
+        if(state == NULL)
+            continue;
+
+        if(state->write_doneman 
+        && state->encrypt_doneman
+        && state->read_doneman)
+        {
+            std::lock_guard<std::mutex> lck(mtx_state);
+            {
+                locker::free_file_info(que_state->front()->file, true);
+                delete que_state->front()->file;
+                auto* p = que_state->front();
+                que_state->pop();
+                delete p;
+                padding = 0;
+                if(que_state->empty())
+                {
+                    std::lock_guard<std::mutex> lck(mtx_wait);
+                    wait_doneman = true;
+                    doneman = true;
+                    cv_wait.notify_all();
+                }
+                continue;
+            }
+        }
         lock.unlock();
 
-        size_t BytesRead;
-        auto read = std::make_shared<DATA_READ>();
-        read->data = (BYTE*)memory::m_malloc(100);
-        if (api::ReadFile(FileInfo->FileHandle, read->data, 100, &BytesRead) && BytesRead != 0)
+        PDATA_READ read = new DATA_READ;
+        read->data = (BYTE*)memory::m_malloc(1048576);
+        if(api::ReadFile(state->file->FileHandle, read->data, 1048576, &read->bytes) && read->bytes != 0)
         {
-            read->BytesRead = BytesRead;
+            if (read->bytes < 1048576 && que_state->front()->file->CryptInfo->method_policy == CryptoPolicy::AES256)
             {
-                std::lock_guard<std::mutex> lck(mtx);
-                read_que.push(read);
-                ++rsize;
+                padding = read->bytes % 16;
+                read->bytes -= padding;
             }
-            cv_encrypt.notify_one();
+
+            {
+                std::lock_guard<std::mutex> lck(mtx_encrypt);
+                que_re->push(std::move(read));
+            }
         }
         else
         {
-            start_read = false;
-            read_done = true;
-            printf("DONEMAN_READ\n");
-            done_man.fetch_add(1);
+            memory::m_free(read->data);
+            delete read;
+            state->read_doneman = true;
+            state->start_read = false;
         }
-
+        cv_encrypt.notify_one();
     }
 }
 
-VOID PipeLineEncrypt::work_encrypt()
+
+void ThreadPipeLine::work_encrypt()
 {
-    while (!stop)
+    while(true)
     {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv_encrypt.wait(lock, [this] { return !read_que.empty() || stop; });
-        if (stop) break;
-        ++esize;
-        if (read_done && esize == rsize)
+        std::unique_lock<std::mutex> lock(mtx_encrypt);
+        cv_encrypt.wait(lock, [this] 
+        { 
+            std::lock_guard<std::mutex> lck(mtx_state);
+            return stop || (!que_state->empty() && que_state->front()->read_doneman);
+        });
+        if(stop) break;
+
+        if(!que_re->empty())
         {
-            done_man.fetch_add(1);
-            printf("DONEMAN_CRYPT\t%u\n", done_man.load());
-            cv_write.notify_all();
-            cv_wait.notify_all();
+            PDATA_READ data = NULL;
+            {
+                data = std::move(que_re->front());
+                que_re->pop();
+            }
+    
+            if (que_state->front()->file->CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
+		        que_state->front()->file->CryptInfo->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+            que_state->front()->file->CryptInfo->crypt_method(que_state->front()->file, que_state->front()->file->ctx, &que_state->front()->file->padding, data->data, data->data, data->bytes);
+            
+            lock.unlock();
+            {
+                std::lock_guard<std::mutex> lck(mtx_write);
+                que_ew->push(std::move(data));
+            }
         }
-
-        auto data = read_que.front();
-        read_que.pop();
-        lock.unlock();
-
-
-        FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, data->data, data->data, data->BytesRead);
+        else if(que_state->front()->read_doneman)
         {
-            std::lock_guard<std::mutex> lock(mtx);
-            encrypt_que.push(data);
+            que_state->front()->encrypt_doneman = true;
         }
-
         cv_write.notify_one();
     }
 }
 
-VOID PipeLineEncrypt::work_write()
+void ThreadPipeLine::work_write()
 {
-    while (!stop)
+    while(true)
     {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv_write.wait(lock, [this] { return !encrypt_que.empty() || stop; });
-        if (stop) break;
+        std::unique_lock<std::mutex> lock(mtx_write);
+        cv_write.wait(lock, [this] {
+            std::lock_guard<std::mutex> lck(mtx_state);
+            return stop || (!que_state->empty() && que_state->front()->encrypt_doneman);
+        });
 
-        ++wsize;
-        if (read_done && wsize == rsize)
+        if(stop) break;
+        if(!que_ew->empty())
         {
-            done_man.fetch_add(1);
-            printf("DONEMAN\t%u\n", done_man.load());
-            cv_wait.notify_all();
+            PDATA_READ data = NULL;
+            {
+                data = std::move(que_ew->front());
+                que_ew->pop();
+            }
+            lock.unlock();
+            
+            filesystem::WriteFullData(que_state->front()->file->newFileHandle, data->data, data->bytes + padding);
+            memory::m_free(data->data);
+            delete data;
         }
-
-
-        auto data = encrypt_que.front();
-        encrypt_que.pop();
-        lock.unlock();
-
-
-        DWORD written;
-        filesystem::WriteFullData(FileInfo->newFileHandle, data->data, data->BytesRead);
+        else if(!que_state->empty() && !que_state->front()->write_doneman)
+        {
+            que_state->front()->start_read = true;
+            que_state->front()->write_doneman = true;
+            cv_read.notify_one();
+        }
     }
 }
 
-VOID PipeLineEncrypt::wait()
+void ThreadPipeLine::wait()
 {
-    std::unique_lock<std::mutex> lock(mtx);
-    cv_wait.wait(lock, [this] { return done_man == 3 || stop; });
+    std::unique_lock<std::mutex> lock(mtx_wait);
+    cv_wait.wait(lock, [this] { return wait_doneman || stop; });
 }

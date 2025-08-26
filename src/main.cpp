@@ -41,7 +41,16 @@ int main(int argc, char* argv[])
         LOG_INFO("Filename: " log_str, data->Filename);
     if (!global::print_command_g()) goto exit;
 
-    if (f == 1 || THREAD_ENABLE)
+    if(PIPELINE)
+    {
+        ThreadPipeLine* pipeline = new ThreadPipeLine;
+        LIST_FOREACH(data, DriveInfo)
+            pipeline->init(CryptInfo, data);
+
+        pipeline->wait();
+        delete pipeline;
+    }
+    else if (f == 1 || THREAD_ENABLE)
     {
         if (O_REWRITE)
         {

@@ -93,15 +93,23 @@ namespace global
 		unsigned g_BitKey = 4096;
 	};
 
+	struct GlobalScanPort
+	{
+		char* g_scan_ip = NULL;
+		int sport = 0;
+		int eport = 0;
+	};
+
 	BOOL print_command_g();
 	VOID free_global();
 }
 
 extern global::GlobalPath GLOBAL_PATH;
 extern global::GlobalEnum GLOBAL_ENUM;
+extern global::GlobalState GLOBAL_STATE;
 extern global::GlobalKeys GLOBAL_KEYS;
 extern global::GlobalOverWrite GLOBAL_OVERWRITE;
-extern global::GlobalState GLOBAL_STATE;
+extern global::GlobalScanPort GLOBAL_SCAN_PORT;
 
 #endif
 

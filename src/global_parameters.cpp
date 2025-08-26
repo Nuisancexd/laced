@@ -11,9 +11,10 @@
 
 global::GlobalPath GLOBAL_PATH;
 global::GlobalEnum GLOBAL_ENUM;
+global::GlobalState GLOBAL_STATE;
 global::GlobalKeys GLOBAL_KEYS;
 global::GlobalOverWrite GLOBAL_OVERWRITE;
-global::GlobalState GLOBAL_STATE;
+global::GlobalScanPort GLOBAL_SCAN_PORT;
 
 #ifdef _WIN32
 #define str_ std::wstring
@@ -177,6 +178,8 @@ BOOL global::print_command_g()
 		LOG_NONE("flag overwrite");
 	if (THREAD_ENABLE)
 		LOG_NONE("thread enable");
+	if (PIPELINE)
+		LOG_NONE("PIPELINE");
 end:
 	std::string str;
 	LOG_ENABLE("Do you want to continue? [Y-enter/n]");

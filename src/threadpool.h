@@ -56,53 +56,78 @@ private:
 };
 
 
-class PipeLineEncrypt
+class ThreadPipeLine
 {
 private:
-
-    typedef struct vector_threads
+    typedef struct threads
     {
-        std::jthread thread;
-        LIST_ENTRY(vector_threads);
-    }THREADS, * PTHREADS;
+        std::thread thread;
+        LIST_ENTRY(threads);
+    }THREADS, *PTHREADS;
 
-    typedef struct data_read
+    typedef struct data
     {
         BYTE* data;
-        DWORD BytesRead;
-    }DATA_READ;
-
+        DWORD bytes;
+    }DATA_READ, *PDATA_READ;
 
     LIST<THREADS>* work = new LIST<THREADS>;
+    std::queue<DATA_READ*>* que_re = new std::queue<DATA_READ*>;
+    std::queue<DATA_READ*>* que_ew = new std::queue<DATA_READ*>;
 
-    std::queue<std::shared_ptr<DATA_READ>> read_que;
-    std::queue<std::shared_ptr<DATA_READ>> encrypt_que;
+    void work_read();
+    void work_encrypt();
+    void work_write();
+
+    size_t padding = 0;
+
+    std::atomic<bool> stop = false;
+    bool wait_doneman = false;
+    bool doneman = false;
+
+    struct StateContext
+    {
+        PFILE_INFO file;
+        bool start_read = false;
+        bool read_doneman = false;
+        bool encrypt_doneman = false;
+        bool write_doneman = false;
+    };
+
+    std::queue<StateContext*>* que_state = new std::queue<StateContext*>;
+    StateContext* get_front_qstate();
     
+    
+    std::mutex mtx_state;
+    std::mutex mtx_wait;
+    std::mutex mtx_read;
+    std::mutex mtx_encrypt;
+    std::mutex mtx_write;
 
-    BOOL stop = FALSE;    
-    bool start_read;
-    bool read_done = false;
-    size_t rsize = 0;
-    size_t esize = 0;
-    size_t wsize = 0;
-    std::atomic<size_t> done_man = 0;
-    mutable std::mutex mtx;    
     std::condition_variable cv_read;
     std::condition_variable cv_encrypt;
     std::condition_variable cv_write;
     std::condition_variable cv_wait;
-    PFILE_INFO FileInfo;
 
 public:
-
-    PipeLineEncrypt();
-    ~PipeLineEncrypt();
-
-    VOID INIT(PFILE_INFO a_FileInfo);
-    VOID work_read();
-    VOID work_encrypt();
-    VOID work_write();
-    VOID wait();
+    ThreadPipeLine();
+    ~ThreadPipeLine();
+    void wait();
+    void end();
+    void init(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
+    {
+        PFILE_INFO FInfo = new FILE_INFO;
+        if(!locker::SetOptionFileInfo(FInfo, data, CryptInfo))
+            return;
+        StateContext* state = new StateContext;
+        state->file = FInfo;
+        state->start_read = true;
+        {
+            std::lock_guard<std::mutex> lck(mtx_state);
+            que_state->push(state);
+            cv_read.notify_one();
+        }
+    }
 };
 
 #endif

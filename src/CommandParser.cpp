@@ -1,4 +1,7 @@
 #include "CommandParser.h"
+#ifdef __linux__
+#include "network/port_scanner.h"
+#endif
 #include <string>
 
 
@@ -26,7 +29,8 @@ VOID parser::subCommandHelper()
           "\to  Base64 encoding/decoding\n"
           "\to  Secure file overwrite\n"
           "\to  Recursive directory encryption\n"
-          "\to  Thread pool parallel processing\n\n");
+          "\to  Thread pool parallel processing\n"
+          "\to  ThreadPipeLine - Multithreaded File processing Pipeline\n\n");
     exit(0);
 }
 
@@ -95,6 +99,7 @@ VOID parser::CommandLineHelper()
            "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
            "[*]  -e / --enable      Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n"
+           "[*]  -pl / --pipeline   ThreadPipeLine - Multithreaded File processing Pipeline (only for symmetric). (default: false)\n"
            "[*]  -d / --delete      File flag delete on close if success. (default: false)\n"
            "[*]  -ow / --overwrite  Overwriting the original file. (default: false; -zeros, count: 1)\n"
            "[*]  -rw / --rewrite    Only Overwriting the files. (default: false)\n"
@@ -129,11 +134,12 @@ bool THREAD_ENABLE = false;
 bool O_REWRITE = false;
 bool GEN = false;
 bool signature = false;
+bool PIPELINE = false;
+
 #ifdef __linux__
 #include <sys/stat.h>
 constexpr int MAX_PATH = 255;
 #endif
-#include <vector>
 
 CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)
 {
@@ -238,7 +244,7 @@ std::pair<bool, char*> GetCommandsNext(int argc, char* argv[], const char* fstr,
 #define GetCommandsN(argc, argv, fstr, sstr) GetCommandsNext(argc, argv, fstr, sstr)
 #endif
 
-
+bool ParsingOtherCommandLine(int argc, char** argv);
 void parser::ParsingCommandLine(int argc, char** argv)
 {
     if (!argv || argc <= 1)
@@ -285,6 +291,14 @@ void parser::ParsingCommandLine(int argc, char** argv)
         config = true;
     }
 
+    if(ParsingOtherCommandLine(argc, argv))
+    {
+        scan();
+        free_port_info();
+        exit(1);
+
+    }
+    
     {
         auto p = GetCommandsN(argc, argument, T("-p"), T("--path"));
         if (!p.first)
@@ -549,6 +563,9 @@ void parser::ParsingCommandLine(int argc, char** argv)
     pair = GetCommandsCurr(argc, argv, "-e", "--enable");
     if (pair.first)THREAD_ENABLE = TRUE;
 
+    pair = GetCommandsCurr(argc, argv, "-pl", "--pipeline");
+    if(pair.first) PIPELINE = true;
+
     if (config)
     {
         for (int i = 0; i < argc; ++i)
@@ -580,19 +597,43 @@ void parser::ParsingCommandLine(int argc, char** argv)
     LOG_INFO("DIR to execute:\t" log_str, GLOBAL_PATH.g_Path);
 }
 
-void ParsingOtherCommandLine(int argc, char** argv)
+bool ParsingOtherCommandLine(int argc, char** argv)
 {
     std::pair<bool, char*> pair;
     pair = GetCommandsNext(argc, argv, "-ip", "--ip");
-    //127.0.0.1
-    pair = GetCommandsNext(argc, argv, "-s", "--system");
-    //0-1023
-    pair = GetCommandsNext(argc, argv, "-u", "--user");
-    //1024-49151
-    pair = GetCommandsNext(argc, argv, "-p", "--private");
-    //49151-65535
-    pair = GetCommandsNext(argc, argv, "-a", "--all");
-    //0-65535
+    if(pair.first)
+    {
+        size_t len = memory::StrLen(pair.second);
+        char* tg_ip = (char*)memory::m_malloc(len + 1);
+        memcpy(tg_ip, pair.second, len);
+        GLOBAL_SCAN_PORT.g_scan_ip = tg_ip;
+
+        pair = GetCommandsCurr(argc, argv, "-s", "--system");
+        if(pair.first)
+        {
+            GLOBAL_SCAN_PORT.sport = 0;
+            GLOBAL_SCAN_PORT.eport = 1023;
+        }
+        else if((pair = GetCommandsCurr(argc, argv, "-u", "--user")).first)
+        {
+            GLOBAL_SCAN_PORT.sport = 1024;
+            GLOBAL_SCAN_PORT.eport = 49151;
+        }
+        else if((pair = GetCommandsCurr(argc, argv, "-p", "--private")).first)
+        {
+            GLOBAL_SCAN_PORT.sport = 49152;
+            GLOBAL_SCAN_PORT.eport = 65535;
+        }
+        else // -a / --all
+        {
+            GLOBAL_SCAN_PORT.sport = 0;
+            GLOBAL_SCAN_PORT.eport = 65535;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 std::pair<int, char**> parser::ParseFileConfig(int argc, char** argv)

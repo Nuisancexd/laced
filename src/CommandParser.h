@@ -8,7 +8,7 @@ extern bool THREAD_ENABLE;
 extern bool O_REWRITE;
 extern bool GEN;
 extern bool signature;
-
+extern bool PIPELINE;
 
 namespace parser
 {

