@@ -124,7 +124,8 @@ STATIC VOID SearchFiles
 (
     TCHAR* StartDirectory,
     LIST<DIRECTORY_INFO>* DirectoryInfo,
-    LIST<pathsystem::DRIVE_INFO>* DriveInfo
+    LIST<pathsystem::DRIVE_INFO>* DriveInfo,
+    int* cf
 )
 {
     size_t DirLen = memory::StrLen(StartDirectory);
@@ -154,7 +155,6 @@ STATIC VOID SearchFiles
             PDIRECTORY_INFO DirectoryData = new DIRECTORY_INFO;
             DirectoryData->Directory = MakePath(FindData.cFileName, StartDirectory);
             DirectoryInfo->LIST_INSERT_HEAD(DirectoryData);
-            ++pathsystem::f.dir;
         }
         else if (CheckFilename(FindData.cFileName))
         {
@@ -170,7 +170,7 @@ STATIC VOID SearchFiles
                 DriveData->Path = Dir;
             }
             DriveInfo->LIST_INSERT_HEAD(DriveData);
-            ++pathsystem::f.fle;
+            ++*cf;
         }
 
     } while (FindNextFileW(hSearchFile, &FindData));
@@ -205,7 +205,6 @@ STATIC VOID SearchFiles
             PDIRECTORY_INFO DirectoryData = new DIRECTORY_INFO;
             DirectoryData->Directory = MakePath(entry->d_name, StartDirectory);
             DirectoryInfo->LIST_INSERT_HEAD(DirectoryData);
-            ++pathsystem::f.dir;
         }
         else if (S_ISREG(statbuf.st_mode) && CheckFilename(entry->d_name))
         {
@@ -221,7 +220,7 @@ STATIC VOID SearchFiles
                 DriveData->Path = Dir;
             }
             DriveInfo->LIST_INSERT_HEAD(DriveData);
-            ++pathsystem::f.fle;
+            ++*cf;
         }
 
 
@@ -239,8 +238,8 @@ size_t pathsystem::StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir)
     {
         TCHAR* name = NULL;
         TCHAR* path = NULL;
-
-        for (int i = memory::StrLen(dir) - 1, j = 0; i >= 0; --i, ++j)
+        size_t ld = memory::StrLen(dir);
+        for (int i = ld - 1, j = 0; i >= 0; --i, ++j)
         {
             if (dir[i] == T('/') || dir[i] == T('\\'))
             {
@@ -259,14 +258,17 @@ size_t pathsystem::StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir)
             DriveData->Filename = name;
         if (path)
             DriveData->Path = path;
-        DriveData->FullPath = dir;
+        TCHAR* fpath = (TCHAR*)memory::m_malloc((ld + 1) * Tsize);
+        memc(fpath, dir, ld);
+        DriveData->FullPath = fpath;
         DriveData->Exst = MakeExst(dir);
         DriveInfo->LIST_INSERT_HEAD(DriveData);
 
         return 1;
     }
+    int count_file = 0;
     LIST<DIRECTORY_INFO>* DirectoryInfo = new LIST<DIRECTORY_INFO>;
-    SearchFiles(dir, DirectoryInfo, DriveInfo);
+    SearchFiles(dir, DirectoryInfo, DriveInfo, &count_file);
 
 
     if (GLOBAL_ENUM.g_EncryptCat == EncryptCatalog::DIR_CAT)
@@ -278,7 +280,7 @@ size_t pathsystem::StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir)
         PDIRECTORY_INFO dirs = NULL;
         REV_LIST_FOREACH(dirs, DirectoryInfo)
         {
-            SearchFiles(dirs->Directory, DirectoryInfo, DriveInfo);
+            SearchFiles(dirs->Directory, DirectoryInfo, DriveInfo, &count_file);
         }
     }
 
@@ -290,7 +292,7 @@ size_t pathsystem::StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir)
     }
     delete DirectoryInfo;
 
-    return f.fle;
+    return count_file;
 }
 
 

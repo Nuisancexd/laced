@@ -12,7 +12,8 @@ enum class EncryptModes
 	PARTLY_ENCRYPT = 11,
 	HEADER_ENCRYPT = 12,
 	BLOCK_ENCRYPT = 13,
-	AUTO_ENCRYPT = 14
+	AUTO_ENCRYPT = 14,
+	PIPELINE_ENCRYPT = 15
 };
 
 enum class EncryptCatalog

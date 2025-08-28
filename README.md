@@ -38,6 +38,7 @@ o  Base64 encoding/decoding
 o  Secure file overwrite
 o  Recursive directory encryption
 o  Thread pool parallel processing
+o  ThreadPipeLine - Multithreaded File processing Pipeline
 ```
 
 

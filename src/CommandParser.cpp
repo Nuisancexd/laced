@@ -100,6 +100,7 @@ VOID parser::CommandLineHelper()
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
            "[*]  -e / --enable      Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n"
            "[*]  -pl / --pipeline   ThreadPipeLine - Multithreaded File processing Pipeline (only for symmetric). (default: false)\n"
+           "                        NOTE: encrypts file with block 1 MB\n"
            "[*]  -d / --delete      File flag delete on close if success. (default: false)\n"
            "[*]  -ow / --overwrite  Overwriting the original file. (default: false; -zeros, count: 1)\n"
            "[*]  -rw / --rewrite    Only Overwriting the files. (default: false)\n"
@@ -564,7 +565,11 @@ void parser::ParsingCommandLine(int argc, char** argv)
     if (pair.first)THREAD_ENABLE = TRUE;
 
     pair = GetCommandsCurr(argc, argv, "-pl", "--pipeline");
-    if(pair.first) PIPELINE = true;
+    if(pair.first) 
+    {
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::PIPELINE_ENCRYPT;
+        PIPELINE = true;
+    }
 
     if (config)
     {

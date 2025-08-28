@@ -1524,16 +1524,17 @@ static bool Write(DESC desc_file, unsigned filesize, BYTE* buff)
 	api::SetPoint(desc_file, 0);
 	auto fsize = filesize;
 	size_t toWrite;
-	size_t written = 0;
+	int written = 0;
+	size_t offset = 0;
 	while (fsize > 0)
 	{
 		toWrite = (size_t)fsize >= size_mb ? size_mb : fsize;
-		if (!filesystem::WriteFullData(desc_file, buff, toWrite))
+		if(!api::WriteFile(desc_file, (BYTE*)buff, toWrite, &written) || !written)
 		{
 			LOG_ERROR("Failed WriteFullData in OverWriteFile");
 			return FALSE;
 		}
-		written += toWrite;
+		offset += written;
 		fsize -= written;
 	}
 

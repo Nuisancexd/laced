@@ -102,13 +102,6 @@ VOID ThreadPool::wait()
 
 /*-----PIPE_LINE-----*/
 
-/*
-TODO:
-add shared_ptr
-add hybrid method
-fix some bugs
-*/
-
 ThreadPipeLine::ThreadPipeLine()
 {
     PTHREADS mark1 = new THREADS;
@@ -182,13 +175,11 @@ void ThreadPipeLine::work_read()
                 auto* p = que_state->front();
                 que_state->pop();
                 delete p;
-                padding = 0;
                 if(que_state->empty())
                 {
                     std::lock_guard<std::mutex> lck(mtx_wait);
                     wait_doneman = true;
-                    doneman = true;
-                    cv_wait.notify_all();
+                    cv_wait.notify_all();                    
                 }
                 continue;
             }
@@ -196,13 +187,13 @@ void ThreadPipeLine::work_read()
         lock.unlock();
 
         PDATA_READ read = new DATA_READ;
-        read->data = (BYTE*)memory::m_malloc(1048576);
+        read->data = (BYTE*)memory::m_malloc(1048576 + AES_BLOCK_SIZE);
         if(api::ReadFile(state->file->FileHandle, read->data, 1048576, &read->bytes) && read->bytes != 0)
         {
             if (read->bytes < 1048576 && que_state->front()->file->CryptInfo->method_policy == CryptoPolicy::AES256)
             {
-                padding = read->bytes % 16;
-                read->bytes -= padding;
+                state->padding = read->bytes % 16;
+                read->bytes -= state->padding;
             }
 
             {
@@ -241,10 +232,11 @@ void ThreadPipeLine::work_encrypt()
                 data = std::move(que_re->front());
                 que_re->pop();
             }
-    
+
             if (que_state->front()->file->CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
 		        que_state->front()->file->CryptInfo->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
-            que_state->front()->file->CryptInfo->crypt_method(que_state->front()->file, que_state->front()->file->ctx, &que_state->front()->file->padding, data->data, data->data, data->bytes);
+            que_state->front()->file->CryptInfo->crypt_method(que_state->front()->file, que_state->front()->file->ctx, 
+                &que_state->front()->file->padding, data->data, data->data, data->bytes);
             
             lock.unlock();
             {
@@ -280,7 +272,7 @@ void ThreadPipeLine::work_write()
             }
             lock.unlock();
             
-            filesystem::WriteFullData(que_state->front()->file->newFileHandle, data->data, data->bytes + padding);
+            filesystem::WriteFullData(que_state->front()->file->newFileHandle, data->data, data->bytes + que_state->front()->padding);
             memory::m_free(data->data);
             delete data;
         }

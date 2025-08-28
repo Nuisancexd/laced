@@ -108,9 +108,9 @@ BOOL global::print_command_g()
 	case EncryptModes::AUTO_ENCRYPT:
 		mode = "AUTO_ENCRYPT";
 		break;
-		// case EncryptModes::PIPELINE_ENCRYPT:
-		// 	printf("PIPELINE_ENCRYPT\n");
-		// 	break;
+	case EncryptModes::PIPELINE_ENCRYPT:
+		mode = "PIPELINE_ENCRYPT";
+		break;
 	}
 
 	switch (GLOBAL_ENUM.g_EncryptCat)

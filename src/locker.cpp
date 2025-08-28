@@ -386,6 +386,8 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	case EncryptModes::AUTO_ENCRYPT:
 		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeAUTO;
 		break;
+	case EncryptModes::PIPELINE_ENCRYPT:
+		break;
 	default:
 		LOG_ERROR("[ENCRYPT MODE] Failed; missing state mode");
 		return false;

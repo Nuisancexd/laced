@@ -79,15 +79,14 @@ private:
     void work_encrypt();
     void work_write();
 
-    size_t padding = 0;
 
     std::atomic<bool> stop = false;
     bool wait_doneman = false;
-    bool doneman = false;
 
     struct StateContext
     {
         PFILE_INFO file;
+        size_t padding = 0;
         bool start_read = false;
         bool read_doneman = false;
         bool encrypt_doneman = false;

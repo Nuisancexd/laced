@@ -14,14 +14,6 @@ namespace pathsystem
         TCHAR* Path;
         LIST_ENTRY(drive_info);
     }DRIVE_INFO, * PDRIVE_INFO;
-
-    struct INFO
-    {
-        int fle = 0;
-        int dir = 0;
-    };
-    STATIC pathsystem::INFO f;
-    
     
     size_t StartLocalSearch(LIST<DRIVE_INFO>* DriveInfo, TCHAR* dir);
     VOID FreeList(LIST<DRIVE_INFO>* DriveInfo);
