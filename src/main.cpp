@@ -62,6 +62,13 @@ int main(int argc, char* argv[])
                     LOG_ERROR("failed overwrite file; " log_str, data->Filename);
             }
         }
+        else if(HASH_FILE)
+        {
+            LIST_FOREACH(data, DriveInfo)
+                CryptInfo->hash_sum_method(CryptInfo, 
+                    memory::StrLen(data->FullPath) - memory::StrLen(data->Filename), 
+                    data->FullPath);
+        }
         else
         {
             LIST_FOREACH(data, DriveInfo)
@@ -84,6 +91,19 @@ int main(int argc, char* argv[])
                     {
                         filesystem::RewriteSDelete(CryptInfo, data->FullPath);
                     });
+            }
+            pool.run_main_thread();
+        }
+        else if(HASH_FILE)
+        {
+            LIST_FOREACH(data, DriveInfo)
+            {
+                pool.put_task([=]()
+                {                
+                    CryptInfo->hash_sum_method(CryptInfo, 
+                        memory::StrLen(data->FullPath) - memory::StrLen(data->Filename), 
+                        data->FullPath);
+                });
             }
             pool.run_main_thread();
         }

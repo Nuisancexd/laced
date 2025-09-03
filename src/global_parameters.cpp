@@ -67,6 +67,13 @@ BOOL global::print_command_g()
 
 		goto end;
 	}
+	else if(HASH_FILE)
+	{
+		if (GLOBAL_PATH.g_Path)
+			LOG_NONE("-path " log_str, GLOBAL_PATH.g_Path);
+		LOG_NONE("HASH_FILE");
+		goto end;
+	}
 
 	switch (GLOBAL_ENUM.g_Encrypt)
 	{

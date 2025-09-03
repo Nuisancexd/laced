@@ -70,11 +70,12 @@ VOID parser::CommandLineHelper()
            "[*]  -o / --out         Path to directory for encrypted files. (default: false)\n"
            "[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n"
            "                        '--path' followed by the path to the configuration.\n"
+           "[*]  -hf / --hashfile   Only output the file hash sum.\n"
            "[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n"
            "                        first specify the public key, followed by the private key, separating them with the '$'/'$$' symbol.\n"
            "[*]  -n / --name        Encrypt FILENAME with: (default: false)\n"
-           "                        hash Irrevocably Hash FILENAME with sha256. (default: false)\n"
-           "                        encrypt FILENAME with Base64. (default: false)\n"
+           "                        hash -- hash Irrevocably Hash FILENAME with sha256. (default: false)\n"
+           "                        base -- encrypt FILENAME with Base64. (default: false)\n"
            "[*]  -m / --mode        Select the encryption mode. (default: FULL_ENCRYPT)\n"
            "                        a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n"
            "                        f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n"
@@ -99,6 +100,7 @@ VOID parser::CommandLineHelper()
            "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
            "[*]  -e / --enable      Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n"
+           "[*]  -nl / --nolog      Disable the log."
            "[*]  -pl / --pipeline   ThreadPipeLine - Multithreaded File processing Pipeline (only for symmetric). (default: false)\n"
            "                        NOTE: encrypts file with block 1 MB\n"
            "[*]  -d / --delete      File flag delete on close if success. (default: false)\n"
@@ -131,11 +133,14 @@ VOID parser::CommandLineHelper()
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
+bool NO_LOG = false;
 bool THREAD_ENABLE = false;
 bool O_REWRITE = false;
 bool GEN = false;
 bool signature = false;
 bool PIPELINE = false;
+bool HASH_FILE = false;
+
 
 #ifdef __linux__
 #include <sys/stat.h>
@@ -292,6 +297,9 @@ void parser::ParsingCommandLine(int argc, char** argv)
         config = true;
     }
 
+    pair = GetCommandsCurr(argc, argv, "-nl", "--nolog");
+    if(pair.first) NO_LOG = true;
+
     if(ParsingOtherCommandLine(argc, argv))
     {
         scan();
@@ -324,6 +332,17 @@ void parser::ParsingCommandLine(int argc, char** argv)
             GLOBAL_PATH.g_Path_out = outpath;
         }
     }
+
+    pair = GetCommandsCurr(argc, argv, "-hf", "--hashfile");
+    if(pair.first)
+    {
+        GLOBAL_STATE.g_print_hash = true;
+        pair = GetCommandsCurr(argc, argv, "-e", "--enable");
+        if (pair.first) THREAD_ENABLE = TRUE;
+        HASH_FILE = true;
+        return;
+    }
+
     pair = GetCommandsCurr(argc, argv, "-b64", "--base64");
     if (pair.first) GLOBAL_STATE.g_RsaBase64 = true;
 

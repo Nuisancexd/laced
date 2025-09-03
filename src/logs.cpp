@@ -1,5 +1,6 @@
 #include "logs.h"
 #include "memory.h"
+#include "CommandParser.h"
 
 #include <mutex>
 #include <cstring>
@@ -120,10 +121,14 @@ VOID SetConsoleColor(LogLevel level);
 VOID ResetConsoleColor();
 VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
-	if (g_LogHandle == -1)
+	if (g_LogHandle == -1 || NO_LOG)
 	{
-		printf("Failed Handle WriteLog\n");
-		ResetConsoleColor();
+		va_list args;
+		CHAR Buffer[1024];
+		va_start(args, Format);
+		int size = vsprintf(Buffer, Format, args);
+		va_end(args);
+		printf("%s\n", Buffer);
 		return;
 	}
 
@@ -215,9 +220,14 @@ VOID SetConsoleColor(LogLevel level);
 VOID ResetConsoleColor();
 VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
-	if (g_LogHandle == INVALID_HANDLE_VALUE)
+	if (g_LogHandle == INVALID_HANDLE_VALUE || NO_LOG)
 	{
-		printf("Failed Handle WriteLog\n");
+		va_list args;
+		CHAR Buffer[1024];
+		va_start(args, Format);
+		int size = vsprintf(Buffer, Format, args);
+		va_end(args);
+		printf("%s\n", Buffer);
 		return;
 	}
 

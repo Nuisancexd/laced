@@ -34,6 +34,7 @@ namespace filesystem
 	void sort_hash_list(SLIST<HASH_LIST>* list);
 	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
 	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
+	bool hash_file(PCRYPT_INFO CryptInfo, DESC desc_file, TCHAR* Filename);
 
 	TCHAR* NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data);
 	TCHAR* OptionNameStandart(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);

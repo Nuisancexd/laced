@@ -1638,3 +1638,19 @@ end:
 #endif
 	return success;
 }
+
+bool filesystem::hash_file(PCRYPT_INFO CryptInfo, DESC desc_file, TCHAR* Filename)
+{
+	DESC desc;
+	unsigned fs;
+	if (!filesystem::getParseFile(Filename, &desc, &fs) || desc == INVALID_HANDLE_VALUE)
+	{
+		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; " log_str, Filename);
+		return false;
+	}
+
+	HashSumFile(CryptInfo, desc, &Filename[desc_file]);
+
+	api::CloseDesc(desc);
+	return true;
+}

@@ -9,6 +9,8 @@ extern bool O_REWRITE;
 extern bool GEN;
 extern bool signature;
 extern bool PIPELINE;
+extern bool HASH_FILE;
+extern bool NO_LOG;
 
 namespace parser
 {
