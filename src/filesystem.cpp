@@ -1262,7 +1262,7 @@ bool filesystem::VerifySignatureRSA
 		SignatureBuffer = (BYTE*)memory::m_malloc(sig_len);
 		if (EVP_PKEY_sign(ctx, SignatureBuffer, &sig_len, hash_sha, SHA256_DIGEST_LENGTH) <= 0)
 		{
-			LOG_ERROR("[SignatureRSA] Failed get size");
+			LOG_ERROR("[SignatureRSA] [key_sign] Failed");
 			err();
 			goto end;
 		}
@@ -1672,4 +1672,9 @@ bool filesystem::hash_file(PCRYPT_INFO CryptInfo, DESC desc_file, TCHAR* Filenam
 
 	api::CloseDesc(desc);
 	return true;
+}
+
+bool delete_exif_data(PFILE_INFO FileInfo)
+{
+	return false; /*todo*/
 }

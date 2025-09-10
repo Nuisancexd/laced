@@ -4,6 +4,8 @@
 #include "../base64/base64.h"
 #include "../global_parameters.h"
 
+#include <stdalign.h>
+
 #ifdef _WIN32
 
 static void PrintHex(const BYTE* data, size_t size)
@@ -322,6 +324,137 @@ end:
 	return success;
 }
 
+
+void rsa::del_session_key(PSESSION_KEY session)
+{
+	if(session->prv_key)
+	{
+		memory::memzero_explicit(session->prv_key, session->prv_len);
+		if(session->base)
+			delete[] session->prv_key;
+		else free(session->prv_key);
+	}
+	if(session->pub_key)
+	{
+		memory::memzero_explicit(session->pub_key, session->pub_len);
+		if(session->base)
+			delete[] session->pub_key;
+		else free(session->pub_key);
+	}
+
+	delete session;
+}
+
+PSESSION_KEY rsa::gen_session_key(bool base, unsigned bit)
+{
+	bool success = false;
+	PSESSION_KEY session = new SESSION_KEY;
+	session->base = base;
+	session->prv_key = NULL;
+	session->pub_key = NULL;
+
+	EVP_PKEY_CTX* ctx = NULL;
+	EVP_PKEY* pkey = NULL;
+
+	if (!(ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL))
+		|| EVP_PKEY_keygen_init(ctx) <= 0
+		|| EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bit) <= 0
+		|| EVP_PKEY_keygen(ctx, &pkey) <= 0)
+	{
+		LOG_ERROR("[HandlerGenKeyPairRSA] Failed;");
+		err();
+		goto end;
+	}
+
+	if ((session->prv_len = i2d_PrivateKey(pkey, &session->prv_key)) <= 0 
+		|| (session->pub_len = i2d_PUBKEY(pkey, &session->pub_key)) <= 0)
+	{
+		LOG_ERROR("Failed to encode private key to DER");
+		err();
+		goto end;
+	}
+
+	if (base)
+	{
+		char bb_prv[4096];
+		char bb_pub[4096];
+		int bsize_prv;
+		int bsize_pub;
+		if(!base64::base64(BASE_E::ENCODE, session->prv_key, session->prv_len, bb_prv, &bsize_prv)
+			|| !base64::base64(BASE_E::ENCODE, session->pub_key, session->pub_len, bb_pub, &bsize_pub))
+		{
+			LOG_ERROR("[GENERATE RSA] [BASE64] Failed;");
+			session->base = false;
+		}
+		else
+		{			
+			memory::memzero_explicit(session->prv_key, session->prv_len);
+			memory::memzero_explicit(session->pub_key, session->pub_len);
+			free(session->prv_key);
+			free(session->pub_key);
+			session->prv_key = new byte[bsize_prv];
+			session->pub_key = new byte[bsize_pub];
+			memcpy(session->prv_key, bb_prv, bsize_prv);
+			memcpy(session->pub_key, bb_pub, bsize_pub);
+			session->prv_len = bsize_prv;
+			session->pub_len = bsize_pub;
+		}
+	}
+	
+	success = true;
+end:
+	if (pkey)
+		EVP_PKEY_free(pkey);
+	if (ctx)
+		EVP_PKEY_CTX_free(ctx);
+	return success ? session : NULL;
+}
+
+BYTE* rsa::signature(BYTE* hash, BYTE* private_key_data, unsigned size_key)
+{
+	bool success = false;
+	BYTE* SignatureBuffer = NULL;
+	EVP_PKEY_CTX* ctx = NULL;
+	EVP_PKEY* PKEY = NULL;
+	BIO* bio = NULL;
+
+	unsigned sig_len;
+	if (!(bio = BIO_new_mem_buf(private_key_data, size_key))
+		|| !(PKEY = d2i_PrivateKey_bio(bio, NULL))
+		|| !(ctx = EVP_PKEY_CTX_new(PKEY, NULL))
+		|| (EVP_PKEY_sign_init(ctx) <= 0)
+		|| (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0)
+		|| (EVP_PKEY_CTX_set_signature_md(ctx, EVP_sha256()) <= 0)
+		|| (EVP_PKEY_sign(ctx, NULL, &sig_len, hash, SHA256_DIGEST_LENGTH) <= 0))
+	{
+		LOG_ERROR("[SignatureRSA] Failed");
+		err();
+		goto end;
+	}
+	SignatureBuffer = (BYTE*)memory::m_malloc(sig_len);
+	if (EVP_PKEY_sign(ctx, SignatureBuffer, &sig_len, hash, SHA256_DIGEST_LENGTH) <= 0)
+	{
+		LOG_ERROR("[SignatureRSA] [key_sign] Failed");
+		err();
+		goto end;
+	}
+
+	success = true;
+end:
+	if (bio)
+		BIO_free(bio);
+	if (PKEY)
+		EVP_PKEY_free(PKEY);
+	if (ctx)
+		EVP_PKEY_CTX_free(ctx);
+
+	return success ? SignatureBuffer : NULL;
+}
+
+bool rsa::verify(BYTE* hash)
+{
+	return false; /*todo*/
+}
 
 bool rsa::EncryptRSA(BIO* bio, EVP_PKEY* pkey, EVP_PKEY_CTX* ctx, BYTE* buffer_encrypt, size_t* bencrypt_size, BYTE** buffer)
 {

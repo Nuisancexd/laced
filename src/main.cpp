@@ -5,7 +5,8 @@
 #include "base64/base64.h"
 #include "rsa/rsa.h"
 #include "logs.h"
-
+#include "network/server/server.h"
+#include "network/client/client.h"
 
 int main(int argc, char* argv[])
 {
