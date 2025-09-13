@@ -410,7 +410,7 @@ end:
 	return success ? session : NULL;
 }
 
-BYTE* rsa::signature(BYTE* hash, BYTE* private_key_data, unsigned size_key)
+std::pair<BYTE*, unsigned> rsa::signature(BYTE* hash, BYTE* private_key_data, unsigned size_key)
 {
 	bool success = false;
 	BYTE* SignatureBuffer = NULL;
@@ -432,7 +432,9 @@ BYTE* rsa::signature(BYTE* hash, BYTE* private_key_data, unsigned size_key)
 		goto end;
 	}
 	SignatureBuffer = (BYTE*)memory::m_malloc(sig_len);
-	if (EVP_PKEY_sign(ctx, SignatureBuffer, &sig_len, hash, SHA256_DIGEST_LENGTH) <= 0)
+	if (SignatureBuffer 
+		&& EVP_PKEY_sign(ctx, SignatureBuffer, 
+			&sig_len, hash, SHA256_DIGEST_LENGTH) <= 0)
 	{
 		LOG_ERROR("[SignatureRSA] [key_sign] Failed");
 		err();
@@ -448,12 +450,47 @@ end:
 	if (ctx)
 		EVP_PKEY_CTX_free(ctx);
 
-	return success ? SignatureBuffer : NULL;
+	return success ? std::make_pair(SignatureBuffer, sig_len) : std::make_pair(nullptr, 0);
 }
 
-bool rsa::verify(BYTE* hash)
+bool rsa::verify(BYTE* hash, BYTE* signature, unsigned sign_len, BYTE* pub_key, unsigned key_size)
 {
-	return false; /*todo*/
+	if(!hash || !signature)
+		return false;
+	bool success = false;
+	EVP_PKEY_CTX* ctx = NULL;
+	EVP_PKEY* PKEY = NULL;
+	BIO* bio = NULL;
+	int ret;
+
+	if (!(bio = BIO_new_mem_buf(pub_key, key_size))
+		|| !(PKEY = d2i_PUBKEY_bio(bio, NULL))
+		|| !(ctx = EVP_PKEY_CTX_new(PKEY, NULL))
+		|| (EVP_PKEY_verify_init(ctx) <= 0)
+		|| (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) <= 0)
+		|| (EVP_PKEY_CTX_set_signature_md(ctx, EVP_sha256()) <= 0))
+	{
+		LOG_ERROR("[VerifySignatureRSA] Failed init context");
+		err();
+		goto end;
+	}
+
+	ret = EVP_PKEY_verify(ctx, signature, sign_len, hash, SHA256_DIGEST_LENGTH);
+	if (ret == 1)
+		LOG_SUCCESS("[VerifySignatureRSA] The cryptographic signature is VALID");
+	else if (ret == 0)
+		LOG_ERROR("[VerifySignatureRSA] The cryptographic signature is INVALID");
+	else
+	{
+		LOG_ERROR("[VerifySignatureRSA] Failed"); err(); goto end;
+	}
+
+	success = true;
+end:
+	if (ctx) EVP_PKEY_CTX_free(ctx);
+    if (PKEY) EVP_PKEY_free(PKEY);
+    if (bio) BIO_free(bio);
+	return success; 
 }
 
 bool rsa::EncryptRSA(BIO* bio, EVP_PKEY* pkey, EVP_PKEY_CTX* ctx, BYTE* buffer_encrypt, size_t* bencrypt_size, BYTE** buffer)

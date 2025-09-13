@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "server.h"
+#include "../protocol.h"
 
 #define ASIO_STANDALONE
 #include <asio.hpp>
@@ -13,48 +14,12 @@ using asio::ip::tcp;
 #include "../../logs.h"
 #include "../../memory.h"
 #include "../../rsa/rsa.h"
+#include "../../sha/sha256.h"
 
-class GenerateProtocol
-{
-    PSESSION_KEY session = NULL;
-public:
-    BYTE* nonce = NULL;
-    GenerateProtocol()
-    {
-        
-    }
-    ~GenerateProtocol()
-    {
-        if(session)
-            rsa::del_session_key(session);
-        if(nonce)
-            memory::m_free(nonce);
-    }
-
-    void generate_session_key()
-    {
-        session = rsa::gen_session_key(false, 2048);
-        for(int i = 0; i < 10; ++i)
-            printf("%02X", session->pub_key[i]);
-    }
-
-    bool generate_nonce()
-    {
-        nonce = (BYTE*)memory::m_malloc(33);
-        if(!RAND_bytes(nonce, 32))
-        {
-            LOG_ERROR("[rand_bytes] failed");
-            return false;
-        }
-        return true;
-    }
-};
-
-class server : public GenerateProtocol
+class server : public Protocol
 {
     int port = -1;
     int cc = 0;
-    std::array<char, 1024> data{};
     std::atomic<bool> doneman = true;
 
     asio::io_context io_ctx;
@@ -129,58 +94,68 @@ public:
         std::jthread io_thread(&server::run_io, this);
         port = port_;
         setup_signal_handling();
-        //generate_session_key();
         sock = connect();
+
         if(generate_nonce())
-            send((char*)nonce);
+        {
+            send(sock, (char*)nonce.get(), 32);
+            LOG_SUCCESS("send nonce");
+            printf("\033[0;29m");
+        }
         else
             LOG_ERROR("[SERVER] failed send nonce");
-        run();
+
+        read(sock, data, size_pkc);
+        pub_key_client = init_uniq(reinterpret_cast<BYTE*>(data.data()), size_pkc);
+        read(sock, data, size_sign);
+        signature = init_uniq(reinterpret_cast<BYTE*>(data.data()), size_sign);
+
+        if(!verify_sign(signature.get(), size_sign, 
+                pub_key_client.get(), size_pkc))
+        {
+            LOG_ERROR("FAILED VERIFYED SIGNATURE");
+        }
+        else
+        {
+            generate_session_key();
+            send(sock, reinterpret_cast<char*>(session->pub_key), session->pub_len);
+        }
+
+
     }
 
     ~server()
     {
+        if(session)
+        {
+            memory::memzero_explicit(session->prv_key, session->prv_len);
+            memory::memzero_explicit(session->pub_key, session->pub_len);
+            memory::m_free(session->prv_key);
+            memory::m_free(session->pub_key);
+            delete session;
+        }
         asio::error_code ec;
         sock.close(ec);
         accept.close(ec);
     }
 
-    void run()
-    {
-        while(doneman)
-        {
-            if(!doneman)
-                break;
-            if(!reader())
-                sock = connect();
-        }
-    }
+private:
+    std::vector<char> data;
+    size_t size_data = 0;
+    std::unique_ptr<BYTE[]> pub_key_client;
+    size_t size_pkc;
+    // void run()
+    // {
+    //     while(doneman)
+    //     {
+    //         std::vector<char> vec;
+    //         size_t len = 0;
+    //         if(!reader(sock, vec, len))
+    //             sock = connect();
 
-    bool reader()
-    {
-        memory::memzero_explicit(data.data(), 1024);
-        asio::error_code error;
-        size_t length = sock.read_some(asio::buffer(data), error);
-        if (error == asio::error::eof) 
-        {
-            LOG_INFO("[SERVER] Client Exit");
-            return false;
-        }
-        else if(error)
-        {
-            LOG_ERROR("[SERVER] read error");
-            return false;
-        }
-        LOG_SUCCESS("[SERVER] getting: %s", data.data());
-        return true;
-    }
-
-    bool send(char* msg)
-    {
-        LOG_INFO("mst to send %s", nonce);
-        sock.write_some(asio::buffer(std::string(msg)));
-        return true;
-    }
+    //         //procc_data
+    //     }
+    // }
 };
 
 void init_server()

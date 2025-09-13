@@ -4,6 +4,8 @@
 #include <asio.hpp>
 
 #include "client.h"
+#include "../protocol.h"
+
 
 using asio::ip::tcp;
 
@@ -13,54 +15,16 @@ using asio::ip::tcp;
 #include "../../filesystem.h"
 #include "../../sha/sha256.h"
 
-
 #define VERSIO_PROTOCOL 1.0
 
-class GenerateProtocol
-{
-    PSESSION_KEY session = NULL;
-public:
-    BYTE* nonce = NULL;
-    BYTE* sig_nonce = NULL;
-    GenerateProtocol()
-    {
-        nonce = (BYTE*)memory::m_malloc(32);
-    }
-    ~GenerateProtocol()
-    {
-        if(session)
-            rsa::del_session_key(session);
-        if(nonce)
-            memory::m_free(nonce);
-    }
 
-    void generate_session_key()
-    {
-        session = rsa::gen_session_key(false, 2048);
-        for(int i = 0; i < 10; ++i)
-            printf("%02X", session->pub_key[i]);
-    }
-
-    bool signature_nonce()
-    {
-        if(!session)
-        {
-            LOG_ERROR("[CLIENT] [sig_nonce] missing session keys");
-            return false;
-        }
-        BYTE* hash_out = (BYTE*)memory::m_malloc(32);
-        sha256(nonce, 32, hash_out);
-        sig_nonce = rsa::signature(hash_out, session->prv_key, session->prv_len);
-        return sig_nonce ? true : false; 
-    }
-};
-
-class client : public GenerateProtocol
+class client : public Protocol
 {
     asio::io_context io_ctx;
     tcp::resolver resolver;
     tcp::socket socket;
-    std::array<BYTE, 1024> data;
+    std::vector<char> vec;
+    size_t len_read = 0;
 public:
 
     client(const char* ip, const char* port) :
@@ -72,56 +36,35 @@ public:
 
         asio::connect(socket, resolver.resolve(ip, port));
         LOG_SUCCESS("CONNECTED");
-        reader();
-        signature_nonce();
-        printf("NONCE\n");
-        for(int i = 0; i < 32; ++i)
-            printf("%02X", data[i]);
+        printf("\033[0;29m");
 
-        //generate_session_key();
-        while(true)
-        {
-            if(!send(NULL))
-                break;
-        }
+        if(!read(socket, vec, len_read))
+            printf("FAIlED");
+        
+        memcpy(nonce.get(), (BYTE*)vec.data(), 32);
+        LOG_INFO("GENERATE SESSION KEY");
+        generate_session_key();
+        LOG_INFO("HASH NONCE");
+        hash_nonce_();
+        LOG_INFO("SIGNATURE NONCE");
+        auto pair = signature_nonce();
+        LOG_INFO("SEND PUB KEY");
+        send(socket, (char*)session->pub_key, session->pub_len);
+        LOG_INFO("SEND SIGNATURE OF NONCE");
+        send(socket, (char*)pair.first, pair.second);
+
+        while(true);
+    
     }
     ~client()
     {
-
-    }
-
-    bool reader()
-    {
-        memory::memzero_explicit(data.data(), 1024);
-        asio::error_code error;
-        size_t length = socket.read_some(asio::buffer(data), error);
-        if (error == asio::error::eof) 
+        if(session)
         {
-            LOG_INFO("[CLIENT]");
-            return false;
+            memory::memzero_explicit(session->prv_key, session->prv_len);
+            memory::memzero_explicit(session->pub_key, session->pub_len);
+            memory::m_free(session->prv_key);
+            memory::m_free(session->pub_key);
         }
-        else if(error)
-        {
-            LOG_ERROR("[CLIENT]");
-            return false;
-        }
-        LOG_SUCCESS("[CLIENT] getting: %s", data.data());
-        return true;
-    }
-
-    bool send(char* strsend)
-    {
-        if(strsend)
-        {
-            asio::write(socket, asio::buffer(std::string(strsend)));
-            return true;
-        }
-        std::string str;
-        std::getline(std::cin, str);
-        if(str == std::string("exit"))
-            return false;
-        asio::write(socket, asio::buffer(str));
-        return true;
     }
 };
 
@@ -136,3 +79,4 @@ void init_client()
         printf("%s\n", ex.what());
     }
 }
+
