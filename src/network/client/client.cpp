@@ -15,9 +15,6 @@ using asio::ip::tcp;
 #include "../../filesystem.h"
 #include "../../sha/sha256.h"
 
-#define VERSIO_PROTOCOL 1.0
-
-
 class client : public Protocol
 {
     asio::io_context io_ctx;
@@ -36,36 +33,25 @@ public:
 
         asio::connect(socket, resolver.resolve(ip, port));
         LOG_SUCCESS("CONNECTED");
-        printf("\033[0;29m");
 
-        if(!read(socket, vec, len_read))
-            printf("FAIlED");
-        
-        memcpy(nonce.get(), (BYTE*)vec.data(), 32);
-        LOG_INFO("GENERATE SESSION KEY");
-        generate_session_key();
-        LOG_INFO("HASH NONCE");
-        hash_nonce_();
-        LOG_INFO("SIGNATURE NONCE");
-        auto pair = signature_nonce();
-        LOG_INFO("SEND PUB KEY");
-        send(socket, (char*)session->pub_key, session->pub_len);
-        LOG_INFO("SEND SIGNATURE OF NONCE");
-        send(socket, (char*)pair.first, pair.second);
+        if(!setup_connect_client(socket))
+            throw std::runtime_error("[setup_connect_client] failed");
 
-        while(true);
-    
+        while(true)
+        {
+            std::string s;
+            std::getline(std::cin, s);
+            if(s == "exit")
+                break;
+            sign_and_send(socket, (char*)s.c_str(), s.size());
+        }
     }
     ~client()
     {
-        if(session)
-        {
-            memory::memzero_explicit(session->prv_key, session->prv_len);
-            memory::memzero_explicit(session->pub_key, session->pub_len);
-            memory::m_free(session->prv_key);
-            memory::m_free(session->pub_key);
-        }
+        rsa::del_session_key(session);
     }
+
+private:
 };
 
 void init_client()
@@ -76,7 +62,7 @@ void init_client()
     }
     catch(std::exception& ex)
     {
-        printf("%s\n", ex.what());
+        LOG_ERROR("%s", ex.what());
     }
 }
 

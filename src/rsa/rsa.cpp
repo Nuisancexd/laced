@@ -327,6 +327,8 @@ end:
 
 void rsa::del_session_key(PSESSION_KEY session)
 {
+	if(!session) return;
+	
 	if(session->prv_key)
 	{
 		memory::memzero_explicit(session->prv_key, session->prv_len);
@@ -343,6 +345,7 @@ void rsa::del_session_key(PSESSION_KEY session)
 	}
 
 	delete session;
+	session = NULL;
 }
 
 PSESSION_KEY rsa::gen_session_key(bool base, unsigned bit)
@@ -410,10 +413,10 @@ end:
 	return success ? session : NULL;
 }
 
-std::pair<BYTE*, unsigned> rsa::signature(BYTE* hash, BYTE* private_key_data, unsigned size_key)
+std::pair<std::unique_ptr<BYTE[]>, unsigned> rsa::signature(BYTE* hash, BYTE* private_key_data, unsigned size_key)
 {
 	bool success = false;
-	BYTE* SignatureBuffer = NULL;
+	std::unique_ptr<BYTE[]> SignatureBuffer;
 	EVP_PKEY_CTX* ctx = NULL;
 	EVP_PKEY* PKEY = NULL;
 	BIO* bio = NULL;
@@ -431,9 +434,9 @@ std::pair<BYTE*, unsigned> rsa::signature(BYTE* hash, BYTE* private_key_data, un
 		err();
 		goto end;
 	}
-	SignatureBuffer = (BYTE*)memory::m_malloc(sig_len);
-	if (SignatureBuffer 
-		&& EVP_PKEY_sign(ctx, SignatureBuffer, 
+	
+	SignatureBuffer = std::make_unique<BYTE[]>(sig_len);
+	if (EVP_PKEY_sign(ctx, SignatureBuffer.get(), 
 			&sig_len, hash, SHA256_DIGEST_LENGTH) <= 0)
 	{
 		LOG_ERROR("[SignatureRSA] [key_sign] Failed");
@@ -450,7 +453,7 @@ end:
 	if (ctx)
 		EVP_PKEY_CTX_free(ctx);
 
-	return success ? std::make_pair(SignatureBuffer, sig_len) : std::make_pair(nullptr, 0);
+	return success ? std::make_pair(std::move(SignatureBuffer), sig_len) : std::make_pair(nullptr, 0);
 }
 
 bool rsa::verify(BYTE* hash, BYTE* signature, unsigned sign_len, BYTE* pub_key, unsigned key_size)
@@ -479,7 +482,9 @@ bool rsa::verify(BYTE* hash, BYTE* signature, unsigned sign_len, BYTE* pub_key, 
 	if (ret == 1)
 		LOG_SUCCESS("[VerifySignatureRSA] The cryptographic signature is VALID");
 	else if (ret == 0)
-		LOG_ERROR("[VerifySignatureRSA] The cryptographic signature is INVALID");
+	{
+		LOG_ERROR("[VerifySignatureRSA] The cryptographic signature is INVALID"); goto end;
+	}
 	else
 	{
 		LOG_ERROR("[VerifySignatureRSA] Failed"); err(); goto end;

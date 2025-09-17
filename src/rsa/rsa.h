@@ -2,7 +2,7 @@
 #define _RSA_H_
 
 #include "../filesystem.h"
-
+#include <memory>
 
 #ifdef _WIN32
 
@@ -36,7 +36,7 @@ namespace rsa
     bool DecryptRSA(BIO* bio, EVP_PKEY* pkey, EVP_PKEY_CTX* ctx, BYTE* buffer_decrypt, size_t* bdecrypt_size, BYTE** buffer);
     PSESSION_KEY gen_session_key(bool base, unsigned bit);
     void del_session_key(PSESSION_KEY session);
-    std::pair<BYTE*, unsigned> signature(BYTE* hash, BYTE* private_key_data, unsigned size_key);
+    std::pair<std::unique_ptr<BYTE[]>, unsigned> signature(BYTE* hash, BYTE* private_key_data, unsigned size_key);
     bool verify(BYTE* hash, BYTE* signature, unsigned sign_len, BYTE* pub_key, unsigned key_size);
 }
 

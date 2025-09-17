@@ -31,7 +31,8 @@ STATIC CONST CHAR* LogLevelStr[] =
 	"[ERROR]   ",
 	"[SUCCESS] ",
 	"[NONE]    ",
-	"[ENABLE]  "
+	"[DISABLE] ",
+	"[CMD_DIS]"
 };
 
 
@@ -45,7 +46,7 @@ static TCHAR* ptr_dir = NULL;
 
 VOID logs::call_log()
 {
-	LOG_ENABLE("LOGs saved in: " log_str, ptr_dir);
+	LOG_DISABLE("LOGs saved in: " log_str, ptr_dir);
 }
 
 
@@ -154,8 +155,9 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 
 	std::lock_guard<std::mutex> lock(mtx);
 	SetConsoleColor(log);
-	printf("%s\n", Buffer);
-	if (log == LogLevel::LOG_ENABLE)
+	if (log != LogLevel::LOG_CMD_DIS)
+		printf("%s\n", Buffer);
+	if (log == LogLevel::LOG_DISABLE)
 		return;
 	ResetConsoleColor();
 	CHAR time_b[64];
@@ -189,7 +191,10 @@ VOID SetConsoleColor(LogLevel level)
 	case LogLevel::LOG_NONE:
 		printf("\033[0;36m");
 		break;
-	case LogLevel::LOG_ENABLE:
+	case LogLevel::LOG_DISABLE:
+		printf("\033[0;29m");
+		break;
+	case LogLevel::LOG_CMD_DIS:
 		printf("\033[0;29m");
 		break;
 	default:

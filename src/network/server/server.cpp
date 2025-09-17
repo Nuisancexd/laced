@@ -19,7 +19,6 @@ using asio::ip::tcp;
 class server : public Protocol
 {
     int port = -1;
-    int cc = 0;
     std::atomic<bool> doneman = true;
 
     asio::io_context io_ctx;
@@ -82,6 +81,20 @@ class server : public Protocol
         }
     }
 
+    void run()
+    {
+        while(doneman)
+        {
+            sock = connect();
+            if(!doneman)
+                break;
+            if(!setup_connect_server(sock))
+                continue;
+
+            while(receive_and_verify(sock, data, size_data, pub_key_client.get(), size_pkc));
+        }
+    }
+
 public:
     server(int port_) : 
             accept(io_ctx, tcp::endpoint(tcp::v4(), port_)), 
@@ -94,46 +107,12 @@ public:
         std::jthread io_thread(&server::run_io, this);
         port = port_;
         setup_signal_handling();
-        sock = connect();
-
-        if(generate_nonce())
-        {
-            send(sock, (char*)nonce.get(), 32);
-            LOG_SUCCESS("send nonce");
-            printf("\033[0;29m");
-        }
-        else
-            LOG_ERROR("[SERVER] failed send nonce");
-
-        read(sock, data, size_pkc);
-        pub_key_client = init_uniq(reinterpret_cast<BYTE*>(data.data()), size_pkc);
-        read(sock, data, size_sign);
-        signature = init_uniq(reinterpret_cast<BYTE*>(data.data()), size_sign);
-
-        if(!verify_sign(signature.get(), size_sign, 
-                pub_key_client.get(), size_pkc))
-        {
-            LOG_ERROR("FAILED VERIFYED SIGNATURE");
-        }
-        else
-        {
-            generate_session_key();
-            send(sock, reinterpret_cast<char*>(session->pub_key), session->pub_len);
-        }
-
-
+        run();
     }
 
     ~server()
     {
-        if(session)
-        {
-            memory::memzero_explicit(session->prv_key, session->prv_len);
-            memory::memzero_explicit(session->pub_key, session->pub_len);
-            memory::m_free(session->prv_key);
-            memory::m_free(session->pub_key);
-            delete session;
-        }
+        rsa::del_session_key(session);
         asio::error_code ec;
         sock.close(ec);
         accept.close(ec);
@@ -142,20 +121,6 @@ public:
 private:
     std::vector<char> data;
     size_t size_data = 0;
-    std::unique_ptr<BYTE[]> pub_key_client;
-    size_t size_pkc;
-    // void run()
-    // {
-    //     while(doneman)
-    //     {
-    //         std::vector<char> vec;
-    //         size_t len = 0;
-    //         if(!reader(sock, vec, len))
-    //             sock = connect();
-
-    //         //procc_data
-    //     }
-    // }
 };
 
 void init_server()
