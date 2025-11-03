@@ -1,6 +1,7 @@
 #include "api.h"
 
 #include "memory.h"
+#include "logs.h"
 
 #if defined(_WIN32)
 
@@ -96,21 +97,18 @@ VOID api::CloseDesc(HANDLE desc_file)
 
 int api::OpenFile(CONST CHAR* pathaname)
 {
-    int desc_file = open(pathaname, O_RDWR, S_IRWXU);
-    if (desc_file == -1)
-        return -1;
-    return desc_file;
+    int desc = open(pathaname, O_RDWR, S_IRWXU);
+    if(desc == -1)
+        LOG_ERROR("[ReadFile] %s", strerror(errno));
+    return desc;
 }
 
 int api::CreateFile(CONST CHAR* pathaname)
 {
-    int desc_file = open(pathaname, O_CREAT | O_TRUNC | O_RDWR, S_IRWXU);
-    if (desc_file == -1)
-    {
-        printf("ERROR");
-        return -1;
-    }
-    return desc_file;
+    int desc = open(pathaname, O_CREAT | O_TRUNC | O_RDWR, S_IRWXU);
+    if(desc == -1)
+        LOG_ERROR("[ReadFile] %s", strerror(errno));
+    return desc;
 }
 
 VOID api::CloseDesc(int desc_file)
@@ -121,15 +119,19 @@ VOID api::CloseDesc(int desc_file)
 BOOL api::ReadFile(int desc_file, VOID* buf, size_t size, size_t* BytesRead)
 {
     if ((*BytesRead = read(desc_file, buf, size)) == -1)
+    {
+        LOG_ERROR("[ReadFile] %s", strerror(errno));
         return FALSE;
+    }
     return TRUE;
 }
 
 BOOL api::WriteFile(int desc_file, CONST VOID* buf, unsigned size, int* written)
 {
+
     if ((*written = write(desc_file, buf, size)) == -1)
     {
-        printf("ERror\n");
+        LOG_ERROR("[WriteFile] %s", strerror(errno));
         return FALSE;
     }
     return TRUE;
@@ -140,6 +142,7 @@ BOOL api::GetCurrentDir(CHAR* dir_buf, size_t size)
 {
     if (getcwd(dir_buf, size))
         return TRUE;
+    LOG_ERROR("[ReadFile] %s", strerror(errno));
     return FALSE;
 }
 
@@ -150,7 +153,7 @@ BOOL api::GetExecPath(CHAR* dir_buf, size_t size)
     size_t count = readlink("/proc/self/exe", dir_buf, 255);
     if (count == -1)
     {
-        printf("Failed readlink\n");
+        LOG_ERROR("[ReadFile] %s", strerror(errno));
         return FALSE;
     }
     size_t sz = memory::StrLen(dirname(dir_buf));
@@ -161,7 +164,10 @@ BOOL api::GetExecPath(CHAR* dir_buf, size_t size)
 BOOL api::SetPoint(int desc, int seek)
 {
     if (lseek(desc, 0, seek) == -1)
+    {
+        LOG_ERROR("[ReadFile] %s", strerror(errno));
         return FALSE;
+    }
     return TRUE;
 }
 
@@ -173,7 +179,10 @@ SEEK_END
 BOOL api::SetPointOff(int desc, int offset, int seek)
 {
     if (lseek(desc, offset, seek) == -1)
+    {
+        LOG_ERROR("[ReadFile] %s", strerror(errno));
         return FALSE;
+    }
     return TRUE;
 }
 

@@ -1,4 +1,5 @@
-﻿#include "filesystem.h"
+﻿#include <chrono>
+#include "filesystem.h"
 #include "CommandParser.h"
 #include "global_parameters.h"
 #include "threadpool.h"
@@ -7,6 +8,14 @@
 #include "logs.h"
 #include "network/server/server.h"
 #include "network/client/client.h"
+
+
+typedef void (*operation_func)(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
+void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f);
+void rewrite_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
+void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
+void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
+
 
 int main(int argc, char* argv[])
 {
@@ -19,6 +28,7 @@ int main(int argc, char* argv[])
     PDRIVE_INFO data = NULL;
     int f;
     CRYPT_INFO* CryptInfo = new CRYPT_INFO;
+    std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
 
     if (GEN)
     {
@@ -27,20 +37,44 @@ int main(int argc, char* argv[])
         goto exit;
     }
 
-
     if (!locker::GeneratePolicy(CryptInfo))
-    {
-        LOG_ERROR("Failed to Generate Policy.");
-        goto exit;
-    }
+    { LOG_ERROR("Failed to Generate Policy."); goto exit; }
 
     f = pathsystem::StartLocalSearch(DriveInfo, GLOBAL_PATH.g_Path);
     if (f == 0) { LOG_ERROR("No files. null."); goto exit; }
-    LOG_ENABLE("After this operation %d files will be changed", f);
+    LOG_DISABLE("After this operation %d files will be changed", f);
 
     LIST_FOREACH(data, DriveInfo)
         LOG_INFO("Filename: " log_str, data->Filename);
     if (!global::print_command_g()) goto exit;
+    start_time = std::chrono::high_resolution_clock::now();
+    
+    execute_operation(DriveInfo, data, CryptInfo, f);
+
+    success = TRUE;
+exit:
+    locker::FreeCryptInfo(CryptInfo);
+    pathsystem::FreeList(DriveInfo);
+    global::free_global();
+    if (success)
+    {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        LOG_INFO("[TIME] %s seconds", std::to_string(std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count()).c_str());
+        LOG_SUCCESS("EXIT_SUCCESS");
+    }
+    else LOG_ERROR("EXIT");
+    logs::CloseLog();
+
+    return EXIT_SUCCESS;
+}
+
+void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f)
+{
+    operation_func operation = NULL;
+
+    if(O_REWRITE) operation = rewrite_operation;
+    else if(HASH_FILE) operation = hash_operation;
+    else operation = crypt_operation;
 
     if(PIPELINE)
     {
@@ -51,30 +85,10 @@ int main(int argc, char* argv[])
         pipeline->wait();
         delete pipeline;
     }
-    else if (f == 1 || THREAD_ENABLE)
+    else if(f == 1 || !THREAD_ENABLE)
     {
-        if (O_REWRITE)
-        {
-            LIST_FOREACH(data, DriveInfo)
-            {
-                if (filesystem::RewriteSDelete(CryptInfo, data->FullPath))
-                    LOG_SUCCESS("success overwrite file; " log_str, data->Filename);
-                else
-                    LOG_ERROR("failed overwrite file; " log_str, data->Filename);
-            }
-        }
-        else if(HASH_FILE)
-        {
-            LIST_FOREACH(data, DriveInfo)
-                CryptInfo->hash_sum_method(CryptInfo, 
-                    memory::StrLen(data->FullPath) - memory::StrLen(data->Filename), 
-                    data->FullPath);
-        }
-        else
-        {
-            LIST_FOREACH(data, DriveInfo)
-                locker::HandlerCrypt(CryptInfo, data);
-        }
+        LIST_FOREACH(data, DriveInfo)
+            operation(CryptInfo, data);
     }
     else
     {
@@ -84,56 +98,38 @@ int main(int argc, char* argv[])
             threads = f - 1;
 
         ThreadPool pool(threads);
-        if (O_REWRITE)
-        {
-            LIST_FOREACH(data, DriveInfo)
+        LIST_FOREACH(data, DriveInfo)
+            pool.put_task([=]()
             {
-                pool.put_task([=]()
-                    {
-                        filesystem::RewriteSDelete(CryptInfo, data->FullPath);
-                    });
-            }
-            pool.run_main_thread();
-        }
-        else if(HASH_FILE)
-        {
-            LIST_FOREACH(data, DriveInfo)
-            {
-                pool.put_task([=]()
-                {                
-                    CryptInfo->hash_sum_method(CryptInfo, 
-                        memory::StrLen(data->FullPath) - memory::StrLen(data->Filename), 
-                        data->FullPath);
-                });
-            }
-            pool.run_main_thread();
-        }
-        else
-        {
-            LIST_FOREACH(data, DriveInfo)
-            {
-                pool.put_task([=]()
-                    {
-                        locker::HandlerCrypt(CryptInfo, data);
-                    });
-            }
-            pool.run_main_thread();
-        }
+                operation(CryptInfo, data);
+            });
+
+        pool.run_main_thread();
     }
 
     if (signature && !filesystem::VerifySignatureRSA(CryptInfo->hash_data.HashList))
         LOG_ERROR("[VerifySignatureRSA] Failed");
+}
 
-    success = TRUE;
-exit:
-    locker::FreeCryptInfo(CryptInfo);
-    pathsystem::FreeList(DriveInfo);
-    global::free_global();
-    if (success)
-        LOG_SUCCESS("EXIT_SUCCESS");
+void rewrite_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
+{
+    if (filesystem::RewriteSDelete(CryptInfo, data->FullPath))
+        LOG_SUCCESS("success overwrite file; " log_str, data->Filename);
     else
-        LOG_ERROR("EXIT");
-    logs::CloseLog();
+        LOG_ERROR("failed overwrite file; " log_str, data->Filename);
+}
 
-    return EXIT_SUCCESS;
+void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
+{
+    CryptInfo->hash_sum_method
+    (
+        CryptInfo, 
+        memory::StrLen(data->FullPath) - memory::StrLen(data->Filename), 
+        data->FullPath
+    );
+}
+
+void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
+{
+    locker::HandlerCrypt(CryptInfo, data);
 }

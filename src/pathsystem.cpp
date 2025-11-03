@@ -193,8 +193,8 @@ STATIC VOID SearchFiles
         CHAR full_path[4096];
         snprintf(full_path, sizeof(full_path), "%s/%s", StartDirectory, entry->d_name);
 
-        struct stat statbuf;
-        if (stat(full_path, &statbuf) == -1)
+        struct stat64 statbuf;
+        if (stat64(full_path, &statbuf) == -1)
         {
             perror("stat");
             continue;

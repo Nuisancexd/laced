@@ -116,6 +116,7 @@ VOID logs::CloseLog()
 	g_LogHandle = -1;
 	if (ptr_dir)
 		memory::m_free(ptr_dir);
+	printf("\033[0;29m");
 }
 
 VOID SetConsoleColor(LogLevel level);

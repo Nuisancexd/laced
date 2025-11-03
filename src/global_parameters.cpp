@@ -189,13 +189,13 @@ BOOL global::print_command_g()
 		LOG_NONE("PIPELINE");
 end:
 	std::string str;
-	LOG_ENABLE("Do you want to continue? [Y-enter/n]");
+	LOG_DISABLE("Do you want to continue? [Y-enter/n]");
 	std::getline(std::cin, str);
 
 	if (str == "n") return FALSE;
 	else if (str.empty() || str == "y" || str == "Y" || str == "yes" || str == "YES")
 		return TRUE;
-	else { LOG_ENABLE("Type y/Y/yes/YES or press enter"); return FALSE; }
+	else { LOG_DISABLE("Type y/Y/yes/YES or press enter"); return FALSE; }
 }
 
 

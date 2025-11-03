@@ -50,6 +50,15 @@ enum overwrite
 	DOD = 21
 };
 
+enum class sleep_time : size_t //ms
+{
+	base = 0,
+	fast = 5,
+	minimal = 15,
+	optimal = 30,
+	background = 100
+};
+
 namespace global
 {
 	struct GlobalPath
@@ -68,10 +77,12 @@ namespace global
 		EncryptCatalog g_EncryptCat = EncryptCatalog::DIR_CAT;
 		NAME g_CryptName = NAME::NONE;
 		CryptoPolicy g_EncryptMethod = CryptoPolicy::CHACHA;
+		sleep_time g_sleep_time = sleep_time::base;
 	};
 
 	struct alignas(8) GlobalState
 	{
+		bool g_write_in = false;
 		bool g_Status = false;
 		bool g_print_hash = false;
 		bool g_DropMode = false;

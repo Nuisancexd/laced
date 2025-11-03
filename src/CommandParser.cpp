@@ -93,13 +93,19 @@ VOID parser::CommandLineHelper()
            "                        rsa_aes   -- HYBRID: uses RSA and AES256 CBE encryption.\n"
            "                        rsa       -- RSA_ONLY: uses only RSA encryption.\n"
            "                                     Type:(for aes&rsa) crypt or decrypt. This is a required field. (default: null)\n"
+           "[*] -wi / --writein     overwrite in source file with risk. (default: false)\n"
+           "[*] -s / --sleep        select sleep time beetwen process blocks. (default: base(0ms))\n"
+           "                        fast      -- fast    encr (sleep 5ms)\n"
+           "                        slow      -- slowly  encr (sleep 15ms)\n"
+           "                        optm      -- optimal encr (sleep 30ms)\n"
+           "                        back      -- backround encr (sleep 100ms)\n"
            "[*]  -b64 / --base64    If RSA key in Base64 format. (default: false)\n"
            "[*]  -k / --key         Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n"
            "                        For HYBRID & ASYMMETRIC: the full path to private/public RSA key.\n"
            "                        For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n"
            "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
-           "[*]  -e / --enable      Enable the Thread Pool. By default, all logical CPU cores are used. (default: false)\n"
+           "[*]  -e / --enable      Enable the Thread Pool. When enabled all logical CPU cores are used. (default: false)\n"
            "[*]  -nl / --nolog      Disable the log."
            "[*]  -pl / --pipeline   ThreadPipeLine - Multithreaded File processing Pipeline (only for symmetric). (default: false)\n"
            "                        NOTE: encrypts file with block 1 MB\n"
@@ -305,7 +311,6 @@ void parser::ParsingCommandLine(int argc, char** argv)
         scan();
         free_port_info();
         exit(1);
-
     }
     
     {
@@ -331,6 +336,25 @@ void parser::ParsingCommandLine(int argc, char** argv)
             memc(outpath, p.second, memory::StrLen(p.second));
             GLOBAL_PATH.g_Path_out = outpath;
         }
+    }
+
+    pair = GetCommandsCurr(argc, argv, "-wi", "--writein");
+    if(pair.first) GLOBAL_STATE.g_write_in = true;
+
+    pair = GetCommandsNext(argc, argv, "-s", "--sleep");
+    if(pair.first) 
+    {
+        if (memory::StrStrC(pair.second, "fast"))
+            GLOBAL_ENUM.g_sleep_time = sleep_time::fast;
+        else if (memory::StrStrC(pair.second, "slow"))
+            GLOBAL_ENUM.g_sleep_time = sleep_time::minimal;
+        else if (memory::StrStrC(pair.second, "optm"))
+            GLOBAL_ENUM.g_sleep_time = sleep_time::optimal;
+        else if (memory::StrStrC(pair.second, "back"))
+            GLOBAL_ENUM.g_sleep_time = sleep_time::background;
+        else
+            GLOBAL_ENUM.g_sleep_time = sleep_time::base;
+
     }
 
     pair = GetCommandsCurr(argc, argv, "-hf", "--hashfile");
