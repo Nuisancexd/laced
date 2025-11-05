@@ -1,4 +1,5 @@
 #include "CommandParser.h"
+#include "filesystem.h"
 #ifdef __linux__
 #include "network/port_scanner.h"
 #endif
@@ -67,6 +68,7 @@ VOID parser::CommandLineHelper()
     printf("GENERAL OPTIONS:\n");
     printf("[*]  --h / --help       Provides Information about program.\n"
            "[*]  -p / --path        Path to the file to encrypt. Optional field. If null, encrypts in local path.\n"
+           "[*]  -pp / --ppath      TODO;Path to the file with paths\n"
            "[*]  -o / --out         Path to directory for encrypted files. (default: false)\n"
            "[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n"
            "                        '--path' followed by the path to the configuration.\n"
@@ -146,6 +148,7 @@ bool GEN = false;
 bool signature = false;
 bool PIPELINE = false;
 bool HASH_FILE = false;
+bool PPATH = false;
 
 
 #ifdef __linux__
@@ -278,7 +281,8 @@ void parser::ParsingCommandLine(int argc, char** argv)
     bool config = false;
     if (pair.first)
     {
-        std::pair<int, char**> pair_c = parser::ParseFileConfig(argc, argv);
+        Parser pars(argc, argv);
+        std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
         {
             LOG_ERROR("[ParseFileConfig] Failed;"); exit(1);
@@ -314,19 +318,39 @@ void parser::ParsingCommandLine(int argc, char** argv)
     }
     
     {
+        std::pair<bool, TCHAR*> pp;        
         auto p = GetCommandsN(argc, argument, T("-p"), T("--path"));
-        if (!p.first)
-        {
-            TCHAR* locale = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
-            api::GetCurrentDir(locale, MAX_PATH);
-            GLOBAL_PATH.g_Path = locale;
-        }
-        else
+        if (p.first)
         {
             size_t len = memory::StrLen(p.second);
+            if(len > MAX_PATH)
+                { LOG_ERROR("len path > MAX_PATH"); exit(1); }
             TCHAR* spath = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
             memc(spath, p.second, len);
             GLOBAL_PATH.g_Path = spath;
+        }
+        else
+        {
+            TCHAR* locale = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
+            if((pp = GetCommandsN(argc, argument, T("-pp"), T("--ppath"))).first)
+            {
+                size_t len = memory::StrLen(pp.second);
+                if(len > MAX_PATH)
+                    { LOG_ERROR("len path > MAX_PATH"); exit(1); }                
+                memc(locale, pp.second, len);
+
+                Parser pars(locale);
+                
+                auto asd = pars.parse_paths_file();
+
+                for(int i = 0; i < asd.first; ++i)
+                    LOG_INFO("path: %s", asd.second[i]);
+                exit(1); 
+                /*  TODO   */
+            }
+            else api::GetCurrentDir(locale, MAX_PATH);
+            GLOBAL_PATH.g_Path = locale;
+            PPATH = true;
         }
 
         p = GetCommandsN(argc, argument, T("-o"), T("--out"));
@@ -354,7 +378,6 @@ void parser::ParsingCommandLine(int argc, char** argv)
             GLOBAL_ENUM.g_sleep_time = sleep_time::background;
         else
             GLOBAL_ENUM.g_sleep_time = sleep_time::base;
-
     }
 
     pair = GetCommandsCurr(argc, argv, "-hf", "--hashfile");
@@ -684,67 +707,15 @@ bool ParsingOtherCommandLine(int argc, char** argv)
     return false;
 }
 
-std::pair<int, char**> parser::ParseFileConfig(int argc, char** argv)
+std::pair<char*, size_t> Parser::parse_file(const char* filepath)
 {
-    std::pair<bool, char*> pair;
-    pair = GetCommandsNext(argc, argv, "-p", "--path");
-
-    char* locale = (char*)memory::m_malloc(MAX_PATH + MAX_PATH);
-    if (pair.first)
+    DESC desc = -1;
+    size_t size;
+    if(!filesystem::getParseFile((char*)filepath, &desc, &size))
     {
-        memcpy(locale, pair.second, memory::StrLen(pair.second));
+        LOG_ERROR("[ParseFile] failed");
+        return { NULL, 0 };
     }
-    else
-    {
-        if (!api::GetCurrentDir(locale, MAX_PATH))
-        {
-            LOG_ERROR("Failed get current directory config");
-            memory::m_free(locale);
-            return { 0, NULL };
-        }
-        memcpy(&locale[memory::StrLen(locale)], "/config.laced", 13);
-    }
-
-    LOG_INFO("File config:\t%s", locale);
-
-    unsigned long size;
-
-#ifdef _WIN32
-    HANDLE desc = INVALID_HANDLE_VALUE;
-    if ((desc = api::OpenFile(locale)) == INVALID_HANDLE_VALUE)
-    {
-        LOG_ERROR("Failed open config; %s", locale);
-        memory::m_free(locale);
-        return { 0, NULL };
-    }
-
-    LARGE_INTEGER FileSize;
-    if (!GetFileSizeEx(desc, &FileSize))
-    {
-        LOG_ERROR("[GetParseFile] Failed GetFileSize");
-        memory::m_free(locale);
-        return { 0, NULL };
-    }
-
-    size = FileSize.QuadPart;
-#else
-    int desc = -1;
-    if ((desc = api::OpenFile(locale)) == -1)
-    {
-        LOG_ERROR("Failed open config; %s", locale);
-        memory::m_free(locale);
-        return { 0, NULL };
-    }
-
-    struct stat st;
-    if (fstat(desc, &st) == -1)
-    {
-        LOG_ERROR("[GetParseFile] Failed fstat");
-        memory::m_free(locale);
-        return { 0, NULL };
-    }
-    size = st.st_size;
-#endif
 
     char* FileBuffer = (char*)memory::m_malloc(size + 1);
     size_t b_read;
@@ -752,17 +723,115 @@ std::pair<int, char**> parser::ParseFileConfig(int argc, char** argv)
     {
         LOG_ERROR("[ReadFile] Failed;");
         memory::m_free(FileBuffer);
-        memory::m_free(locale);
-        return { 0, NULL };
+        return { NULL, 0 };
     }
 
-    void* ptr_f = FileBuffer;
+    ptr_free = FileBuffer;
+    api::CloseDesc(desc);
+    return {FileBuffer, size};
+}
+
+std::pair<size_t, char**> Parser::parse_config_file()
+{
+    if(argc == 0 || argv == NULL)
+    {
+        LOG_ERROR("[PARSE_CONFIG_FILE] failed init params");
+        return { 0, NULL };
+    }
+    std::pair<bool, char*> pair = GetCommandsNext(argc, argv, "-p", "--path");
+    char* local_config = (char*)memory::m_malloc(MAX_PATH + MAX_PATH);
+    if (pair.first)
+    {
+        memcpy(local_config, pair.second, memory::StrLen(pair.second));
+    }
+    else
+    {
+        if (!api::GetCurrentDir(local_config, MAX_PATH))
+        {
+            LOG_ERROR("Failed get current directory config");
+            memory::m_free(local_config);
+            return { 0, NULL };
+        }
+        memcpy(&local_config[memory::StrLen(local_config)], "/config.laced", 13);
+    }
+
+    LOG_INFO("File config:\t%s", local_config);
+    
+    auto [file_buffer, filesize] = parse_file(local_config); 
+    memory::m_free(local_config);
+
+    return (!file_buffer || filesize == 0) ? std::make_pair<size_t, char**>(0, NULL) : parse_data_file(file_buffer);
+}
+
+std::pair<size_t, char**> Parser::parse_paths_file()
+{
+    if(filepath == NULL)
+        return { 0, NULL };
+
+    auto [file_buffer, filesize] = parse_file(filepath);
+    
+    return (!file_buffer || filesize == 0) ? std::make_pair<size_t, char**>(0, NULL) : parse_data_file(file_buffer);
+}
+
+
+bool Parser::parse_paths_data(char* line, size_t index, char** argv_ret)
+{
+    line[index - 1] = '\0';
+    argv_ret[count++] = line;
+    return true;
+}
+
+bool Parser::parse_config_data(char* line, size_t index, char** argv_ret)
+{
+    for (int i = 0; i < index; ++i)
+    {
+        if (line[i] == '"')
+        {
+            if (count_q >= 4)
+            {
+                line[index - 1] = '\0';
+                LOG_ERROR("Syntax error: unmatched quotes in line: %s", line);
+                return false;
+            }
+            q_array[count_q] = i;
+            ++count_q;
+        }
+    }
+    if (count_q != 4)
+    {
+        line[index - 1] = '\0';
+        LOG_ERROR("Syntax error: missed quotes in line: %s", line);
+        return false;
+    }
+    char* arg_c = (char*)memory::m_malloc((q_array[1] - q_array[0]));
+    char* arg_n = (char*)memory::m_malloc((q_array[3] - q_array[2]));
+    memcpy(arg_c, &line[q_array[0] + 1], (q_array[1] - q_array[0] - 1));
+    memcpy(arg_n, &line[q_array[2] + 1], (q_array[3] - q_array[2] - 1));
+    if (memory::StrStrC(arg_n, "false") || memory::StrStrC(arg_n, "FALSE"))
+    {
+        memory::m_free(arg_c);
+        memory::m_free(arg_n);
+    }
+    else if (memory::StrStrC(arg_n, "true") || memory::StrStrC(arg_n, "TRUE"))
+    {
+        argv_ret[count++] = arg_c;
+        memory::m_free(arg_n);
+    }
+    else
+    {
+        argv_ret[count++] = arg_c;
+        argv_ret[count++] = arg_n;
+    }
+    count_q = 0;
+    memset(q_array, 0x00, 4);
+    return true;
+}
+
+std::pair<size_t, char**> Parser::parse_data_file(char* FileBuffer)
+{
+    bool success = true;
     char* ptr;
-    char* line = (char*)memory::m_malloc(MAX_PATH + MAX_PATH);
     char** argv_ret = (char**)memory::m_malloc(sizeof(char*) * 100);
-    int count = 0;
-    int count_q = 0;
-    int q_array[4] = { 0 };
     size_t index;
     do
     {
@@ -773,66 +842,24 @@ std::pair<int, char**> parser::ParseFileConfig(int argc, char** argv)
         {
             FileBuffer += index; continue;
         }
-        memcpy(line, FileBuffer, index);
-        if (line[index - 1] == '\r') line[index - 1] = 0;
-#ifdef DEBUG
-        printf("%s", line);
-#endif
-        for (int i = 0; i < index; ++i)
-        {
-            if (line[i] == '"')
-            {
-                if (count_q >= 4)
-                {
-                    line[index - 1] = '\0';
-                    LOG_ERROR("Syntax error: unmatched quotes in line: %s", line);
-                    goto end;
-                }
-                q_array[count_q] = i;
-                ++count_q;
-            }
-        }
+        
+        if (FileBuffer[index - 1] == '\r') FileBuffer[index - 1] = 0;
 
-        if (count_q != 4)
-        {
-            line[index - 1] = '\0';
-            LOG_ERROR("Syntax error: missed quotes in line: %s", line);
-            goto end;
-        }
-
-        char* arg_c = (char*)memory::m_malloc((q_array[1] - q_array[0]));
-        char* arg_n = (char*)memory::m_malloc((q_array[3] - q_array[2]));
-        memcpy(arg_c, &line[q_array[0] + 1], (q_array[1] - q_array[0] - 1));
-        memcpy(arg_n, &line[q_array[2] + 1], (q_array[3] - q_array[2] - 1));
-        if (memory::StrStrC(arg_n, "false") || memory::StrStrC(arg_n, "FALSE"))
-        {
-            memory::m_free(arg_c);
-            memory::m_free(arg_n);
-        }
-        else if (memory::StrStrC(arg_n, "true") || memory::StrStrC(arg_n, "TRUE"))
-        {
-            argv_ret[count++] = arg_c;
-            memory::m_free(arg_n);
-        }
-        else
-        {
-            argv_ret[count++] = arg_c;
-            argv_ret[count++] = arg_n;
-        }
-
-        count_q = 0;
-        memset(q_array, 0x00, 4);
-        memset(line, 0x00, index);
+        if(!(success = (this->*method)(FileBuffer, index, argv_ret)))
+            break;
+        
         FileBuffer += index;
     } while (ptr);
-
+    
+    if (success && *FileBuffer != '\0' &&
+        FileBuffer[0] != '*' && FileBuffer[0] != '{' &&
+        FileBuffer[0] != '}' && FileBuffer[0] != '\r')
+    {
+        if (!(success = (this->*method)(FileBuffer, memory::StrLen(FileBuffer), argv_ret)))  
+            return { 0, NULL };
+    }
 end:
 
-    memory::m_free(locale);
-    memory::m_free(line);
-    memory::m_free(ptr_f);
-    api::CloseDesc(desc);
-
-
+    if(!success) return { 0, NULL };
     return { count, argv_ret };
 }

