@@ -172,7 +172,7 @@ size_t memory::StrLen(const wchar_t* Str)
 	return Length;
 }
 
-const char* memory::FindChar(const char* Str, char Ch)
+char* memory::FindChar(char* Str, char Ch)
 {
 	while (*Str)
 	{
@@ -185,6 +185,21 @@ const char* memory::FindChar(const char* Str, char Ch)
 
 	return NULL;
 }
+
+std::pair<bool, char*> memory::FindCharUntil(char* Str, char ch, char fch)
+{
+	while(*Str)
+	{
+		if(*Str == ch)
+			return {true, Str};
+		else if(*Str == fch)
+			return {false, Str};
+		Str++;
+	}
+
+	return {0, NULL};
+}
+
 size_t memory::FindCharWI(const wchar_t* Str, wchar_t Ch)
 {
 	size_t Length = 0;

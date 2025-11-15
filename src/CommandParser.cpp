@@ -1,12 +1,12 @@
 #include "CommandParser.h"
 #include "filesystem.h"
+#include "rsa/rsa.h"
 #ifdef __linux__
 #include "network/port_scanner.h"
 #endif
 #include <string>
 
-
-VOID parser::subCommandHelper()
+VOID CommandParser::subCommandHelper()
 {
     printf("\t\t __         ___     _____  _______ _____\n");
     printf("\t\t|  |       /   \\   /     ||   ___||     \\\n");
@@ -36,7 +36,7 @@ VOID parser::subCommandHelper()
 }
 
 
-VOID parser::CommandLineHelper()
+VOID CommandParser::CommandLineHelper()
 {
     printf("\t\t __           ___      ______  _______  _______\n");
     printf("\t\t|  |         /   \\    /      ||   ____||       \\\n");
@@ -141,14 +141,14 @@ VOID parser::CommandLineHelper()
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
-bool NO_LOG = false;
-bool THREAD_ENABLE = false;
-bool O_REWRITE = false;
-bool GEN = false;
-bool signature = false;
-bool PIPELINE = false;
-bool HASH_FILE = false;
-bool PPATH = false;
+bool CommandParser::NO_LOG = false;
+bool CommandParser::THREAD_ENABLE = false;
+bool CommandParser::O_REWRITE = false;
+bool CommandParser::BASE64 = false;
+bool CommandParser::signature = false;
+bool CommandParser::PIPELINE = false;
+bool CommandParser::HASH_FILE = false;
+bool CommandParser::PPATH = false;
 
 
 #ifdef __linux__
@@ -156,7 +156,7 @@ bool PPATH = false;
 constexpr int MAX_PATH = 255;
 #endif
 
-CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)
+CHAR* CommandParser::GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)
 {
     for (int i = 0; i < argc; ++i)
     {
@@ -172,7 +172,7 @@ CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)
     return NULL;
 }
 
-CHAR* GetCommandLineArgChCurr(int argc, CHAR** argv, const CHAR* argv_name)
+CHAR* CommandParser::GetCommandLineArgChCurr(int argc, CHAR** argv, const CHAR* argv_name)
 {
     for (int i = 0; i < argc; ++i)
     {
@@ -187,7 +187,7 @@ CHAR* GetCommandLineArgChCurr(int argc, CHAR** argv, const CHAR* argv_name)
 
 
 
-WCHAR* GetCommandLineArg(int argc, WCHAR** argv, const WCHAR* argv_name)
+WCHAR* CommandParser::GetCommandLineArg(int argc, WCHAR** argv, const WCHAR* argv_name)
 {
     for (int i = 0; i < argc; ++i)
     {
@@ -203,7 +203,7 @@ WCHAR* GetCommandLineArg(int argc, WCHAR** argv, const WCHAR* argv_name)
     return NULL;
 }
 
-WCHAR* GetCommandLineArgCurr(int argc, WCHAR** argv, const WCHAR* argv_name)
+WCHAR* CommandParser::GetCommandLineArgCurr(int argc, WCHAR** argv, const WCHAR* argv_name)
 {
     for (int i = 0; i < argc; ++i)
     {
@@ -218,10 +218,10 @@ WCHAR* GetCommandLineArgCurr(int argc, WCHAR** argv, const WCHAR* argv_name)
 
 
 template<typename Tstr, typename func>
-std::pair<bool, Tstr*> GetCommands(int argc, Tstr** argv, const Tstr* fstr, const Tstr* sstr, func f)
+std::pair<bool, Tstr*> CommandParser::GetCommands(int argc, Tstr** argv, const Tstr* fstr, const Tstr* sstr, func f)
 {
     Tstr* ptr = NULL;
-    if (ptr = f(argc, argv, fstr))
+    if ((ptr = f(argc, argv, fstr)))
         return { true, ptr };
     else if (ptr = f(argc, argv, sstr))
         return { true, ptr };
@@ -229,38 +229,38 @@ std::pair<bool, Tstr*> GetCommands(int argc, Tstr** argv, const Tstr* fstr, cons
 }
 
 
-std::pair<bool, WCHAR*> WGetCommandsCurr(int argc, WCHAR* argv[], const WCHAR* fstr, const WCHAR* sstr)
+std::pair<bool, WCHAR*> CommandParser::WGetCommandsCurr(int argc, WCHAR* argv[], const WCHAR* fstr, const WCHAR* sstr)
 {
-    return GetCommands<WCHAR>(argc, argv, fstr, sstr, GetCommandLineArgCurr);
+    return CommandParser::GetCommands<WCHAR>(argc, argv, fstr, sstr, GetCommandLineArgCurr);
 }
 
-std::pair<bool, WCHAR*> WGetCommandsNext(int argc, WCHAR* argv[], const WCHAR* fstr, const WCHAR* sstr)
+std::pair<bool, WCHAR*> CommandParser::WGetCommandsNext(int argc, WCHAR* argv[], const WCHAR* fstr, const WCHAR* sstr)
 {
-    return GetCommands<WCHAR>(argc, argv, fstr, sstr, GetCommandLineArg);
+    return CommandParser::GetCommands<WCHAR>(argc, argv, fstr, sstr, GetCommandLineArg);
 }
 
-std::pair<bool, char*> GetCommandsCurr(int argc, char* argv[], const char* fstr, const char* sstr)
+std::pair<bool, char*> CommandParser::GetCommandsCurr(int argc, char* argv[], const char* fstr, const char* sstr)
 {
-    return GetCommands<char>(argc, argv, fstr, sstr, GetCommandLineArgChCurr);
+    return CommandParser::GetCommands<char>(argc, argv, fstr, sstr, GetCommandLineArgChCurr);
 }
 
-std::pair<bool, char*> GetCommandsNext(int argc, char* argv[], const char* fstr, const char* sstr)
+std::pair<bool, char*> CommandParser::GetCommandsNext(int argc, char* argv[], const char* fstr, const char* sstr)
 {
-    return GetCommands<char>(argc, argv, fstr, sstr, GetCommandLineArgCh);
+    return CommandParser::GetCommands<char>(argc, argv, fstr, sstr, GetCommandLineArgCh);
 }
 
 
 
 #ifdef _WIN32
-#define GetCommandsC(argc, argv, fstr, sstr) WGetCommandsCurr(argc, argv, fstr, sstr)
-#define GetCommandsN(argc, argv, fstr, sstr) WGetCommandsNext(argc, argv, fstr, sstr)
+#define GetCommandsC(argc, argv, fstr, sstr) CommandParser::WGetCommandsCurr(argc, argv, fstr, sstr)
+#define GetCommandsN(argc, argv, fstr, sstr) CommandParser::WGetCommandsNext(argc, argv, fstr, sstr)
 #else
-#define GetCommandsC(argc, argv, fstr, sstr) GetCommandsCurr(argc, argv, fstr, sstr)
-#define GetCommandsN(argc, argv, fstr, sstr) GetCommandsNext(argc, argv, fstr, sstr)
+#define GetCommandsC(argc, argv, fstr, sstr) CommandParser::GetCommandsCurr(argc, argv, fstr, sstr)
+#define GetCommandsN(argc, argv, fstr, sstr) CommandParser::GetCommandsNext(argc, argv, fstr, sstr)
 #endif
 
-bool ParsingOtherCommandLine(int argc, char** argv);
-void parser::ParsingCommandLine(int argc, char** argv)
+
+void CommandParser::ParsingCommandLine()
 {
     if (!argv || argc <= 1)
         subCommandHelper();
@@ -278,10 +278,9 @@ void parser::ParsingCommandLine(int argc, char** argv)
     if (pair.first) CommandLineHelper();
 
     pair = GetCommandsCurr(argc, argv, "-conf", "--config");
-    bool config = false;
     if (pair.first)
     {
-        Parser pars(argc, argv);
+        FileParser pars(argc, argv);
         std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
         {
@@ -310,13 +309,6 @@ void parser::ParsingCommandLine(int argc, char** argv)
     pair = GetCommandsCurr(argc, argv, "-nl", "--nolog");
     if(pair.first) NO_LOG = true;
 
-    if(ParsingOtherCommandLine(argc, argv))
-    {
-        scan();
-        free_port_info();
-        exit(1);
-    }
-    
     {
         std::pair<bool, TCHAR*> pp;        
         auto p = GetCommandsN(argc, argument, T("-p"), T("--path"));
@@ -338,19 +330,17 @@ void parser::ParsingCommandLine(int argc, char** argv)
                 if(len > MAX_PATH)
                     { LOG_ERROR("len path > MAX_PATH"); exit(1); }                
                 memc(locale, pp.second, len);
-
-                Parser pars(locale);
-                
-                auto asd = pars.parse_paths_file();
-
-                for(int i = 0; i < asd.first; ++i)
-                    LOG_INFO("path: %s", asd.second[i]);
-                exit(1); 
-                /*  TODO   */
+                FileParser pars(locale);
+                pars.parse_paths_file(q_paths);
+                GLOBAL_PATH.g_Path = NULL;
+                memory::m_free(locale);
+                PPATH = true;
             }
-            else api::GetCurrentDir(locale, MAX_PATH);
-            GLOBAL_PATH.g_Path = locale;
-            PPATH = true;
+            else 
+            {
+                api::GetCurrentDir(locale, MAX_PATH);
+                GLOBAL_PATH.g_Path = locale;
+            }
         }
 
         p = GetCommandsN(argc, argument, T("-o"), T("--out"));
@@ -391,7 +381,7 @@ void parser::ParsingCommandLine(int argc, char** argv)
     }
 
     pair = GetCommandsCurr(argc, argv, "-b64", "--base64");
-    if (pair.first) GLOBAL_STATE.g_RsaBase64 = true;
+    if (pair.first) { GLOBAL_STATE.g_RsaBase64 = true; BASE64 = true; };
 
     pair = GetCommandsCurr(argc, argv, "-g", "--gen");
     if (pair.first)
@@ -406,8 +396,9 @@ void parser::ParsingCommandLine(int argc, char** argv)
         }
         pair = GetCommandsCurr(argc, argv, "-pr", "--print");
         if (pair.first) GLOBAL_STATE.g_print_hex = true;
-        GEN = true;
-        return;
+        if (!HandlerGenKeyPairRSA())
+            LOG_ERROR("[HandlerGenKeyPairRSA] Failed");
+        exit(1);
     }
 
     pair = GetCommandsCurr(argc, argv, "-ow", "--overwrite");
@@ -447,7 +438,7 @@ void parser::ParsingCommandLine(int argc, char** argv)
         if (memory::StrStrC(pair.second, "hash"))
             GLOBAL_ENUM.g_CryptName = NAME::HASH_NAME;
         else if (memory::StrStrC(pair.second, "base"))
-            GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME;
+        { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME; BASE64 = true; }
     }
 
     pair = GetCommandsNext(argc, argv, "-m", "--mode");
@@ -478,7 +469,7 @@ void parser::ParsingCommandLine(int argc, char** argv)
     pair = GetCommandsNext(argc, argv, "-al", "--algo");
     if (pair.first)
     {
-        auto funcDeCrypt = ([&argc, &argv]
+        auto funcDeCrypt = ([this]
             {
                 auto EcnryptChoice = GetCommandLineArgChCurr(argc, argv, "crypt");
                 if (EcnryptChoice)
@@ -496,7 +487,7 @@ void parser::ParsingCommandLine(int argc, char** argv)
                 }
             });
 
-        auto funcKey = ([&argc, &argument]
+        auto funcKey = ([this, &argument]
             {
                 std::pair<bool, TCHAR*> pair = GetCommandsN(argc, argument, T("-k"), T("--key"));
                 if (!pair.first) { LOG_ERROR("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
@@ -542,7 +533,7 @@ void parser::ParsingCommandLine(int argc, char** argv)
                 }
             });
 
-        auto funcKeySym([&argc, &argv]
+        auto funcKeySym([this]
             {   
                 auto pair = GetCommandsNext(argc, argv, "-r", "--root");
                 if(pair.first)
@@ -637,108 +628,67 @@ void parser::ParsingCommandLine(int argc, char** argv)
         PIPELINE = true;
     }
 
-    if (config)
-    {
-        for (int i = 0; i < argc; ++i)
+        if (config)
         {
-            memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-            memory::m_free(argv[i]);
+            for (int i = 0; i < argc; ++i)
+            {
+                memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
+                memory::m_free(argv[i]);
 #ifdef _WIN32
-            memory::m_free(argument[i]);
+                memory::m_free(argument[i]);
 #endif
-        }
+            }
         memory::m_free(argv);
 #ifdef _WIN32
         memory::m_free(argument);
 #endif
-    }
-    else
-    {
-        for (int i = 0; i < argc; ++i)
-            memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-        /*char* ptr_start = argv[0];
-        char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
-        memory::memzero_explicit(argv, ptr_end - ptr_start);*/
+        }
+        else
+        {
+            for (int i = 0; i < argc; ++i)
+                memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
+            /*char* ptr_start = argv[0];
+            char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
+            memory::memzero_explicit(argv, ptr_end - ptr_start);*/
 #ifdef _WIN32
-        if (argument)
-            LocalFree(argument);
+            if (argument)
+                LocalFree(argument);
 #endif
-    }
+        }
+
     logs::call_log();
     LOG_INFO("DIR to execute:\t" log_str, GLOBAL_PATH.g_Path);
 }
 
-bool ParsingOtherCommandLine(int argc, char** argv)
-{
-    std::pair<bool, char*> pair;
-    pair = GetCommandsNext(argc, argv, "-ip", "--ip");
-    if(pair.first)
-    {
-        size_t len = memory::StrLen(pair.second);
-        char* tg_ip = (char*)memory::m_malloc(len + 1);
-        memcpy(tg_ip, pair.second, len);
-        GLOBAL_SCAN_PORT.g_scan_ip = tg_ip;
-
-        pair = GetCommandsCurr(argc, argv, "-s", "--system");
-        if(pair.first)
-        {
-            GLOBAL_SCAN_PORT.sport = 0;
-            GLOBAL_SCAN_PORT.eport = 1023;
-        }
-        else if((pair = GetCommandsCurr(argc, argv, "-u", "--user")).first)
-        {
-            GLOBAL_SCAN_PORT.sport = 1024;
-            GLOBAL_SCAN_PORT.eport = 49151;
-        }
-        else if((pair = GetCommandsCurr(argc, argv, "-p", "--private")).first)
-        {
-            GLOBAL_SCAN_PORT.sport = 49152;
-            GLOBAL_SCAN_PORT.eport = 65535;
-        }
-        else // -a / --all
-        {
-            GLOBAL_SCAN_PORT.sport = 0;
-            GLOBAL_SCAN_PORT.eport = 65535;
-        }
-
-        return true;
-    }
-
-    return false;
-}
-
-std::pair<char*, size_t> Parser::parse_file(const char* filepath)
+void FileParser::parse_file(const char* filepath)
 {
     DESC desc = -1;
-    size_t size;
-    if(!filesystem::getParseFile((char*)filepath, &desc, &size))
+    if(!filesystem::getParseFile((char*)filepath, &desc, &filesize))
     {
         LOG_ERROR("[ParseFile] failed");
-        return { NULL, 0 };
+        return;
     }
-
-    char* FileBuffer = (char*)memory::m_malloc(size + 1);
+    
+    filebuffer = std::make_unique<char[]>(filesize + 2);
+    filebuffer[filesize + 1] = '\0';
     size_t b_read;
-    if (!api::ReadFile(desc, FileBuffer, size, &b_read) || b_read != size)
+    if (!api::ReadFile(desc, filebuffer.get(), filesize, &b_read) || b_read != filesize)
     {
-        LOG_ERROR("[ReadFile] Failed;");
-        memory::m_free(FileBuffer);
-        return { NULL, 0 };
+        LOG_ERROR("[ReadFile] Failed;");        
+        return;
     }
 
-    ptr_free = FileBuffer;
     api::CloseDesc(desc);
-    return {FileBuffer, size};
 }
 
-std::pair<size_t, char**> Parser::parse_config_file()
+std::pair<size_t, char**> FileParser::parse_config_file()
 {
     if(argc == 0 || argv == NULL)
     {
         LOG_ERROR("[PARSE_CONFIG_FILE] failed init params");
         return { 0, NULL };
     }
-    std::pair<bool, char*> pair = GetCommandsNext(argc, argv, "-p", "--path");
+    std::pair<bool, char*> pair = CommandParser::GetCommandsNext(argc, argv, "-p", "--path");
     char* local_config = (char*)memory::m_malloc(MAX_PATH + MAX_PATH);
     if (pair.first)
     {
@@ -757,31 +707,75 @@ std::pair<size_t, char**> Parser::parse_config_file()
 
     LOG_INFO("File config:\t%s", local_config);
     
-    auto [file_buffer, filesize] = parse_file(local_config); 
+    parse_file(local_config); 
     memory::m_free(local_config);
 
-    return (!file_buffer || filesize == 0) ? std::make_pair<size_t, char**>(0, NULL) : parse_data_file(file_buffer);
+    return (!filebuffer.get() || filesize == 0) ? std::make_pair<size_t, char**>(0, NULL) : parse_data_file();
 }
 
-std::pair<size_t, char**> Parser::parse_paths_file()
+bool FileParser::parse_paths_file(std::queue<std::pair<size_t, std::unique_ptr<char[]>>>& auto_pair_path)
 {
     if(filepath == NULL)
-        return { 0, NULL };
+        return false;
 
-    auto [file_buffer, filesize] = parse_file(filepath);
-    
-    return (!file_buffer || filesize == 0) ? std::make_pair<size_t, char**>(0, NULL) : parse_data_file(file_buffer);
-}
+    parse_file(filepath);
+    if(!filebuffer.get() || filesize == 0)
+        return false;
+    auto [size, line] = parse_data_file();
+    std::pair<bool, char*> pair;
+    char* indx = NULL;
+    size_t ec = 0;
+    size_t len = 0;
+    for(int i = 0; i < size; ++i)
+    {
+        pair = memory::FindCharUntil(line[i], ' ', '/');
+        if(!pair.second) continue;
+        if(!pair.first)
+        {
+            len = memory::StrLen(line[i]);
+            std::unique_ptr<char[]> pc = std::make_unique<char[]>(len + 1);
+            memcpy(pc.get(), line[i], len);
+            auto_pair_path.push({0, std::move(pc)});
+            memory::m_free(line[i]);
+            continue;
+        }        
+        indx = pair.second;
+        *indx = '\0';
+        char* command = line[i];
+        if (memory::StrStrC(command, "dir"))
+            ec = static_cast<size_t>(EncryptCatalog::AUTO_CAT) ^ static_cast<size_t>(EncryptCatalog::DIR_CAT);            
+        else if (memory::StrStrC(command, "indir"))
+            ec = static_cast<size_t>(EncryptCatalog::AUTO_CAT) ^ static_cast<size_t>(EncryptCatalog::INDIR_CAT);
+        else if (memory::StrStrC(command, "file"))
+            ec = static_cast<size_t>(EncryptCatalog::AUTO_CAT) ^ static_cast<size_t>(EncryptCatalog::FILE_CAT);
+        else
+        {
+            LOG_ERROR("missing cat command: file/indir/dir in line %d", i + 1);            
+            continue;
+        }
+        char* path = indx + 1;
+        while(*path == ' ') ++path;
 
-
-bool Parser::parse_paths_data(char* line, size_t index, char** argv_ret)
-{
-    line[index - 1] = '\0';
-    argv_ret[count++] = line;
+        len = memory::StrLen(path);        
+        std::unique_ptr<char[]> pc = std::make_unique<char[]>(len + 1);
+        memcpy(pc.get(), path, len);
+        auto_pair_path.push({ec, std::move(pc)});
+        memory::m_free(line[i]);
+    }
+    memory::m_free(line);
     return true;
 }
 
-bool Parser::parse_config_data(char* line, size_t index, char** argv_ret)
+
+bool FileParser::parse_paths_data(char* line, size_t index, char** argv_ret)
+{
+    char* ll = (char*)memory::m_malloc(index);
+    memcpy(ll, line, index - 1);
+    argv_ret[count++] = ll;
+    return true;
+}
+
+bool FileParser::parse_config_data(char* line, size_t index, char** argv_ret)
 {
     for (int i = 0; i < index; ++i)
     {
@@ -827,39 +821,41 @@ bool Parser::parse_config_data(char* line, size_t index, char** argv_ret)
     return true;
 }
 
-std::pair<size_t, char**> Parser::parse_data_file(char* FileBuffer)
+std::pair<size_t, char**> FileParser::parse_data_file()
 {
     bool success = true;
     char* ptr;
+    char* ptr_buff = filebuffer.get();
     char** argv_ret = (char**)memory::m_malloc(sizeof(char*) * 100);
+    std::pair<size_t, char**>* pair;
     size_t index;
     do
     {
-        ptr = (char*)memory::FindChar(FileBuffer, '\n');
+        ptr = (char*)memory::FindChar(ptr_buff, '\n');
         if (ptr == NULL) break;
-        index = memory::FindCharI(FileBuffer, '\n');
-        if (index == 1 || FileBuffer[0] == '*' || FileBuffer[0] == '{' || FileBuffer[0] == '}' || FileBuffer[0] == '\r')
+        index = memory::FindCharI(ptr_buff, '\n');
+        if (index == 1 || ptr_buff[0] == '*' || ptr_buff[0] == '{' || ptr_buff[0] == '}' || ptr_buff[0] == '\r')
         {
-            FileBuffer += index; continue;
+            ptr_buff += index; continue;
         }
         
-        if (FileBuffer[index - 1] == '\r') FileBuffer[index - 1] = 0;
+        if (ptr_buff[index - 1] == '\r') ptr_buff[index - 1] = 0;
 
-        if(!(success = (this->*method)(FileBuffer, index, argv_ret)))
+        if(!(success = (this->*method)(ptr_buff, index, argv_ret)))
             break;
         
-        FileBuffer += index;
+        ptr_buff += index;
     } while (ptr);
     
-    if (success && *FileBuffer != '\0' &&
-        FileBuffer[0] != '*' && FileBuffer[0] != '{' &&
-        FileBuffer[0] != '}' && FileBuffer[0] != '\r')
+    if (success && *ptr_buff != '\0' &&
+        *ptr_buff != '*' && *ptr_buff != '{' &&
+        *ptr_buff != '}' && *ptr_buff != '\r')
     {
-        if (!(success = (this->*method)(FileBuffer, memory::StrLen(FileBuffer), argv_ret)))  
-            return { 0, NULL };
+        if (!(success = (this->*method)(ptr_buff, memory::StrLen(ptr_buff) + 1, argv_ret)))  
+            return { 0, NULL };            
     }
 end:
 
     if(!success) return { 0, NULL };
-    return { count, argv_ret };
+    return { count, argv_ret }; 
 }

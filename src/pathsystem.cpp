@@ -212,13 +212,28 @@ void PathSystem::search_files(LIST<DIRECTORY_INFO>* DirectoryInfo, int* cf)
 #endif
 }
 
+void PathSystem::qpath()
+{
+    if(q_paths.empty())
+        return;
+
+    size_t ec_f = q_paths.front().first;
+    if(ec_f != 0)
+        ec = static_cast<size_t>(EncryptCatalog::AUTO_CAT) ^ ec_f;    
+    directory = q_paths.front().second.get();
+    f_count = 0;
+}
+
+void PathSystem::nop(){}
+
 size_t PathSystem::start_local_search()
 {
-    if(directory == NULL || drive_info == NULL)
+    (this->*qm)();
+    if(directory == NULL)
         return 0;
 
-    if (GLOBAL_ENUM.g_EncryptCat == EncryptCatalog::FILE_CAT)
-    {
+    if (ec == static_cast<size_t>(EncryptCatalog::FILE_CAT))
+    {        
         TCHAR* name = NULL;
         TCHAR* path = NULL;
         size_t ld = memory::StrLen(directory);
@@ -246,20 +261,19 @@ size_t PathSystem::start_local_search()
         DriveData->FullPath = fpath;
         DriveData->Exst = make_exst(directory);
         drive_info->LIST_INSERT_HEAD(DriveData);
-
-        return 1;
+        if(!q_paths.empty())
+            q_paths.pop();
+        return ++f_count;
     }
-    
-    directory_info = new LIST<DIRECTORY_INFO>;
+
     search_files(directory_info, &f_count);
 
-
-    if (GLOBAL_ENUM.g_EncryptCat == EncryptCatalog::DIR_CAT)
+    if (ec == static_cast<size_t>(EncryptCatalog::DIR_CAT))
     {
-
+        
     }
-    else if (GLOBAL_ENUM.g_EncryptCat  == EncryptCatalog::INDIR_CAT)
-    {
+    else if (ec  == static_cast<size_t>(EncryptCatalog::INDIR_CAT))
+    {        
         PDIRECTORY_INFO dirs = NULL;
         REV_LIST_FOREACH(dirs, directory_info)
         {
@@ -267,7 +281,8 @@ size_t PathSystem::start_local_search()
             search_files(directory_info, &f_count);
         }
     }
-
+    if(!q_paths.empty())
+        q_paths.pop();
     return f_count;
 }
 
@@ -286,13 +301,9 @@ void PathSystem::free_drive_info()
 void PathSystem::free_directory_info()
 {
     if(directory_info == NULL) return;
-
     PDIRECTORY_INFO dir_ = NULL;
-    LIST_FOREACH(dir_, directory_info)
-    {
-        LOG_INFO("DIRECTORIES: " log_str, dir_->Directory);
+    LIST_FOREACH(dir_, directory_info)            
         memory::m_free(dir_->Directory);
-    }
 }
 
 PathSystem::~PathSystem()
@@ -301,5 +312,4 @@ PathSystem::~PathSystem()
     free_directory_info();
     if(drive_info)     delete drive_info;
     if(directory_info) delete directory_info;
-
 }

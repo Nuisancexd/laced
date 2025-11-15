@@ -1,11 +1,19 @@
 #ifndef _GLOBAL_PARAMETERS_H_
 #define _GLOBAL_PARAMETERS_H_
 
-#include "locker.h"
+#include <cstddef>
 #include "macro.h"
 
+enum class CryptoPolicy
+{
+	AES256 = 101,
+	CHACHA = 102,
+	RSA_AES256 = 103,
+	RSA_CHACHA = 104,
+	RSA = 105
+};
 
-enum class EncryptModes
+enum class EncryptModes : size_t
 {
 
 	FULL_ENCRYPT = 10,
@@ -16,7 +24,7 @@ enum class EncryptModes
 	PIPELINE_ENCRYPT = 15
 };
 
-enum class EncryptCatalog
+enum class EncryptCatalog : size_t
 {
 	FILE_CAT = 13,
 	DIR_CAT = 14,

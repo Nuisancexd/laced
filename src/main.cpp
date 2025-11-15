@@ -3,48 +3,33 @@
 #include "CommandParser.h"
 #include "global_parameters.h"
 #include "threadpool.h"
-#include "base64/base64.h"
-#include "rsa/rsa.h"
 #include "logs.h"
-#include "network/server/server.h"
-#include "network/client/client.h"
-#include "keygen.h"
 
 typedef void (*operation_func)(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f);
 void rewrite_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
+bool path_operation(PathSystem* psys);
+
 
 
 int main(int argc, char* argv[])
 {
     logs::initLog(TRUE);
-    parser::ParsingCommandLine(argc, argv);
-    base64::init_table_base64_decode();
-
     BOOL success = FALSE;
-    PathSystem psys(GLOBAL_PATH.g_Path);
+    CommandParser pcl(argc, argv);        
+    PathSystem psys(pcl.q_paths, GLOBAL_PATH.g_Path);
+
     CRYPT_INFO* CryptInfo = new CRYPT_INFO;
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
-
-    if (GEN)
-    {
-        if (!(success = HandlerGenKeyPairRSA()))
-            LOG_ERROR("[HandlerGenKeyPairRSA] Failed");
-        goto exit;
-    }
 
 
     if (!locker::GeneratePolicy(CryptInfo))
     { LOG_ERROR("Failed to Generate Policy."); goto exit; }
-
     
-    psys.start_local_search();
-    if (psys.f_count == 0) { LOG_ERROR("No files. null."); goto exit; }
-    LOG_DISABLE("After this operation %d files will be changed", psys.f_count);
-    LIST_FOREACH(psys.data, psys.drive_info)
-        LOG_INFO("Filename: " log_str, psys.data->Filename);
+    if(!path_operation(&psys)) goto exit;
+
     if (!global::print_command_g()) goto exit;
     start_time = std::chrono::high_resolution_clock::now();
 
@@ -61,20 +46,37 @@ exit:
         LOG_SUCCESS("EXIT_SUCCESS");
     }
     else LOG_ERROR("EXIT");
-    logs::CloseLog();
+    logs::CloseLog();   
 
     return EXIT_SUCCESS;
+}
+
+bool path_operation(PathSystem* psys)
+{
+    int size = 1;
+    if(!psys->q_paths.empty())
+        size = psys->q_paths.size();
+    for(int i = 0; i < size; ++i)
+    {
+        psys->start_local_search();
+        if (psys->f_count == 0) { LOG_ERROR("No files. null."); return false; }
+        LOG_DISABLE("After this operation %d files will be changed", psys->f_count);
+        LIST_FOREACH(psys->data, psys->drive_info)
+            LOG_INFO("Filename: " log_str, psys->data->Filename);        
+    }
+
+    return true;
 }
 
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f)
 {
     operation_func operation = NULL;
 
-    if(O_REWRITE) operation = rewrite_operation;
-    else if(HASH_FILE) operation = hash_operation;
+    if(CommandParser::O_REWRITE) operation = rewrite_operation;
+    else if(CommandParser::HASH_FILE) operation = hash_operation;
     else operation = crypt_operation;
 
-    if(PIPELINE)
+    if(CommandParser::PIPELINE)
     {
         ThreadPipeLine* pipeline = new ThreadPipeLine;
         LIST_FOREACH(data, DriveInfo)
@@ -83,7 +85,7 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
         pipeline->wait();
         delete pipeline;
     }
-    else if(f == 1 || !THREAD_ENABLE)
+    else if(f == 1 || !CommandParser::THREAD_ENABLE)
     {
         LIST_FOREACH(data, DriveInfo)
             operation(CryptInfo, data);
@@ -105,7 +107,7 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
         pool.run_main_thread();
     }
 
-    if (signature && !filesystem::VerifySignatureRSA(CryptInfo->hash_data.HashList))
+    if (CommandParser::signature && !filesystem::VerifySignatureRSA(CryptInfo->hash_data.HashList))
         LOG_ERROR("[VerifySignatureRSA] Failed");
 }
 

@@ -11,6 +11,7 @@
 #include "pathsystem.h"
 #include "chacha20/ecrypt-sync.h"
 #include "aes/aes256.h"
+#include "global_parameters.h"
 
 
 #ifdef __linux__
@@ -31,14 +32,7 @@ enum GenPolicy
 	GENKEY_EVERY_ONCE
 };
 
-enum class CryptoPolicy
-{
-	AES256 = 101,
-	CHACHA = 102,
-	RSA_AES256 = 103,
-	RSA_CHACHA = 104,
-	RSA = 105
-};
+
 
 
 

@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <string>
 #include "CommandParser.h"
-#include "global_parameters.h"
 #include "rsa/rsa.h"
 
 static bool isCrypt = false;
@@ -171,7 +170,7 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 		delete CryptInfo->hash_data.HashList;
 	}
 
-	if(GEN || HASH_FILE)
+	if(CommandParser::HASH_FILE)
 	{
 		delete CryptInfo;
 		return;
@@ -224,7 +223,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	CRYPTO_SYSTEM sys;
 	CryptoSystemInit(&sys);
 
-	if(HASH_FILE)
+	if(CommandParser::HASH_FILE)
 	{
 		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
 		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::hash_file;
@@ -283,7 +282,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 			break;
 		}
 		}
-		if (O_REWRITE)
+		if (CommandParser::O_REWRITE)
 			return TRUE;
 	}
 	else
@@ -413,7 +412,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		break;
 	}
 
-	if (signature)
+	if (CommandParser::signature)
 	{
 		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
 		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::HashSumFile;
@@ -541,7 +540,7 @@ bool locker::HandlerCrypt
 	if (!CryptInfo->overwrite_method(CryptInfo, FileInfo.FileHandle, FileInfo.Filesize))
 		LOG_ERROR("[OverWriteFile] Failed; " log_str, data->Filename);
 
-	if (signature &&
+	if (CommandParser::signature &&
 		CryptInfo->hash_sum_method
 		(
 			CryptInfo,

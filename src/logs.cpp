@@ -123,7 +123,7 @@ VOID SetConsoleColor(LogLevel level);
 VOID ResetConsoleColor();
 VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
-	if (g_LogHandle == -1 || NO_LOG)
+	if (g_LogHandle == -1 || CommandParser::NO_LOG)
 	{
 		va_list args;
 		CHAR Buffer[1024];

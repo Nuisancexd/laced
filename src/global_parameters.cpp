@@ -1,13 +1,12 @@
 #include <iostream>
-#include <cstddef>
 #include <cstring>
 #include <string>
 
-
+#include "CommandParser.h"
 #include "global_parameters.h"
 #include "memory.h"
 #include "logs.h"
-#include "CommandParser.h"
+
 
 global::GlobalPath GLOBAL_PATH;
 global::GlobalEnum GLOBAL_ENUM;
@@ -43,7 +42,7 @@ BOOL global::print_command_g()
 	std::string cat;
 	std::string dcrypt;
 
-	if (O_REWRITE)
+	if (CommandParser::O_REWRITE)
 	{
 		if (GLOBAL_OVERWRITE.g_OverWrite)
 			LOG_NONE("-overwrite");
@@ -67,7 +66,7 @@ BOOL global::print_command_g()
 
 		goto end;
 	}
-	else if(HASH_FILE)
+	else if(CommandParser::HASH_FILE)
 	{
 		if (GLOBAL_PATH.g_Path)
 			LOG_NONE("-path " log_str, GLOBAL_PATH.g_Path);
@@ -183,9 +182,9 @@ BOOL global::print_command_g()
 		LOG_NONE("flag delete");
 	if (GLOBAL_OVERWRITE.g_OverWrite)
 		LOG_NONE("flag overwrite");
-	if (THREAD_ENABLE)
+	if (CommandParser::THREAD_ENABLE)
 		LOG_NONE("thread enable");
-	if (PIPELINE)
+	if (CommandParser::PIPELINE)
 		LOG_NONE("PIPELINE");
 end:
 	std::string str;

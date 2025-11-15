@@ -19,7 +19,8 @@ namespace memory
 	VOID m_free(PVOID memory);
 	size_t StrLen(const char* Str);
 	size_t StrLen(const wchar_t* Str);
-	const char* FindChar(const char* Str, char Ch);
+	char* FindChar(char* Str, char Ch);
+	std::pair<bool, char*> FindCharUntil(char* Str, char ch, char fch);
 	const wchar_t* FindCharW(const wchar_t* Str, wchar_t Ch);
 	size_t FindCharWI(const wchar_t* Str, wchar_t Ch);
 	BOOL StrStr(const TCHAR* Str, const TCHAR* StrEq);
