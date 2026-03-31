@@ -2,9 +2,12 @@
 #define _PATH_SYSTEM_H_
 
 #include <queue>
+#include <memory>
+
 #include "structures.h"
 #include "CommandParser.h"
-#include <memory>
+#include "global_parameters.h"
+#include "logs.h"
 
 struct DriveInfo
 {

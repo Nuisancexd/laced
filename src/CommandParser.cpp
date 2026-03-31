@@ -1,6 +1,9 @@
 #include "CommandParser.h"
 #include "filesystem.h"
 #include "rsa/rsa.h"
+#include "logs.h"
+#include "global_parameters.h"
+
 #ifdef __linux__
 #include "network/port_scanner.h"
 #endif
@@ -96,7 +99,7 @@ VOID CommandParser::CommandLineHelper()
            "                        rsa       -- RSA_ONLY: uses only RSA encryption.\n"
            "                                     Type:(for aes&rsa) crypt or decrypt. This is a required field. (default: null)\n"
            "[*] -wi / --writein     overwrite in source file with risk. (default: false)\n"
-           "[*] -s / --sleep        select sleep time beetwen process blocks. (default: base(0ms))\n"
+           "[*] -t / --throttling   select sleep time beetwen process blocks. (default: base(0ms))\n"
            "                        fast      -- fast    encr (sleep 5ms)\n"
            "                        slow      -- slowly  encr (sleep 15ms)\n"
            "                        optm      -- optimal encr (sleep 30ms)\n"
@@ -108,7 +111,7 @@ VOID CommandParser::CommandLineHelper()
            "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
            "[*]  -e / --enable      Enable the Thread Pool. When enabled all logical CPU cores are used. (default: false)\n"
-           "[*]  -nl / --nolog      Disable the log."
+           "[*]  -nl / --nolog      Disable the log.\n"
            "[*]  -pl / --pipeline   ThreadPipeLine - Multithreaded File processing Pipeline (only for symmetric). (default: false)\n"
            "                        NOTE: encrypts file with block 1 MB\n"
            "[*]  -d / --delete      File flag delete on close if success. (default: false)\n"
@@ -355,7 +358,7 @@ void CommandParser::ParsingCommandLine()
     pair = GetCommandsCurr(argc, argv, "-wi", "--writein");
     if(pair.first) GLOBAL_STATE.g_write_in = true;
 
-    pair = GetCommandsNext(argc, argv, "-s", "--sleep");
+    pair = GetCommandsNext(argc, argv, "-t", "--throttling");
     if(pair.first) 
     {
         if (memory::StrStrC(pair.second, "fast"))
@@ -398,7 +401,7 @@ void CommandParser::ParsingCommandLine()
         if (pair.first) GLOBAL_STATE.g_print_hex = true;
         if (!HandlerGenKeyPairRSA())
             LOG_ERROR("[HandlerGenKeyPairRSA] Failed");
-        exit(1);
+        exit(0);
     }
 
     pair = GetCommandsCurr(argc, argv, "-ow", "--overwrite");

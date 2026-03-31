@@ -9,14 +9,9 @@
 
 #include <stdio.h>
 #include <memory>
-#include <string>
 
 #include "pathsystem.h"
-#include "filesystem.h"
-#include "global_parameters.h"
 #include "memory.h"
-#include "logs.h"
-
 
 bool PathSystem::check_filename(TCHAR* cFilename)
 {

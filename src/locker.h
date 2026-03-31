@@ -2,9 +2,7 @@
 #define _LOCKER_H_
 
 #ifdef _WIN32
-
 #include <windows.h>
-
 #endif
 
 #include "macro.h"

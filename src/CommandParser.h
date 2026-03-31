@@ -1,8 +1,7 @@
 #ifndef _COMMAND_PARSER_H_
 #define _COMMAND_PARSER_H_
-#include "global_parameters.h"
+
 #include "memory.h"
-#include "logs.h"
 #include "base64/base64.h"
 #include <queue>
 #include <memory>

