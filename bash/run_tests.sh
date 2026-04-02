@@ -2,8 +2,6 @@
 
 echo "laced" $(date '+%d-%m %H:%M:%S')
 
-args=(-k key -al)
-
 function check_diff()
 {
     echo -e "\033[0;29m"
@@ -36,24 +34,33 @@ mkdir -p "$path/decrypt"
 file_source="$path/$name"
 file_source_crypt="$path/crypt"
 file_source_decrypt="$path/decrypt"
+
+args_kal=(-k key -al)
+args_po=(-p "$file_source" -o "$file_source_crypt")
+args_poc=(-p "$file_source_crypt" -o "$file_source_decrypt")
+
 touch "$file_source"
 dd if=/dev/urandom  of="$file_source" bs=400 count=1 status=none
 
-echo "yes" | ../src/laced -p "$file_source" -o "$file_source_crypt" "${args[@]}" chacha -c file > /dev/null
-echo "yes" | ../src/laced -p "$file_source_crypt" -o "$file_source_decrypt" "${args[@]}" chacha -d > /dev/null
-check_diff CHACHA
+function chaaes
+{
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" chacha -c file > /dev/null
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" chacha -d > /dev/null
+    check_diff CHACHA
 
-echo "yes" | ../src/laced -p "$file_source" -o "$file_source_crypt" "${args[@]}" aes crypt -c file > /dev/null
-echo "yes" | ../src/laced -p "$file_source_crypt" -o "$file_source_decrypt" "${args[@]}" aes -d decrypt > /dev/null
-check_diff AES
-echo "yes" | ../src/laced -p "$file_source" -o "$file_source_crypt" "${args[@]}" aes crypt -c file -m part > /dev/null
-echo "yes" | ../src/laced -p "$file_source_crypt" -o "$file_source_decrypt" "${args[@]}" aes -d decrypt -m part > /dev/null
-check_diff AES_MODE_PART
-echo "yes" | ../src/laced -p "$file_source" -o "$file_source_crypt" "${args[@]}" aes crypt -c file -m head 2>&1 | grep "EncryptFileHeader"
-clean
-echo "yes" | ../src/laced -p "$file_source" -o "$file_source_crypt" "${args[@]}" aes crypt -c file -m block > /dev/null
-echo "yes" | ../src/laced -p "$file_source_crypt" -o "$file_source_decrypt" "${args[@]}" aes -d decrypt -m block > /dev/null
-check_diff AES_MODE_BLOCK
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file > /dev/null
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt > /dev/null
+    check_diff AES
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m part > /dev/null
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt -m part > /dev/null
+    check_diff AES_MODE_PART
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m head 2>&1 | grep "EncryptFileHeader"
+    echo test: AES_MODE_HEAD not passed
+    clean
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m block > /dev/null
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt -m block > /dev/null
+    check_diff AES_MODE_BLOCK
+}
 
 path_k="$path/keys"
 mkdir -p "$path"
@@ -82,22 +89,31 @@ fi
 #    exit 1
 #fi
 
-echo "yes" | ../src/laced -p "$file_source" -o "$file_source_crypt" -al rsa -k $pub_key crypt -c file > /dev/null
-echo "yes" | ../src/laced -p "$file_source_crypt" -o "$file_source_decrypt" -al rsa -k $prv_key decrypt > /dev/null
-check_diff RSA
-
-echo "yes" | ../src/laced -p "$file_source" -o "$file_source_crypt" -al rsa_aes -k $pub_key $ $prv_key -s crypt -c file 2>&1 | grep "VerifySignatureRSA"
-echo "yes" | ../src/laced -p "$file_source_crypt" -o "$file_source_decrypt" -al rsa_aes -k $pub_key $ $prv_key -s decrypt 2>&1 | grep "VerifySignatureRSA"
-check_diff RSA_AES
-
 echo "yes" | ../src/laced -p "$file_source" --hashfile -c file 2>&1 | grep "HashSum"
 
-cp "$file_source" "$file_source_crypt"
-echo "yes" | ../src/laced -p "$file_source_crypt/$name" "${args[@]}" chacha -c file -wi > /dev/null
-echo "yes" | ../src/laced -p "$file_source_crypt/$name.laced" "${args[@]}" chacha -c file -wi > /dev/null
-cp "$file_source_crypt/$name" "$file_source_decrypt"
-check_diff WRITE_IN
+function writein
+{
+    cp "$file_source" "$file_source_crypt"
+    echo "yes" | ../src/laced -p "$file_source_crypt/$name" "${args_kal[@]}" chacha -c file -wi > /dev/null
+    echo "yes" | ../src/laced -p "$file_source_crypt/$name.laced" "${args_kal[@]}" chacha -c file -wi > /dev/null
+    cp "$file_source_crypt/$name" "$file_source_decrypt"
+    check_diff WRITE_IN
+}
 
+function RSA()
+{
+    clean
+    echo "yes" | ../src/laced "${args_po[@]}" -al rsa -k $pub_key crypt -c file > /dev/null
+    echo "yes" | ../src/laced "${args_poc[@]}" -al rsa -k $prv_key decrypt > /dev/null
+    check_diff RSA
+
+    echo "yes" | ../src/laced "${args_po[@]}" -al rsa_aes -k $pub_key $ $prv_key -s crypt -c file 2>&1 | grep "VerifySignatureRSA"
+    echo "yes" | ../src/laced "${args_poc[@]}" -al rsa_aes -k $pub_key $ $prv_key -s decrypt 2>&1 | grep "VerifySignatureRSA"
+    check_diff RSA_AES
+}
+
+chaaes
+RSA
 
 read -e -p "type any key"
 

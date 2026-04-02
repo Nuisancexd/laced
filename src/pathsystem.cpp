@@ -1,3 +1,5 @@
+#include "api.h"
+#include "logs.h"
 #ifdef _WIN32
 #include <Windows.h>
 #else
@@ -228,7 +230,15 @@ size_t PathSystem::start_local_search()
         return 0;
 
     if (ec == static_cast<size_t>(EncryptCatalog::FILE_CAT))
-    {        
+    {
+        int d = -1;
+        if((d = api::OpenFile(directory)) == -1)
+        {
+            LOG_ERROR("[start_local_search][FILE_CAT] Failed; " log_str, directory);
+            return f_count = 0;
+        }
+        api::CloseDesc((d));
+
         TCHAR* name = NULL;
         TCHAR* path = NULL;
         size_t ld = memory::StrLen(directory);

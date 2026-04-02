@@ -2,6 +2,7 @@
 #include "aes/aes256.h"
 #include "chacha20/ecrypt-sync.h"
 #include "filesystem.h"
+#include "global_parameters.h"
 #include "memory.h"
 #include "logs.h"
 
@@ -87,91 +88,170 @@ static bool RSAOnlyMethodState(PFILE_INFO FileInfo)
 	return true;
 }
 
-EncryptAlgoMethod init_hybrid()
+EncryptAlgoMethod init_hybrid(u32* mode)
 {
 	if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
+	{
+		*mode = GLOBAL_ENUM.g_EncryptMode == EncryptModes::FULL_ENCRYPT ? MODE_AES::AES_CRYPT : MODE_AES::AES_CRYPT_NO_PADDING; 
 		return (EncryptAlgoMethod)HybridMethodStateCrypt;
+	}
 	else if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT)
+	{
+		*mode = GLOBAL_ENUM.g_EncryptMode == EncryptModes::FULL_ENCRYPT ? MODE_AES::AES_DECRYPT : MODE_AES::AES_DECRYPT_NO_PADDING;
 		return (EncryptAlgoMethod)HybridMethodStateDecrypt;
-	else
-	{
-		LOG_ERROR("[GeneratePolicy] Failed; missing crypt/decrypt");
-		return NULL;
 	}
+	
+	LOG_ERROR("[GeneratePolicy] Failed; missing crypt/decrypt");
+	return NULL;
+	/*ADD FLAG ERROR*/
 }
 
-void locker::CryptoSystemInit(CRYPTO_SYSTEM* sys)
+bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 {
-	sys->alg[0] =
-	{
-		.name = "AES256",
-		.mode = 0,
-		.method_policy = CryptoPolicy::AES256,
-		.gen_policy = GENKEY_ONCE,
-		.crypt_method = (EncryptMethodFunc)aes_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
-		.algo_method = (EncryptAlgoMethod)SymmetricMethodState
-	};
+	crypt_info->hash_sum_method = (HashSumFunc)filesystem::nopHashSumFile;
+	crypt_info->hash_data.HashList = NULL;
+	u32 mode_ = 0;
 
-	sys->alg[1] =
+	switch (policy)
 	{
-		.name = "ChaCha20",
-		.mode = 0,
-		.method_policy = CryptoPolicy::CHACHA,
-		.gen_policy = GENKEY_EVERY_ONCE,
-		.crypt_method = (EncryptMethodFunc)chacha_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
-		.algo_method = (EncryptAlgoMethod)SymmetricMethodState
-	};
-
-	sys->alg[2] =
+	case CryptoPolicy::AES256:
 	{
-		.name = "RSA_AES256",
-		.mode = 0,
-		.method_policy = CryptoPolicy::RSA_AES256,
-		.gen_policy = GENKEY_EVERY_ONCE,
-		.crypt_method = (EncryptMethodFunc)aes_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
-		.algo_method = (EncryptAlgoMethod)init_hybrid
-	};
-
-	sys->alg[3] =
-	{
-		.name = "RSA_CHACHA",
-		.mode = 0,
-		.method_policy = CryptoPolicy::RSA_CHACHA,
-		.gen_policy = GENKEY_EVERY_ONCE,
-		.crypt_method = (EncryptMethodFunc)chacha_block_fn,
-		.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
-		.algo_method = (EncryptAlgoMethod)init_hybrid
-	};
-
-	sys->alg[4] =
-	{
-		.name = "RSA",
-		.mode = 0,
-		.method_policy = CryptoPolicy::RSA,
-		.gen_policy = NONE,
-		.crypt_method = NULL,
-		.gen_key_method = NULL,
-		.algo_method = (EncryptAlgoMethod)RSAOnlyMethodState
-	};
-
-	sys->num = 5;
-}
-
-bool CryptSystemGetMethod(CRYPTO_SYSTEM* sys, CryptoPolicy name, CRYPT_INFO* copyCI)
-{
-	for (u32 i = 0; i < sys->num; ++i)
-	{
-		if (sys->alg[i].method_policy == name)
+		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
+		*crypt_info = 
 		{
-			*copyCI = sys->alg[i];
-			return true;
-		}
+			.ctx = (crypto_aes_ctx*)memory::m_malloc(sizeof(crypto_aes_ctx)),
+			.name = "AES256",
+			.mode = mode_,
+			.method_policy = CryptoPolicy::AES256,
+			.gen_policy = GENKEY_ONCE,
+			.crypt_method = (EncryptMethodFunc)aes_block_fn,
+			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
+			.algo_method = (EncryptAlgoMethod)SymmetricMethodState,
+		};
+		crypt_info->gen_key_method(crypt_info->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+		break;
 	}
-	return false;
+	case CryptoPolicy::CHACHA:
+	{
+		*crypt_info = 
+		{
+			.name = "ChaCha20",
+			.mode = 0,
+			.method_policy = CryptoPolicy::CHACHA,
+			.gen_policy = GENKEY_EVERY_ONCE,
+			.crypt_method = (EncryptMethodFunc)chacha_block_fn,
+			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
+			.algo_method = (EncryptAlgoMethod)SymmetricMethodState
+		};
+		break;
+	}
+	case CryptoPolicy::RSA_AES256:
+	{	
+		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
+		*crypt_info = 
+		{
+			.desc = 
+			{
+				.key_data = (BYTE*)memory::m_malloc(4096),
+				.rsa_path = GLOBAL_PATH.g_PathRSAKey,
+#ifdef _WIN32
+				.crypto_provider = NULL,
+				.handle_rsa_key = NULL,
+#else
+				.PKEY = NULL,
+				.bio = NULL,
+#endif
+			},
+			.name = "RSA_AES256",
+			.mode = mode_,
+			.method_policy = CryptoPolicy::RSA_AES256,
+			.gen_policy = GENKEY_EVERY_ONCE,
+			.crypt_method = (EncryptMethodFunc)aes_block_fn,
+			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
+			.algo_method = algm
+		};
+		if (!filesystem::ReadRSAFile(crypt_info))
+		{
+			LOG_ERROR("[ReadRSAFile] Failed; " log_str, crypt_info->desc.rsa_path);
+			return false;
+		}
+		break;
+	}
+	case CryptoPolicy::RSA_CHACHA:
+	{
+		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
+		*crypt_info = 
+		{
+			.desc = 
+			{
+				.key_data = (BYTE*)memory::m_malloc(4096),
+				.rsa_path = GLOBAL_PATH.g_PathRSAKey,
+#ifdef _WIN32
+				.crypto_provider = NULL,
+				.handle_rsa_key = NULL,
+#else
+				.PKEY = NULL,
+				.bio = NULL,
+#endif
+			},
+			.name = "RSA_CHACHA",
+			.mode = mode_,
+			.method_policy = CryptoPolicy::RSA_CHACHA,
+			.gen_policy = GENKEY_EVERY_ONCE,
+			.crypt_method = (EncryptMethodFunc)chacha_block_fn,
+			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
+			.algo_method = algm
+		};
+		if (!filesystem::ReadRSAFile(crypt_info))
+		{
+			LOG_ERROR("[ReadRSAFile] Failed; " log_str, crypt_info->desc.rsa_path);
+			return false;
+		}
+		break;
+	}
+	case CryptoPolicy::RSA:
+	{
+		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
+		*crypt_info = 
+		{
+			.desc = 
+			{
+				.key_data = (BYTE*)memory::m_malloc(4096),
+				.rsa_path = GLOBAL_PATH.g_PathRSAKey,
+#ifdef _WIN32
+				.crypto_provider = NULL,
+				.handle_rsa_key = NULL,
+#else
+				.PKEY = NULL,
+				.bio = NULL,
+#endif
+			},
+			.name = "RSA",
+			.mode = 0,
+			.method_policy = CryptoPolicy::RSA,
+			.gen_policy = NONE,
+			.crypt_method = NULL,
+			.gen_key_method = NULL,
+			.algo_method = (EncryptAlgoMethod)RSAOnlyMethodState
+		};
+		if (!filesystem::ReadRSAFile(crypt_info))
+		{
+			LOG_ERROR("[ReadRSAFile] Failed; " log_str, crypt_info->desc.rsa_path);
+			return false;
+		}
+		break;
+	}
+	default:
+		break;		
+	}
+
+	crypt_info->overwrite_method = (OverWriteFunc)filesystem::nopOverWriteFile;
+	crypt_info->zeros = NULL;
+	crypt_info->random = NULL;
+
+	return true;
 }
+
 
 void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 {
@@ -238,8 +318,11 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 
 bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 {
-	CRYPTO_SYSTEM sys;
-	CryptoSystemInit(&sys);
+	if(!CryptoSystemInit(GLOBAL_ENUM.g_EncryptMethod, CryptInfo))
+	{
+		LOG_ERROR("[GeneratePolicy] [CryptoSystemInit] Failed");
+		return false;
+	}
 
 	if(CommandParser::HASH_FILE)
 	{
@@ -247,14 +330,11 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::hash_file;
 		return true;
 	}
-
-	if (!CryptSystemGetMethod(&sys, GLOBAL_ENUM.g_EncryptMethod, CryptInfo))
-		return false;
-
-	if(CryptInfo->algo_method == NULL)
+	
+	if (CommandParser::signature)
 	{
-		LOG_ERROR("[GeneratePolicy] miss algorithm method");
-		return false;
+		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
+		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::HashSumFile;
 	}
 
 	if (GLOBAL_OVERWRITE.g_OverWrite)
@@ -308,69 +388,10 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		if (CommandParser::O_REWRITE)
 			return TRUE;
 	}
-	else
-	{
-		CryptInfo->overwrite_method = (OverWriteFunc)filesystem::nopOverWriteFile;
-		CryptInfo->zeros = NULL;
-		CryptInfo->random = NULL;
-	}
 
+	if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT) isCrypt = true;
 
-	EncryptCipher state_crypt = GLOBAL_ENUM.g_DeCrypt;
-	if (state_crypt == EncryptCipher::CRYPT) isCrypt = true;
-	EncryptModes state_mode = GLOBAL_ENUM.g_EncryptMode;
-
-	if (CryptInfo->method_policy == CryptoPolicy::AES256
-		|| CryptInfo->method_policy == CryptoPolicy::RSA_AES256)
-	{
-		if (state_crypt == EncryptCipher::CRYPT)
-		{
-			if (state_mode == EncryptModes::FULL_ENCRYPT)
-				CryptInfo->mode = MODE_AES::AES_CRYPT;
-			else
-				CryptInfo->mode = MODE_AES::AES_CRYPT_NO_PADDING;
-		}
-		else if (state_crypt == EncryptCipher::DECRYPT)
-		{
-			if (state_mode == EncryptModes::FULL_ENCRYPT)
-				CryptInfo->mode = MODE_AES::AES_DECRYPT;
-			else
-				CryptInfo->mode = MODE_AES::AES_DECRYPT_NO_PADDING;
-		}
-	}
-	if (CryptInfo->gen_policy == GENKEY_ONCE)
-	{
-		if (CryptInfo->method_policy == CryptoPolicy::AES256)
-			CryptInfo->ctx = (crypto_aes_ctx*)memory::m_malloc(sizeof(crypto_aes_ctx));
-		else
-		{
-			LOG_ERROR("[METHOD_POLICY] Failed; missing method");
-			return false;
-		}
-		CryptInfo->gen_key_method(CryptInfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
-	}
-
-	if (CryptInfo->method_policy == CryptoPolicy::RSA_CHACHA
-		|| CryptInfo->method_policy == CryptoPolicy::RSA_AES256
-		|| CryptInfo->method_policy == CryptoPolicy::RSA)
-	{
-		CryptInfo->desc.key_data = (BYTE*)memory::m_malloc(4096);
-		CryptInfo->desc.rsa_path = GLOBAL_PATH.g_PathRSAKey;
-#ifdef _WIN32
-		CryptInfo->desc.crypto_provider = NULL;
-		CryptInfo->desc.handle_rsa_key = NULL;
-#else
-		CryptInfo->desc.bio = NULL;
-		CryptInfo->desc.PKEY = NULL;
-#endif
-		if (!filesystem::ReadRSAFile(CryptInfo))
-		{
-			LOG_ERROR("[ReadRSAFile] Failed; " log_str, CryptInfo->desc.rsa_path);
-			return false;
-		}
-	}
-
-	switch (state_mode)
+	switch (GLOBAL_ENUM.g_EncryptMode)
 	{
 	case EncryptModes::FULL_ENCRYPT:
 		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeFULL;
@@ -406,18 +427,6 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameStandart;
 		break;
 	}
-
-	if (CommandParser::signature)
-	{
-		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
-		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::HashSumFile;
-	}
-	else
-	{
-		CryptInfo->hash_data.HashList = NULL;
-		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::nopHashSumFile;
-	}
-
 
 	return true;
 }
@@ -456,26 +465,33 @@ static bool SecureDelete(CONST CHAR* FilePath)
 
 bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo)
 {
-	FileInfo->Filename = data->Filename;
-	if((FileInfo->newFilename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
-		return false;
-	FileInfo->CryptInfo = CryptInfo;
-	FileInfo->FilePath = data->FullPath;
-	FileInfo->padding = 0;
-	FileInfo->dcrypt = (int)GLOBAL_ENUM.g_DeCrypt;
-	FileInfo->FileHandle = INVALID_HANDLE_VALUE;
-	FileInfo->newFileHandle = INVALID_HANDLE_VALUE;
-
-	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
+	*FileInfo = 
 	{
-		if (FileInfo->CryptInfo->method_policy == CryptoPolicy::CHACHA
-			|| FileInfo->CryptInfo->method_policy == CryptoPolicy::RSA_CHACHA)
+		.dcrypt = (int)GLOBAL_ENUM.g_DeCrypt,
+		.ctx = NULL,
+		.CryptInfo = CryptInfo,
+		.Filename = data->Filename,
+		.newFilename = NULL,
+		.FilePath = data->FullPath,
+		.FileHandle = INVALID_HANDLE_VALUE,
+		.newFileHandle = INVALID_HANDLE_VALUE,
+		.Filesize = 0,
+		.padding = 0
+	};
+
+	if((FileInfo->newFilename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
+	 	return false;
+
+	if (CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
+	{
+		if (CryptInfo->method_policy == CryptoPolicy::CHACHA
+			|| CryptInfo->method_policy == CryptoPolicy::RSA_CHACHA)
 			FileInfo->ctx = (laced_ctx*)memory::m_malloc(sizeof(laced_ctx));
 		else
 			FileInfo->ctx = (crypto_aes_ctx*)memory::m_malloc(sizeof(crypto_aes_ctx));
 	}
 	else if (CryptInfo->gen_policy == GENKEY_ONCE)
-		FileInfo->ctx = FileInfo->CryptInfo->ctx;
+		FileInfo->ctx = CryptInfo->ctx;
 
 	if (!filesystem::getParseFile(FileInfo) || FileInfo->FileHandle == INVALID_HANDLE_VALUE)
 	{

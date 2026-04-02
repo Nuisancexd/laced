@@ -220,7 +220,7 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 	}
 
 	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
-	
+
 	if(isAes && FileInfo->dcrypt == (int)EncryptCipher::DECRYPT)
 	{
 		memory::memzero_explicit(&FileBuffer[FileInfo->Filesize - FileInfo->padding], FileInfo->padding);
@@ -1262,7 +1262,7 @@ bool filesystem::VerifySignatureRSA
 	}
 #endif
 
-	PathLocale = (TCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * sizeof(Tsize));
+	PathLocale = (TCHAR*)memory::m_malloc((MAX_PATH + MAX_PATH) * Tsize);
 	if (!api::GetCurrentDir(PathLocale, MAX_PATH))
 	{
 		LOG_ERROR("[VerifySignatureRSA] [GetCurrentDirectory] Failed");
@@ -1280,7 +1280,7 @@ bool filesystem::VerifySignatureRSA
 			sha256_update_context(&ctx, DataHash->hash, DataHash->hash_size);
 		sha256_final_context(&ctx, hash_sha);
 	}
-	LOG_INFO("[VerifySignatureRSA] Dump Hash Sum");
+	LOG_INFO("Dump Hash Sum");
 	dump_hash(hash_sha, 32);
 
 	if (isCrypt)
@@ -1741,6 +1741,11 @@ bool filesystem::hash_file(PCRYPT_INFO CryptInfo, DESC desc_file, TCHAR* Filenam
 }
 
 bool delete_exif_data(PFILE_INFO FileInfo)
+{
+	return false; /*todo*/
+}
+
+bool delete_ext_file_laced(PFILE_INFO FileInfo)
 {
 	return false; /*todo*/
 }

@@ -32,8 +32,6 @@ enum GenPolicy
 
 
 
-
-
 typedef void (*EncryptMethodFunc)(void* FileInfo, void* ctx, int* padding, BYTE* buff1, BYTE* buff2, u32 bytes);
 typedef void (*EncryptGenKeyFunc)(void* ctx, BYTE* KEY, BYTE* IV);
 typedef BOOL (*EncryptAlgoMethod)(void* FileInfo);
@@ -129,18 +127,10 @@ namespace locker
 		int padding;
 	}FILE_INFO, * PFILE_INFO;
 #endif
-	typedef struct CryptoSystem
-	{
-		crypto_aes_ctx	aes_ctx;
-		laced_ctx		chacha_ctx;
-		CryptCTXInfo	alg[5];
-		u32				num;
-	}CRYPTO_SYSTEM;
-
 	
 	void FreeCryptInfo(CRYPT_INFO* CryptInfo);
 	bool GeneratePolicy(CRYPT_INFO* CryptInfo);
-	void CryptoSystemInit(CRYPTO_SYSTEM* sys);
+	bool CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info);
 
 	bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo);
 	void free_file_info(PFILE_INFO FileInfo, bool success);
@@ -158,7 +148,6 @@ typedef locker::PFILE_INFO PFILE_INFO;
 typedef locker::CryptCTXInfo CRYPT_INFO;
 typedef locker::CryptCTXInfo* PCRYPT_INFO;
 typedef locker::FILE_INFO FILE_INFO;
-typedef locker::CryptoSystem CRYPTO_SYSTEM;
 typedef locker::HLIST HLIST;
 
 
