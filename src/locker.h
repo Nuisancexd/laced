@@ -34,7 +34,7 @@ typedef BOOL (*EncryptAlgoMethod)(void* FileInfo);
 typedef BOOL (*OptionEncryptModeFunc)(void* FileInfo);
 typedef char* (*OptionNameFunc)(char* Path, char* Filename, char* exst, char* FPath);
 typedef bool (*OverWriteFunc)(void* CryptInfo, DESC desc_file, unsigned filesize);
-typedef bool (*HashSumFunc)(void* hash, DESC desc_file, char* Filename);
+typedef bool (*HashSumFunc)(void* hash, char* fullpath, char* Filename);
 
 
 namespace locker
@@ -120,7 +120,7 @@ namespace locker
 		char* FilePath;
 		int FileHandle;
 		int newFileHandle;
-		long long Filesize;
+		size_t Filesize;
 		int padding;
 	}FILE_INFO, * PFILE_INFO;
 #endif

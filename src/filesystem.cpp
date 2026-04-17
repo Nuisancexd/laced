@@ -23,8 +23,6 @@
 #include "CommandParser.h"
 
 #ifdef __linux__
-#define _FILE_OFFSET_BITS 64
-#include <sys/stat.h>
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -1469,7 +1467,11 @@ static bool Write(DESC desc_file, unsigned filesize, BYTE* buff)
 	api::SetPoint(desc_file, 0);
 	auto fsize = filesize;
 	size_t toWrite;
+#ifdef _WIN32
 	DWORD written = 0;
+#elif __linux__
+	int written = 0;
+#endif
 	size_t offset = 0;
 	while (fsize > 0)
 	{

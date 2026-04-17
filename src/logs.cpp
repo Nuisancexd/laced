@@ -8,11 +8,11 @@
 
 #include <fcntl.h>
 #include <wchar.h>
-#ifdef _WIN32
+
 
 STATIC DESC g_LogHandle = INVALID_HANDLE_VALUE;
 
-#else
+#ifdef __linux__
 #include <unistd.h> 
 #include <stdarg.h>
 #include <time.h>

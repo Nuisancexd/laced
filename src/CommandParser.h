@@ -31,6 +31,7 @@ public:
     {
         method = &FileParser::parse_paths_data;
     }
+#ifdef _WIN32
     FileParser(WCHAR* filepath_)
     {
         auto len = memory::StrLen(filepath_);
@@ -40,6 +41,7 @@ public:
         filepath = str.c_str();
         method = &FileParser::parse_paths_data;
     }
+#endif
     ~FileParser()
     {
         if(q_array)

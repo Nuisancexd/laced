@@ -118,9 +118,12 @@ wchar_t* api::utf8_to_char(char* str, size_t len)
 #endif
 #if defined(__linux__)
 
+#define _FILE_OFFSET_BITS 64
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h> 
 #include <libgen.h> 
+
 
 int api::OpenFile(CONST CHAR* pathaname)
 {
