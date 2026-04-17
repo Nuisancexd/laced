@@ -2,10 +2,10 @@
 #include <cstring>
 #include <string>
 
-#include "CommandParser.h"
-#include "global_parameters.h"
-#include "memory.h"
 #include "logs.h"
+#include "global_parameters.h"
+#include "CommandParser.h"
+#include "memory.h"
 
 
 global::GlobalPath GLOBAL_PATH;
@@ -15,14 +15,8 @@ global::GlobalKeys GLOBAL_KEYS;
 global::GlobalOverWrite GLOBAL_OVERWRITE;
 global::GlobalScanPort GLOBAL_SCAN_PORT;
 
-#ifdef _WIN32
-#define str_ std::wstring
-#define str(s) std::wstring(s)
-#else
 #define str_ std::string
 #define str(s) std::string(s)
-#endif
-
 
 BOOL global::print_command_g()
 {
@@ -168,6 +162,7 @@ BOOL global::print_command_g()
 
 
 	if (GLOBAL_PATH.g_Path)
+		//LOG_NONE("%s%s" log_str, "PATH", std::string(15 - memory::StrLen(GLOBAL_PATH.g_Path), ' ').c_str(), GLOBAL_PATH.g_Path);
 		sprint_param("Path:", str(GLOBAL_PATH.g_Path));
 	if(GLOBAL_PATH.g_Path_out)
 		sprint_param("Path out:", str(GLOBAL_PATH.g_Path_out));

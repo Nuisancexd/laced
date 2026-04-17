@@ -1,7 +1,7 @@
+#include "logs.h"
 #include "CommandParser.h"
 #include "filesystem.h"
 #include "rsa/rsa.h"
-#include "logs.h"
 #include "global_parameters.h"
 
 #ifdef __linux__
@@ -253,14 +253,8 @@ std::pair<bool, char*> CommandParser::GetCommandsNext(int argc, char* argv[], co
 }
 
 
-
-#ifdef _WIN32
-#define GetCommandsC(argc, argv, fstr, sstr) CommandParser::WGetCommandsCurr(argc, argv, fstr, sstr)
-#define GetCommandsN(argc, argv, fstr, sstr) CommandParser::WGetCommandsNext(argc, argv, fstr, sstr)
-#else
 #define GetCommandsC(argc, argv, fstr, sstr) CommandParser::GetCommandsCurr(argc, argv, fstr, sstr)
 #define GetCommandsN(argc, argv, fstr, sstr) CommandParser::GetCommandsNext(argc, argv, fstr, sstr)
-#endif
 
 
 void CommandParser::ParsingCommandLine()
@@ -268,10 +262,18 @@ void CommandParser::ParsingCommandLine()
     if (!argv || argc <= 1)
         subCommandHelper();
 
-    TCHAR** argument = NULL;
+    char** argument = NULL;
 
 #ifdef _WIN32
-    argument = CommandLineToArgvW(GetCommandLineW(), &argc);
+    WCHAR** wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    
+    argument = (char**)memory::m_malloc((argc + 1) * sizeof(char*));
+    for(int i = 0; i < argc; ++i)
+    {
+        argument[i] = api::wchar_to_utf8(wargv[i], memory::StrLen(wargv[i]));
+    }
+    argument[argc] = NULL;
+    LocalFree(wargv);
 #else
     argument = argv;
 #endif
@@ -291,21 +293,7 @@ void CommandParser::ParsingCommandLine()
         }
         argv = pair_c.second;
         argc = pair_c.first;
-#ifdef _WIN32
-        if (argument)
-            LocalFree(argument);
-        argument = (WCHAR**)memory::m_malloc(argc * sizeof(WCHAR*));
-        int wlen;
-        for (int i = 0; i < argc; ++i)
-        {
-            wlen = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, NULL, 0);
-            WCHAR* wstr = (WCHAR*)memory::m_malloc(wlen * sizeof(WCHAR));
-            MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wstr, wlen);
-            argument[i] = wstr;
-        }
-#else
         argument = argv;
-#endif
         config = true;
     }
 
@@ -313,26 +301,26 @@ void CommandParser::ParsingCommandLine()
     if(pair.first) NO_LOG = true;
 
     {
-        std::pair<bool, TCHAR*> pp;        
-        auto p = GetCommandsN(argc, argument, T("-p"), T("--path"));
+        std::pair<bool, char*> pp;        
+        auto p = GetCommandsN(argc, argument, "-p", "--path");
         if (p.first)
         {
             size_t len = memory::StrLen(p.second);
             if(len > MAX_PATH)
                 { LOG_ERROR("len path > MAX_PATH"); exit(1); }
-            TCHAR* spath = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
-            memc(spath, p.second, len);
+            char* spath = (char*)memory::m_malloc(len + 1);
+            memcpy(spath, p.second, len);
             GLOBAL_PATH.g_Path = spath;
         }
         else
         {
-            TCHAR* locale = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
-            if((pp = GetCommandsN(argc, argument, T("-pp"), T("--ppath"))).first)
+            char* locale = (char*)memory::m_malloc(MAX_PATH);
+            if((pp = GetCommandsN(argc, argument, "-pp", "--ppath")).first)
             {
                 size_t len = memory::StrLen(pp.second);
                 if(len > MAX_PATH)
                     { LOG_ERROR("len path > MAX_PATH"); exit(1); }                
-                memc(locale, pp.second, len);
+                memcpy(locale, pp.second, len);
                 FileParser pars(locale);
                 pars.parse_paths_file(q_paths);
                 GLOBAL_PATH.g_Path = NULL;
@@ -346,11 +334,11 @@ void CommandParser::ParsingCommandLine()
             }
         }
 
-        p = GetCommandsN(argc, argument, T("-o"), T("--out"));
+        p = GetCommandsN(argc, argument, "-o", "--out");
         if(p.first)
         {
-            TCHAR* outpath = (TCHAR*)memory::m_malloc(MAX_PATH * Tsize);
-            memc(outpath, p.second, memory::StrLen(p.second));
+            char* outpath = (char*)memory::m_malloc(MAX_PATH);
+            memcpy(outpath, p.second, memory::StrLen(p.second));
             GLOBAL_PATH.g_Path_out = outpath;
         }
     }
@@ -492,13 +480,13 @@ void CommandParser::ParsingCommandLine()
 
         auto funcKey = ([this, &argument]
             {
-                std::pair<bool, TCHAR*> pair = GetCommandsN(argc, argument, T("-k"), T("--key"));
+                std::pair<bool, char*> pair = GetCommandsN(argc, argument, "-k", "--key");
                 if (!pair.first) { LOG_ERROR("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
-                auto pair_sign = GetCommandsC(argc, argument, T("-s"), T("--sign"));
+                auto pair_sign = GetCommandsC(argc, argument, "-s", "--sign");
                 if (pair_sign.first)
                 {
                     signature = true;
-                    pair_sign = GetCommandsN(argc, argument, T("$"), T("$$"));
+                    pair_sign = GetCommandsN(argc, argument, "$", "$$");
                     if (!pair_sign.first)
                     {
                         LOG_ERROR("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
@@ -507,14 +495,14 @@ void CommandParser::ParsingCommandLine()
                     }
 
                     size_t len = memory::StrLen(pair.second);
-                    TCHAR* public_key = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
-                    memc(public_key, pair.second, len);
+                    char* public_key = (char*)memory::m_malloc(len + 1);
+                    memcpy(public_key, pair.second, len);
                     len = memory::StrLen(pair_sign.second);
-                    TCHAR* private_key = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
-                    memc(private_key, pair_sign.second, len);
+                    char* private_key = (char*)memory::m_malloc(len + 1);
+                    memcpy(private_key, pair_sign.second, len);
 
-                    LOG_INFO("public  key:\t" log_str, public_key);
-                    LOG_INFO("private key:\t" log_str, private_key);
+                    LOG_INFO("public  key:\t", public_key);
+                    LOG_INFO("private key:\t", private_key);
 
                     if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
                     {
@@ -530,8 +518,8 @@ void CommandParser::ParsingCommandLine()
                 else
                 {
                     size_t len = memory::StrLen(pair.second);
-                    TCHAR* keypath = (TCHAR*)memory::m_malloc((len + 1) * Tsize);
-                    memc(keypath, pair.second, len);
+                    char* keypath = (char*)memory::m_malloc(len + 1);
+                    memcpy(keypath, pair.second, len);
                     GLOBAL_PATH.g_PathRSAKey = keypath;
                 }
             });
@@ -653,10 +641,6 @@ void CommandParser::ParsingCommandLine()
             /*char* ptr_start = argv[0];
             char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
             memory::memzero_explicit(argv, ptr_end - ptr_start);*/
-#ifdef _WIN32
-            if (argument)
-                LocalFree(argument);
-#endif
         }
 
     logs::call_log();
@@ -665,8 +649,9 @@ void CommandParser::ParsingCommandLine()
 
 void FileParser::parse_file(const char* filepath)
 {
-    DESC desc = -1;
-    if(!filesystem::getParseFile((char*)filepath, &desc, &filesize))
+    DESC desc = INVALID_HANDLE_VALUE;
+    TCHAR* fp = NULL;
+    if(!api::get_parse_file((char*)filepath, &desc, &filesize))
     {
         LOG_ERROR("[ParseFile] failed");
         return;

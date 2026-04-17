@@ -1,8 +1,8 @@
 #ifndef _GLOBAL_PARAMETERS_H_
 #define _GLOBAL_PARAMETERS_H_
 
-#include <cstddef>
 #include "macro.h"
+#include <cstddef>
 
 enum class CryptoPolicy
 {
@@ -71,10 +71,10 @@ namespace global
 {
 	struct GlobalPath
 	{
-		TCHAR* g_Path = NULL;
-		TCHAR* g_PathRSAKey = NULL;
-		TCHAR* g_PathSignRSAKey = NULL;
-		TCHAR* g_Path_out = NULL;
+		char* g_Path = NULL;
+		char* g_PathRSAKey = NULL;
+		char* g_PathSignRSAKey = NULL;
+		char* g_Path_out = NULL;
 	};
 
 	struct GlobalEnum

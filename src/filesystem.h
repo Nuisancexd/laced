@@ -9,11 +9,6 @@
 namespace filesystem
 {
 	bool WriteFullData(DESC desc, void* buffer, unsigned size);
-	bool getParseFile(PFILE_INFO FileInfo);
-	bool getParseFile(TCHAR* FilePath, DESC* desc_file, unsigned* filesize);
-	bool CreateFileOpen(PFILE_INFO FileInfo);
-	bool CreateFileOpen(DESC* desc_file, TCHAR* filename);
-	bool CreateFileOpen(PFILE_INFO FileInfo);
 	bool ReadRSAFile(CRYPT_INFO* CryptInfo);
 	bool OptionEncryptModeAUTO(PFILE_INFO FileInfo);
 	bool OptionEncryptModeFULL(PFILE_INFO FileInfo);
@@ -32,20 +27,20 @@ namespace filesystem
 	void RootKeySignatureTrust(VOID);
 
 	void sort_hash_list(SLIST<HASH_LIST>* list);
-	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
-	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, TCHAR* Filename);
-	bool hash_file(PCRYPT_INFO CryptInfo, DESC desc_file, TCHAR* Filename);
+	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
+	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
+	bool hash_file(PCRYPT_INFO CryptInfo, char* fullpath, char* filename);
 
-	TCHAR* NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data);
-	TCHAR* OptionNameStandart(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
-	TCHAR* OptionNameHash(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
-	TCHAR* OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
+	char* NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data);
+	char* OptionNameStandart(char* Path, char* Filename, char* exst, char* FPath);
+	char* OptionNameHash(char* Path, char* Filename, char* exst, char* FPath);
+	char* OptionNameBase(char* Path, char* Filename, char* exst, char* FPath);
 
 	bool nopOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
 	bool ZerosOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
 	bool RandomOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
 	bool DODOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
-	bool RewriteSDelete(CRYPT_INFO* CryptInfo, TCHAR* FullPath);
+	bool RewriteSDelete(CRYPT_INFO* CryptInfo, char* FullPath);
 }
 
 #endif

@@ -21,13 +21,16 @@ namespace api
 
     HANDLE OpenFile(CONST WCHAR* wstr);
     HANDLE OpenFile(CONST CHAR* str);
-    BOOL WriteFile(HANDLE desc_file, VOID* buff, DWORD BytesToWrite, DWORD* BytesWritten);
+    BOOL WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, DWORD* BytesWritten);
     VOID CloseDesc(HANDLE desc_file);
     BOOL ReadFile(HANDLE desc_file, VOID* buf, size_t size, size_t* BytesRead);
     BOOL GetCurrentDir(WCHAR* dir_buf, size_t size);
     BOOL GetCurrentDir(CHAR* dir_buf, size_t size);
-    BOOL GetExecPath(WCHAR* dir_buf, size_t size);
+    BOOL GetExecPath(char* dir_buf, size_t size);
     BOOL SetPoint(HANDLE desc, int seek);
+    BOOL SetPointOff(HANDLE desc, int offset, int seek);
+    wchar_t* utf8_to_char(char* str, size_t len);
+    char* wchar_to_utf8(WCHAR* wstr, size_t len);    
 #else
     int OpenFile(const char* pathaname);
     int CreateFile(const char* pathaname);
@@ -39,6 +42,9 @@ namespace api
     BOOL SetPoint(int desc, int seek);
     BOOL SetPointOff(int desc, int offset, int seek);
 #endif
+
+    bool get_parse_file(char* FilePath, DESC* desc_file, size_t* filesize);
+    bool create_file_open(DESC* desc_file, char* filename);
 }
 
 

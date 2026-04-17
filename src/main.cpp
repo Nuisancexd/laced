@@ -62,7 +62,7 @@ bool path_operation(PathSystem* psys)
         if (psys->f_count == 0) { LOG_ERROR("No files. null."); return false; }
         LOG_DISABLE("After this operation %d files will be changed", psys->f_count);
         LIST_FOREACH(psys->data, psys->drive_info)
-            LOG_INFO("Filename: " log_str, psys->data->Filename);        
+            LOG_INFO("Filename: %s", psys->data->Filename);        
     }
 
     return true;
@@ -123,9 +123,9 @@ void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 {
     CryptInfo->hash_sum_method
     (
-        CryptInfo, 
-        memory::StrLen(data->FullPath) - memory::StrLen(data->Filename), 
-        data->FullPath
+        CryptInfo,  
+        data->FullPath,
+        data->Filename
     );
 }
 

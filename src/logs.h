@@ -24,19 +24,11 @@ namespace logs
 	VOID WriteLog(LogLevel log, CONST char* Format, ...);
 }
 
-#ifdef _MSC_VER
 #define LOG_INFO(...)		logs::WriteLog(LogLevel::LOG_INFO,	  __VA_ARGS__)
 #define LOG_SUCCESS(...)    logs::WriteLog(LogLevel::LOG_SUCCESS, __VA_ARGS__)
 #define LOG_ERROR(...)		logs::WriteLog(LogLevel::LOG_ERROR,	  __VA_ARGS__)
 #define LOG_NONE(...)		logs::WriteLog(LogLevel::LOG_NONE,    __VA_ARGS__)
 #define LOG_DISABLE(...)	logs::WriteLog(LogLevel::LOG_DISABLE, __VA_ARGS__)
-#define LOG_CMD_DIS(...)    losg::WriteLog(LogLevel::LOG_CMD_DIS, __VA_ARGS__);
-#else //__GNUC__
-#define LOG_INFO(...)		logs::WriteLog(LogLevel::LOG_INFO,	  __VA_ARGS__)
-#define LOG_SUCCESS(...)    logs::WriteLog(LogLevel::LOG_SUCCESS, __VA_ARGS__)
-#define LOG_ERROR(...)		logs::WriteLog(LogLevel::LOG_ERROR,	  __VA_ARGS__)
-#define LOG_NONE(...)		logs::WriteLog(LogLevel::LOG_NONE,    __VA_ARGS__)
-#define LOG_DISABLE(...)	logs::WriteLog(LogLevel::LOG_DISABLE, __VA_ARGS__)
-#endif
+#define LOG_CMD_DIS(...)    losg::WriteLog(LogLevel::LOG_CMD_DIS, __VA_ARGS__)
 
 #endif

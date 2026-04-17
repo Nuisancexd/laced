@@ -19,8 +19,10 @@ typedef unsigned char BYTE;
 #define Tsize sizeof(WCHAR)
 #define memc(dst, src, size) wmemcpy(dst, src, size)
 #define T(str) L##str
-#define log_str "%ls"
-#define slash L"\\"
+#define log_str "%s"
+#define wlog_str "%ls"
+#define wslash L"\\"
+#define slash "\\"
 #endif
 #ifdef __linux__
 #define INVALID_HANDLE_VALUE -1
