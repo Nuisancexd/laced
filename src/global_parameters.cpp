@@ -26,21 +26,25 @@ global::GlobalScanPort GLOBAL_SCAN_PORT;
 
 BOOL global::print_command_g()
 {
-	LOG_NONE("LACED parameters");
-	auto sprint_param = [](const std::string& key, const str_& value)
-		{
-			LOG_NONE("%s%s" log_str, key.c_str(), std::string(15 - key.size(), ' ').c_str(), value.c_str());
-		};
-	auto print_param = [](const std::string& key, const std::string& value)
-		{
-			LOG_NONE("%s%s%s", key.c_str(), std::string(15 - key.size(), ' ').c_str(), value.c_str());
-		};
+	LOG_NONE("[LACED PARAMETERS]");
+	auto print_kv = [](const std::string& key, const str_& value)
+	{
+	    constexpr int width = 15;
+	    int pad = std::max(1, width - (int)key.size());
+
+	#ifdef _WIN32
+	    LOG_NONE("%s%*s" log_str, key.c_str(), pad, "", value.c_str());
+	#else
+	    LOG_NONE("%s%*s%s", key.c_str(), pad, "", value.c_str());
+	#endif
+	};
 
 	std::string algo;
 	std::string method;
 	std::string mode;
 	std::string cat;
 	std::string dcrypt;
+	std::string thrt;
 
 	if (CommandParser::O_REWRITE)
 	{
@@ -135,10 +139,10 @@ BOOL global::print_command_g()
 	switch (GLOBAL_ENUM.g_CryptName)
 	{
 	case NAME::BASE64_NAME:
-		LOG_NONE("BASE64_NAME");
+		print_kv("name:","BASE64_NAME");
 		break;
 	case NAME::HASH_NAME:
-		LOG_NONE("HASH_NAME");
+		print_kv("name:", "HASH_NAME");
 		break;
 	}
 
@@ -161,34 +165,60 @@ BOOL global::print_command_g()
 		break;
 	}
 
-	print_param("Category:", cat);
-	print_param("EncrMode:", mode);
-	print_param("Method:", method);
-	print_param("Algorithm:", algo);
+	switch (GLOBAL_ENUM.g_throttle_time) 
+	{
+		case throttle_time::base:
+		break;
+		case throttle_time::fast:
+		thrt = "fast";
+		break;
+		case throttle_time::minimal:
+		thrt = "minimal";
+		break;
+		case throttle_time::optimal:
+		thrt = "optimal";
+		break;
+		case throttle_time::background:
+		thrt = "background";
+		break;
+
+	}
+
+	print_kv("Category:", cat);
+	print_kv("EncrMode:", mode);
+	print_kv("Method:", method);
+	print_kv("Algorithm:", algo);
+	if(!thrt.empty())
+	print_kv("Throttle", thrt);
 
 
 	if (GLOBAL_PATH.g_Path)
-		sprint_param("Path:", str(GLOBAL_PATH.g_Path));
+		print_kv("Path:", str(GLOBAL_PATH.g_Path));
 	if(GLOBAL_PATH.g_Path_out)
-		sprint_param("Path out:", str(GLOBAL_PATH.g_Path_out));
+		print_kv("Path out:", str(GLOBAL_PATH.g_Path_out));
 	if (GLOBAL_PATH.g_PathRSAKey)
-		sprint_param("RSA:", str(GLOBAL_PATH.g_PathRSAKey));
+		print_kv("RSA:", str(GLOBAL_PATH.g_PathRSAKey));
 	if (GLOBAL_PATH.g_PathSignRSAKey)
-		sprint_param("sign RSA:", str(GLOBAL_PATH.g_PathSignRSAKey));
+		print_kv("sign RSA:", str(GLOBAL_PATH.g_PathSignRSAKey));
 	if (GLOBAL_ENUM.g_DeCrypt != EncryptCipher::NONE)
-		print_param("DeCrypt:", dcrypt);
+		print_kv("DeCrypt:", dcrypt);
 
+	if(CommandParser::NO_LOG)
+		print_kv("","NOLOG");
+	if(GLOBAL_STATE.g_write_in)
+		print_kv("","WRITEIN");
 	if (GLOBAL_STATE.g_FlagDelete)
-		LOG_NONE("flag delete");
+		print_kv("","FDELETE");
 	if (GLOBAL_OVERWRITE.g_OverWrite)
-		LOG_NONE("flag overwrite");
+		print_kv("","OVERWRITE");
 	if (CommandParser::THREAD_ENABLE)
-		LOG_NONE("thread enable");
+		print_kv("","THREAD");
 	if (CommandParser::PIPELINE)
-		LOG_NONE("PIPELINE");
+		print_kv("", "PIPELINE");
+
 end:
 	std::string str;
-	LOG_DISABLE("Do you want to continue? [Y-enter/n]");
+	LOG_DISABLE("PROCEED [Y-enter/n]");
 	std::getline(std::cin, str);
 
 	if (str == "n") return FALSE;

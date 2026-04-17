@@ -58,7 +58,7 @@ enum overwrite
 	DOD = 21
 };
 
-enum class sleep_time : size_t //ms
+enum class throttle_time : size_t //ms
 {
 	base = 0,
 	fast = 5,
@@ -85,7 +85,7 @@ namespace global
 		EncryptCatalog g_EncryptCat = EncryptCatalog::DIR_CAT;
 		NAME g_CryptName = NAME::NONE;
 		CryptoPolicy g_EncryptMethod = CryptoPolicy::CHACHA;
-		sleep_time g_sleep_time = sleep_time::base;
+		throttle_time g_throttle_time = throttle_time::base;
 	};
 
 	struct alignas(8) GlobalState

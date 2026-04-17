@@ -81,6 +81,7 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -n / --name        Encrypt FILENAME with: (default: false)\n"
            "                        hash -- hash Irrevocably Hash FILENAME with sha256. (default: false)\n"
            "                        base -- encrypt FILENAME with Base64. (default: false)\n"
+           "                        cbase -- chacha20\n"
            "[*]  -m / --mode        Select the encryption mode. (default: FULL_ENCRYPT)\n"
            "                        a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n"
            "                        f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n"
@@ -121,14 +122,6 @@ VOID CommandParser::CommandLineHelper()
            "                        random   -- RANDOM: overwrite the file with random crypt symbols.\n"
            "                        DOD      -- DOD: overwrite the file with zeros and random crypt symbols.\n"
            "                        -count       Number of times to overwrite the file.\n\n");
-
-    printf("EXAMPLE USAGE     Config:  laced config --path C:\\Config.laced\t\tlaced config\n"
-           "EXAMPLE USAGE     HYBRID:  laced --path C:/FolderFiles --name hash --mode full --cat dir --algo rsa_chacha --key \"C:/FullPathToRSAkeys\" crypt\n"
-           "EXAMPLE USAGE  SYMMETRIC:  laced --path C:/FolderFiles -name base --mode full --cat dir --algo chacha --key \"secret key\"\n"
-           "EXAMPLE USAGE   RSA_ONLY:  laced --path C:/File.txt -n hash -al rsa -k \"C:/FullPathToRSAkeys\" crypt\n"
-           "EXAMPLE USAGE  Signature:  laced --p C:/FolderFiles -al rsa -k C:\\key\\public_RSA $ C:\\key\\private_RSA -s crypt\n"
-           "EXAMPLE USAGE  Overwrite:  laced --p C:/FolderFiles --overwrite random -rw -e\n\n\n");
-
     printf("RSA Generate Keys OPTIONS:\n"
            "[*]  -g / --gen           Command generate RSA keys. This is a required field.\n"
            "[*]  -b64 / --base64      Save RSA keys in Base64 format. (default: false)\n"
@@ -362,15 +355,15 @@ void CommandParser::ParsingCommandLine()
     if(pair.first) 
     {
         if (memory::StrStrC(pair.second, "fast"))
-            GLOBAL_ENUM.g_sleep_time = sleep_time::fast;
+            GLOBAL_ENUM.g_throttle_time = throttle_time::fast;
         else if (memory::StrStrC(pair.second, "slow"))
-            GLOBAL_ENUM.g_sleep_time = sleep_time::minimal;
+            GLOBAL_ENUM.g_throttle_time = throttle_time::minimal;
         else if (memory::StrStrC(pair.second, "optm"))
-            GLOBAL_ENUM.g_sleep_time = sleep_time::optimal;
+            GLOBAL_ENUM.g_throttle_time = throttle_time::optimal;
         else if (memory::StrStrC(pair.second, "back"))
-            GLOBAL_ENUM.g_sleep_time = sleep_time::background;
+            GLOBAL_ENUM.g_throttle_time = throttle_time::background;
         else
-            GLOBAL_ENUM.g_sleep_time = sleep_time::base;
+            GLOBAL_ENUM.g_throttle_time = throttle_time::base;
     }
 
     pair = GetCommandsCurr(argc, argv, "-hf", "--hashfile");
@@ -380,6 +373,16 @@ void CommandParser::ParsingCommandLine()
         pair = GetCommandsCurr(argc, argv, "-e", "--enable");
         if (pair.first) THREAD_ENABLE = TRUE;
         HASH_FILE = true;
+        pair = GetCommandsNext(argc, argv, "-c", "--cat");
+    if (pair.first)
+    {
+        if (memory::StrStrC(pair.second, "dir"))
+            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
+        else if (memory::StrStrC(pair.second, "indir"))
+            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
+        else if (memory::StrStrC(pair.second, "file"))
+            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
+    }
         return;
     }
 
@@ -660,7 +663,6 @@ void CommandParser::ParsingCommandLine()
         }
 
     logs::call_log();
-    LOG_INFO("DIR to execute:\t" log_str, GLOBAL_PATH.g_Path);
 }
 
 void FileParser::parse_file(const char* filepath)
