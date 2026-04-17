@@ -41,12 +41,12 @@ bool HandlerGenKeyPairRSA()
 	BYTE* PublicKey = NULL;
 	BYTE* PrivateKey = NULL;
 
-	std::wstring s_prv = GLOBAL_PATH.g_Path;
-	s_prv += L"/RSA_private_key_laced.txt";
-	std::wstring s_pub = GLOBAL_PATH.g_Path;
-	s_pub += L"/RSA_public_key_laced.txt";
-	HANDLE desc_prv = CreateFileW(s_prv.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-	HANDLE desc_pub = CreateFileW(s_pub.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+	std::string s_prv = GLOBAL_PATH.g_Path;
+	s_prv += "/RSA_private_key_laced.txt";
+	std::string s_pub = GLOBAL_PATH.g_Path;
+	s_pub += "/RSA_public_key_laced.txt";
+	HANDLE desc_prv = CreateFileA(s_prv.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+	HANDLE desc_pub = CreateFileA(s_pub.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 
 	if (desc_prv == INVALID_HANDLE_VALUE || desc_pub == INVALID_HANDLE_VALUE)
 	{

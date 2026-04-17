@@ -11,16 +11,16 @@
 
 struct DriveInfo
 {
-    TCHAR* Filename;
-    TCHAR* Exst;
-    TCHAR* FullPath;
-    TCHAR* Path;
+    char* Filename;
+    char* Exst;
+    char* FullPath;
+    char* Path;
     LIST_ENTRY(DriveInfo);
 };
 
 struct DirectoryInfo
 {
-    TCHAR* Directory;
+    char* Directory;
     LIST_ENTRY(DirectoryInfo);
 };
 
@@ -28,7 +28,7 @@ class PathSystem
 {
 public:
     PathSystem() {}
-    PathSystem(TCHAR* StartDirectory) : directory(StartDirectory) 
+    PathSystem(char* StartDirectory) : directory(StartDirectory) 
     { drive_info = new LIST<DriveInfo>;
       directory_info = new LIST<DirectoryInfo>;
     }
@@ -38,7 +38,7 @@ public:
     {   drive_info = new LIST<DriveInfo>;
         directory_info = new LIST<DirectoryInfo>;
     }
-    PathSystem(std::queue<std::pair<size_t, std::unique_ptr<char[]>>>& qpaths, TCHAR* StartDirectory) : 
+    PathSystem(std::queue<std::pair<size_t, std::unique_ptr<char[]>>>& qpaths, char* StartDirectory) : 
         q_paths(), 
         ec(static_cast<size_t>(GLOBAL_ENUM.g_EncryptCat))
     {
@@ -60,20 +60,16 @@ public:
     void free_directory_info();
 private:
     typedef void (PathSystem::*qpaths_method)();
-    bool check_filename(TCHAR* cFilename);
-    TCHAR* make_exst(TCHAR* Filename);
-    TCHAR* MakePath(TCHAR* Filename, TCHAR* Directory);
-#ifdef _WIN32
-    WCHAR* MakeSearchMask(WCHAR* Directory, size_t DirLen)
-#endif
-
+    bool check_filename(char* cFilename);
+    char* make_exst(char* Filename);
+    char* MakePath(char* Filename, char* Directory);
     void search_files(LIST<DirectoryInfo>* DirectoryInfo, int* cf);
     void qpath();
     void nop();
 public:
     LIST<DriveInfo>* drive_info = NULL;
     LIST<DirectoryInfo>* directory_info = NULL;
-    TCHAR* directory = NULL;
+    char* directory = NULL;
     DriveInfo* data = NULL;
     int f_count = 0;
     std::queue<std::pair<size_t, std::unique_ptr<char[]>>> q_paths;

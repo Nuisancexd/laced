@@ -53,6 +53,7 @@ exit:
 
 bool path_operation(PathSystem* psys)
 {
+    int count = 0;
     int size = 1;
     if(!psys->q_paths.empty())
         size = psys->q_paths.size();
@@ -60,9 +61,9 @@ bool path_operation(PathSystem* psys)
     {
         psys->start_local_search();
         if (psys->f_count == 0) { LOG_ERROR("No files. null."); return false; }
-        LOG_DISABLE("After this operation %d files will be changed", psys->f_count);
+        LOG_DISABLE("After this operation %d files will be changed\n[FILES]", psys->f_count);
         LIST_FOREACH(psys->data, psys->drive_info)
-            LOG_INFO("Filename: " log_str, psys->data->Filename);        
+            LOG_INFO("  %d. " log_str, ++count, psys->data->Filename);        
     }
 
     return true;
@@ -123,9 +124,9 @@ void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 {
     CryptInfo->hash_sum_method
     (
-        CryptInfo, 
-        memory::StrLen(data->FullPath) - memory::StrLen(data->Filename), 
-        data->FullPath
+        CryptInfo,  
+        data->FullPath,
+        data->Filename
     );
 }
 

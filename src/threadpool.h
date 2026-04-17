@@ -68,7 +68,7 @@ private:
     typedef struct data
     {
         BYTE* data;
-        DWORD bytes;
+        size_t bytes;
     }DATA_READ, *PDATA_READ;
 
     LIST<THREADS>* work = new LIST<THREADS>;

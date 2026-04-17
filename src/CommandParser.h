@@ -31,6 +31,17 @@ public:
     {
         method = &FileParser::parse_paths_data;
     }
+#ifdef _WIN32
+    FileParser(WCHAR* filepath_)
+    {
+        auto len = memory::StrLen(filepath_);
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, filepath_, len, NULL, 0, NULL, NULL);
+	    std::string str(size_needed, 0);
+	    WideCharToMultiByte(CP_UTF8, 0, filepath_, len, str.data(), size_needed, NULL, NULL);
+        filepath = str.c_str();
+        method = &FileParser::parse_paths_data;
+    }
+#endif
     ~FileParser()
     {
         if(q_array)

@@ -8,18 +8,15 @@
 
 #include <fcntl.h>
 #include <wchar.h>
-#ifdef _WIN32
 
-STATIC HANDLE g_LogHandle = INVALID_HANDLE_VALUE;
 
-#else
+STATIC DESC g_LogHandle = INVALID_HANDLE_VALUE;
+
+#ifdef __linux__
 #include <unistd.h> 
 #include <stdarg.h>
 #include <time.h>
 #include <locale.h>
-
-STATIC int g_LogHandle = -1;
-
 #endif
 
 STATIC CONST CHAR* crlf = "\r\n";
@@ -42,7 +39,7 @@ constexpr int MAX_PATH = 255;
 #endif
 
 constexpr size_t LogSize = sizeof(LogLevelStr) / sizeof(LogLevelStr[0]);
-static TCHAR* ptr_dir = NULL;
+static char* ptr_dir = NULL;
 
 VOID logs::call_log()
 {
@@ -50,7 +47,7 @@ VOID logs::call_log()
 }
 
 
-static bool check_file_exist(TCHAR* path)
+static bool check_file_exist(char* path)
 {
 	DESC desc = api::OpenFile(path);
 	if (desc == INVALID_HANDLE_VALUE)
@@ -63,15 +60,15 @@ static bool check_file_exist(TCHAR* path)
 VOID logs::initLog(BOOL append)
 {
 	CONST unsigned max_path = MAX_PATH + MAX_PATH;
-	TCHAR* curr_dir = (TCHAR*)memory::m_malloc(max_path);
+	char* curr_dir = (char*)memory::m_malloc(max_path);
 	if (!api::GetExecPath(curr_dir, MAX_PATH))
 	{
 		printf("FAILED iNIT log\n");
 		memory::m_free(curr_dir);
 		return;
 	}
-	memc(&curr_dir[memory::StrLen(curr_dir)], slash, 1);
-	memc(&curr_dir[memory::StrLen(curr_dir)], T("LACED_LOG.txt"), 13);
+	memcpy(&curr_dir[memory::StrLen(curr_dir)], slash, 1);
+	memcpy(&curr_dir[memory::StrLen(curr_dir)], "LACED_LOG.txt", 13);
 	ptr_dir = curr_dir;
 
 	if (!check_file_exist(curr_dir))
@@ -79,7 +76,7 @@ VOID logs::initLog(BOOL append)
 
 #ifdef _WIN32
 	DWORD flag = append ? OPEN_ALWAYS : CREATE_ALWAYS;
-	g_LogHandle = CreateFileW
+	g_LogHandle = CreateFileA
 	(
 		curr_dir,
 		GENERIC_WRITE,
@@ -119,11 +116,77 @@ VOID logs::CloseLog()
 	printf("\033[0;29m");
 }
 
-VOID SetConsoleColor(LogLevel level);
-VOID ResetConsoleColor();
+VOID SetConsoleColor(LogLevel level)
+{
+	switch (level)
+	{
+	case LogLevel::LOG_INFO:
+		printf("\033[0;34m");
+		break;
+	case LogLevel::LOG_ERROR:
+		printf("\033[0;31m");
+		break;
+	case LogLevel::LOG_SUCCESS:
+		printf("\033[0;32m");
+		break;
+	case LogLevel::LOG_NONE:
+		printf("\033[0;36m");
+		break;
+	case LogLevel::LOG_DISABLE:
+		printf("\033[0;29m");
+		break;
+	case LogLevel::LOG_CMD_DIS:
+		printf("\033[0;29m");
+		break;
+	default:
+		break;
+	}
+}
+
+VOID ResetConsoleColor()
+{
+	printf("\033[0");
+}
+
+#elif _WIN32
+
+VOID SetConsoleColor(LogLevel level)
+{
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+
+	switch (level)
+	{
+	case LogLevel::LOG_INFO:
+		color = FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+		break;
+	case LogLevel::LOG_ERROR:
+		color = FOREGROUND_RED | FOREGROUND_INTENSITY;
+		break;
+	case LogLevel::LOG_SUCCESS:
+		color = FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+		break;
+	case LogLevel::LOG_NONE:
+		break;
+	case LogLevel::LOG_DISABLE:
+		break;
+	default:
+		break;
+	}
+
+	SetConsoleTextAttribute(hConsole, color);
+}
+
+VOID ResetConsoleColor()
+{
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+}
+#endif
+
 VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
-	if (g_LogHandle == -1 || CommandParser::NO_LOG)
+	if (g_LogHandle == INVALID_HANDLE_VALUE || CommandParser::NO_LOG)
 	{
 		va_list args;
 		CHAR Buffer[1024];
@@ -161,6 +224,7 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	if (log == LogLevel::LOG_DISABLE)
 		return;
 	ResetConsoleColor();
+	#ifdef __linux__
 	CHAR time_b[64];
 	time_t now = time(NULL);
 	struct tm* lt = localtime(&now);
@@ -169,46 +233,21 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 		"[%04d-%02d-%02d %02d:%02d:%02d]\t",
 		lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
 		lt->tm_hour, lt->tm_min, lt->tm_sec);
+#elif _WIN32
+	CHAR time_b[128];
+	SYSTEMTIME st;
+	GetLocalTime(&st);
+	INT TimeSize = sprintf(time_b, "[%04d-%02d-%02d %02d:%02d:%02d]\t",
+		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+	DWORD written = 0;
+#endif
 
 	api::WriteFile(g_LogHandle, time_b, TimeSize, &written);
-	api::WriteFile(g_LogHandle, LogLevelStr[size_log], LogSizeStr, &written);
+	api::WriteFile(g_LogHandle, (CONST CHAR*)LogLevelStr[size_log], LogSizeStr, &written);
 	api::WriteFile(g_LogHandle, Buffer, size, &written);
 	api::WriteFile(g_LogHandle, crlf, 2, &written);
 }
 
-VOID SetConsoleColor(LogLevel level)
-{
-	switch (level)
-	{
-	case LogLevel::LOG_INFO:
-		printf("\033[0;34m");
-		break;
-	case LogLevel::LOG_ERROR:
-		printf("\033[0;31m");
-		break;
-	case LogLevel::LOG_SUCCESS:
-		printf("\033[0;32m");
-		break;
-	case LogLevel::LOG_NONE:
-		printf("\033[0;36m");
-		break;
-	case LogLevel::LOG_DISABLE:
-		printf("\033[0;29m");
-		break;
-	case LogLevel::LOG_CMD_DIS:
-		printf("\033[0;29m");
-		break;
-	default:
-		break;
-	}
-}
-
-VOID ResetConsoleColor()
-{
-	printf("\033[0");
-}
-
-#endif
 
 #ifdef _WIN32
 VOID logs::CloseLog()
@@ -224,92 +263,6 @@ VOID logs::CloseLog()
 
 VOID SetConsoleColor(LogLevel level);
 VOID ResetConsoleColor();
-VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
-{
-	if (g_LogHandle == INVALID_HANDLE_VALUE || NO_LOG)
-	{
-		va_list args;
-		CHAR Buffer[1024];
-		va_start(args, Format);
-		int size = vsprintf(Buffer, Format, args);
-		va_end(args);
-		printf("%s\n", Buffer);
-		return;
-	}
-
-	size_t size_log = static_cast<size_t>(log);
-	if (size_log >= LogSize)
-	{
-		printf("Doesnt exists the log level\n");
-		return;
-	}
-
-	va_list args;
-	CHAR Buffer[1024];
-
-	va_start(args, Format);
-
-	INT size = vsprintf(Buffer, Format, args);
-
-	va_end(args);
-
-	if (size == 0)
-		return;
-
-	std::lock_guard<std::mutex> lock(mtx);
-	SetConsoleColor(log);
-	printf("%s\n", Buffer);
-	if (log == LogLevel::LOG_ENABLE)
-		return;
-	ResetConsoleColor();
-	CHAR time[128];
-	SYSTEMTIME st;
-	GetLocalTime(&st);
-	INT TimeSize = sprintf(time, "[%04d-%02d-%02d %02d:%02d:%02d]\t",
-		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-
-	DWORD Written;
-
-	if (TimeSize)
-		WriteFile(g_LogHandle, time, TimeSize, &Written, NULL);
-
-	WriteFile(g_LogHandle, LogLevelStr[size_log], LogSizeStr, &Written, NULL);
-	WriteFile(g_LogHandle, Buffer, size, &Written, NULL);
-	WriteFile(g_LogHandle, crlf, 2, &Written, NULL);
-}
 
 
-VOID SetConsoleColor(LogLevel level)
-{
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
-
-	switch (level)
-	{
-	case LogLevel::LOG_INFO:
-		color = FOREGROUND_BLUE | FOREGROUND_INTENSITY;
-		break;
-	case LogLevel::LOG_ERROR:
-		color = FOREGROUND_RED | FOREGROUND_INTENSITY;
-		break;
-	case LogLevel::LOG_SUCCESS:
-		color = FOREGROUND_GREEN | FOREGROUND_INTENSITY;
-		break;
-	case LogLevel::LOG_NONE:
-		break;
-	case LogLevel::LOG_ENABLE:
-		break;
-	default:
-		break;
-	}
-
-	SetConsoleTextAttribute(hConsole, color);
-}
-
-
-VOID ResetConsoleColor()
-{
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
-}
 #endif
