@@ -111,7 +111,7 @@ VOID CommandParser::CommandLineHelper()
            "                        For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n"
            "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
-           "[*]  -e / --enable      Enable the Thread Pool. When enabled all logical CPU cores are used. (default: false)\n"
+           "[*]  -et / --en_thread  Enable the Thread Pool. When enabled all logical CPU cores are used. (default: false)\n"
            "[*]  -nl / --nolog      Disable the log.\n"
            "[*]  -pl / --pipeline   ThreadPipeLine - Multithreaded File processing Pipeline (only for symmetric). (default: false)\n"
            "                        NOTE: encrypts file with block 1 MB\n"
@@ -612,7 +612,7 @@ void CommandParser::ParsingCommandLine()
     pair = GetCommandsCurr(argc, argv, "-d", "--delete");
     if (pair.first) GLOBAL_STATE.g_FlagDelete = true;
 
-    pair = GetCommandsCurr(argc, argv, "-e", "--enable");
+    pair = GetCommandsCurr(argc, argv, "-et", "--en_thread");
     if (pair.first)THREAD_ENABLE = TRUE;
 
     pair = GetCommandsCurr(argc, argv, "-pl", "--pipeline");

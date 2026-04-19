@@ -39,6 +39,14 @@ typedef bool (*HashSumFunc)(void* hash, char* fullpath, char* Filename);
 
 namespace locker
 {
+
+	typedef struct header_block
+	{
+		void* ctx;
+		BYTE* pblock;
+		size_t offset;
+	} HEAD_BLOCK, *PHEAD_BLOCK;
+
 	typedef struct HashList
 	{
 		char* Filename;
@@ -47,28 +55,21 @@ namespace locker
 		SLIST_ENTRY(HashList);
 	} *PHLIST, HLIST;
 
-#ifdef _WIN32
 	struct descriptor
 	{
 		BYTE* key_data;
 		char* rsa_path;
+#ifdef _WIN32
 		DWORD size;
 		BCRYPT_ALG_HANDLE crypto_provider;
 		BCRYPT_KEY_HANDLE handle_rsa_key;
-	};
-#else
-
-	struct descriptor
-	{
-		BYTE* key_data;
-		char* rsa_path;
+#elif __linux__
 		unsigned size;
 		EVP_PKEY* PKEY;
 		BIO* bio;
 		EVP_PKEY_CTX* ctx;
-	};
 #endif
-
+	};
 
 	typedef struct HashData
 	{
@@ -80,7 +81,7 @@ namespace locker
 		VOID* ctx;
 		descriptor desc;
 		HASH_DATA hash_data;
-		CONST CHAR* name;
+		CONST char* name;
 		u32 mode;
 		BYTE* zeros;
 		BYTE* random;
@@ -95,35 +96,20 @@ namespace locker
 		HashSumFunc hash_sum_method;
 	} CRYPT_INFO, * PCRYPT_INFO;
 
-#ifdef _WIN32
-	typedef struct file_info
-	{
-		int dcrypt;
-		VOID* ctx;
-		PCRYPT_INFO CryptInfo;
-		char* Filename;
-		char* newFilename;
-		char* FilePath;
-		HANDLE FileHandle;
-		HANDLE newFileHandle;
-		size_t Filesize;
-		INT	padding;
-	}FILE_INFO, * PFILE_INFO;
-#else
 	typedef struct file_info
 	{
 		int dcrypt;
 		void* ctx;
-		PCRYPT_INFO CryptInfo;
-		char* Filename;
-		char* newFilename;
-		char* FilePath;
-		int FileHandle;
-		int newFileHandle;
-		size_t Filesize;
+		PCRYPT_INFO crypt_info;
+		char* filename;
+		char* recent_filename;
+		char* file_path;
+		DESC filehandle;
+		DESC recent_filehandle;
+		size_t filesize;
 		int padding;
 	}FILE_INFO, * PFILE_INFO;
-#endif
+
 	
 	void FreeCryptInfo(CRYPT_INFO* CryptInfo);
 	bool GeneratePolicy(CRYPT_INFO* CryptInfo);
@@ -146,6 +132,8 @@ typedef locker::CryptCTXInfo CRYPT_INFO;
 typedef locker::CryptCTXInfo* PCRYPT_INFO;
 typedef locker::FILE_INFO FILE_INFO;
 typedef locker::HLIST HLIST;
+typedef locker::HEAD_BLOCK HEAD_BLOCK;
+typedef locker::PHEAD_BLOCK PHEAD_BLOCK;
 
 
 
