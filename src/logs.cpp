@@ -29,8 +29,8 @@ STATIC CONST CHAR* LogLevelStr[] =
 	"[SUCCESS] ",
 	"[NONE]    ",
 	"[DISABLE] ",
-	"[CMD_DIS] ",
-	"[LOG_OUT]"
+	"[CNS_DIS] ",
+	"[LOG_OUT] "
 };
 
 
@@ -146,7 +146,7 @@ VOID SetConsoleColor(LogLevel level)
 	case LogLevel::LOG_DISABLE:
 		fprintf(stderr,"\033[0;29m");
 		break;
-	case LogLevel::LOG_CMD_DIS:
+	case LogLevel::LOG_CNS_DIS:
 		fprintf(stderr,"\033[0;29m");
 		break;
 	default:
@@ -191,13 +191,9 @@ VOID ResetConsoleColor()
 
 VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
-	static bool b_stdout = (log == LogLevel::LOG_STDOUT);
-	static bool b_console = !CommandParser::NOUT;
-	static bool b_logfile = true;
-                     		
-                     		
-	
-	if(!b_stdout && !b_console && !b_logfile)
+	static bool b_nlogfile = CommandParser::NO_LOG || g_LogHandle == INVALID_HANDLE_VALUE;
+
+	if(CommandParser::NOUT && (log != LogLevel::LOG_STDOUT))
 		return;
 
 	size_t size_log = static_cast<size_t>(log);
@@ -209,19 +205,21 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	
 	if (size == 0)
 		return;
-	if(b_stdout)
+
+	if(log == LogLevel::LOG_STDOUT)
 	{
 		fprintf(stdout, "%s", Buffer);
+		return;
 	}
 	
-	if(b_console)
+	if(log != LogLevel::LOG_CNS_DIS)
 	{
 		SetConsoleColor(log);
         fprintf(stderr, "%s\n", Buffer);
         ResetConsoleColor();
 	}
 	
-	if(!b_logfile)
+	if(b_nlogfile || log == LogLevel::LOG_DISABLE)
 		return;
 #ifdef __linux__
 	char time_b[64];

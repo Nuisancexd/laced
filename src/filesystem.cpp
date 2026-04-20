@@ -1213,7 +1213,7 @@ bool filesystem::VerifySignatureRSA
 	memcpy(&PathLocale[memory::StrLen(PathLocale)], ("signature.laced.bin"), 19);
 
 	sort_hash_list(HashList);
-	BYTE hash_sha[32];
+	BYTE hash_sha[33];
 	{
 		sha256_state ctx;
 		sha256_init_context(&ctx);
@@ -1221,6 +1221,7 @@ bool filesystem::VerifySignatureRSA
 			sha256_update_context(&ctx, DataHash->hash, DataHash->hash_size);
 		sha256_final_context(&ctx, hash_sha);
 	}
+	LOG_STDOUT("%s", hash_sha);
 	LOG_INFO("Dump Hash Sum");
 	dump_hash(hash_sha, 32);
 
