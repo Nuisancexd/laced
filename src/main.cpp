@@ -125,6 +125,11 @@ void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
     CryptInfo->hash_sum_method
     (
         CryptInfo,  
+#ifdef _WIN32
+        NULL,
+#elif __linux__
+        0,
+#endif
         data->FullPath,
         data->Filename
     );

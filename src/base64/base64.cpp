@@ -8,7 +8,7 @@ typedef int (*FindIndexFunc)(unsigned char smb);
 
 
 static const char base64_table[65] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+_";
 
 static char dec_table[256] = {0};
 

@@ -29,7 +29,8 @@ STATIC CONST CHAR* LogLevelStr[] =
 	"[SUCCESS] ",
 	"[NONE]    ",
 	"[DISABLE] ",
-	"[CMD_DIS]"
+	"[CMD_DIS] ",
+	"[LOG_OUT]"
 };
 
 
@@ -120,6 +121,8 @@ VOID SetConsoleColor(LogLevel level)
 {
 	switch (level)
 	{
+	case LogLevel::LOG_STDOUT:
+		break;
 	case LogLevel::LOG_INFO:
 		printf("\033[0;34m");
 		break;
@@ -189,7 +192,7 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	if (g_LogHandle == INVALID_HANDLE_VALUE || CommandParser::NO_LOG)
 	{
 		va_list args;
-		CHAR Buffer[1024];
+		char Buffer[1024];
 		va_start(args, Format);
 		int size = vsprintf(Buffer, Format, args);
 		va_end(args);
@@ -206,7 +209,7 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	}
 
 	va_list args;
-	CHAR Buffer[1024];
+	char Buffer[1024];
 
 	va_start(args, Format);
 
@@ -224,8 +227,8 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	if (log == LogLevel::LOG_DISABLE)
 		return;
 	ResetConsoleColor();
-	#ifdef __linux__
-	CHAR time_b[64];
+#ifdef __linux__
+	char time_b[64];
 	time_t now = time(NULL);
 	struct tm* lt = localtime(&now);
 	int written = 0;

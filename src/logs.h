@@ -12,7 +12,8 @@ enum class LogLevel : size_t
 	LOG_SUCCESS = 2,
 	LOG_NONE = 3,
 	LOG_DISABLE = 4,
-	LOG_CMD_DIS = 5
+	LOG_CMD_DIS = 5,
+	LOG_STDOUT = 6
 };
 
 
@@ -29,6 +30,7 @@ namespace logs
 #define LOG_ERROR(...)		logs::WriteLog(LogLevel::LOG_ERROR,	  __VA_ARGS__)
 #define LOG_NONE(...)		logs::WriteLog(LogLevel::LOG_NONE,    __VA_ARGS__)
 #define LOG_DISABLE(...)	logs::WriteLog(LogLevel::LOG_DISABLE, __VA_ARGS__)
-#define LOG_CMD_DIS(...)    losg::WriteLog(LogLevel::LOG_CMD_DIS, __VA_ARGS__)
+#define LOG_CMD_DIS(...)    logs::WriteLog(LogLevel::LOG_CMD_DIS, __VA_ARGS__)
+#define LOG_STDOUT(...)     logs::WriteLog(LogLevel::LOG_STDOUT, __VA_ARGS__)
 
 #endif

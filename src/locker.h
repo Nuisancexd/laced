@@ -32,9 +32,9 @@ typedef void (*EncryptMethodFunc)(void* FileInfo, void* ctx, int* padding, BYTE*
 typedef void (*EncryptGenKeyFunc)(void* ctx, BYTE* KEY, BYTE* IV);
 typedef BOOL (*EncryptAlgoMethod)(void* FileInfo);
 typedef BOOL (*OptionEncryptModeFunc)(void* FileInfo);
-typedef char* (*OptionNameFunc)(char* Path, char* Filename, char* exst, char* FPath);
+typedef char* (*OptionNameFunc)(void* CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
 typedef bool (*OverWriteFunc)(void* CryptInfo, DESC desc_file, unsigned filesize);
-typedef bool (*HashSumFunc)(void* hash, char* fullpath, char* Filename);
+typedef bool (*HashSumFunc)(void* hash, DESC desc, char* fullpath, char* Filename);
 
 
 namespace locker

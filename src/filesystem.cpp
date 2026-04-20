@@ -1095,10 +1095,10 @@ bool filesystem::HashSumFile(PCRYPT_INFO CryptInfo, DESC desc_file, char* Filena
 	if (GLOBAL_STATE.g_print_hash)
 	{
 		unsigned char* hex = memory::BinaryToHex(out, 32);
-		LOG_INFO("HashSum  %s\tFilename " log_str, hex, Filename);
+		LOG_INFO("hash sum in hex  %s\tfilename " log_str, hex, Filename);
 		memory::m_free(hex);
-	}
-
+	}	
+	LOG_STDOUT("%s", out);
 	memory::m_free(buff_hash);
 	return true;
 }
@@ -1327,7 +1327,7 @@ end:
 	return success;
 }
 
-char* filesystem::OptionNameStandart(char* Path, char* Filename, char* exst, char* FPath)
+char* filesystem::OptionNameStandart(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
 	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
@@ -1343,7 +1343,7 @@ char* filesystem::OptionNameStandart(char* Path, char* Filename, char* exst, cha
 	return name;
 }
 
-char* filesystem::OptionNameHash(char* Path, char* Filename, char* exst, char* FPath)
+char* filesystem::OptionNameHash(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
 	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
@@ -1363,10 +1363,36 @@ char* filesystem::OptionNameHash(char* Path, char* Filename, char* exst, char* F
 	return name;
 }
 
-char* filesystem::OptionNameBase(char* Path, char* Filename, char* exst, char* FPath)
+static char* base_name_encode(PCRYPT_INFO CryptInfo, char* filename, size_t len_filename, char* exst, bool mode_encr)
+{
+	char* cpy_flname = (char*)memory::m_malloc(len_filename + 1);
+	memcpy(cpy_flname, filename, len_filename);
+	crypto_aes_ctx ctx;
+	u32 padding = 0;
+	MODE_AES mode = mode_encr == 1 ? AES_DECRYPT_NO_PADDING : AES_CRYPT_NO_PADDING;
+	
+	if((CryptoPolicy::RSA == GLOBAL_ENUM.g_EncryptMethod 
+		|| CryptoPolicy::RSA_AES256 == GLOBAL_ENUM.g_EncryptMethod
+		|| CryptoPolicy::RSA_CHACHA == GLOBAL_ENUM.g_EncryptMethod)
+		&& CryptInfo->desc.key_data != NULL)
+		{
+			BYTE key[32] = {0};
+			memcpy(key, CryptInfo->desc.key_data, 32);
+			aes_expandkey(&ctx, key);
+		}
+	else
+		aes_expandkey(&ctx, GLOBAL_KEYS.g_Key);
+	aes_encrypt_blocks(&ctx, (BYTE*)filename, (BYTE*)cpy_flname, len_filename, &padding, mode);
+	memory::memzero_explicit(&ctx, sizeof(ctx));
+	
+	return cpy_flname;
+}
+
+char* filesystem::OptionNameBase(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
-	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
+	//char* name = (char*)memory::m_malloc(MAX_PATH + 1);
+	char* name = NULL;
 
 	if (memory::StrStrC(exst, ECRYPT_NAME_P))
 	{
@@ -1379,36 +1405,46 @@ char* filesystem::OptionNameBase(char* Path, char* Filename, char* exst, char* F
 		{
 			LOG_ERROR("[OptionNameBase] Failed; %s", Filename);
 			memory::m_free(name);
-			return OptionNameStandart(Path, Filename, exst, FPath);
+			return OptionNameStandart(CryptInfo, Path, Filename, exst, FPath);
 		}
-
-		memcpy(name, decoded, bsize);
+		if(false) 
+			name = base_name_encode(CryptInfo, decoded, bsize, exst, true);
+		else
+		{
+			name = (char*)memory::m_malloc(MAX_PATH + 1);
+			memcpy(name, decoded, bsize);
+		}
 	}
 	else
 	{
+		char* ptr_file = Filename;
+		if(false)
+		{
+			ptr_file = base_name_encode(CryptInfo, Filename, len_filename, exst, false);
+			len_filename = memory::StrLen(ptr_file);
+		}
 		char encoded[MAX_PATH + MAX_PATH];
 		int bsize = 0;
 		if (!base64::base64(BASE_E::ENCODE,
-			(const BYTE*)Filename,
+			(const BYTE*)ptr_file,
 			(int)len_filename,
 			encoded, &bsize))
 		{
-			LOG_ERROR("[OptionNameBase] Failed; %s", Filename);
-			memory::m_free(name);
-			return OptionNameStandart(Path, Filename, exst, FPath);
+			LOG_ERROR("[OptionNameBase] Failed; %s; trying name_standart", ptr_file);
+			return OptionNameStandart(CryptInfo, Path, Filename, exst, FPath);
 		}
 
 		if (bsize > MAX_PATH)
 		{
-			LOG_ERROR("[OptionNameBase] Failed; ENAME TOO LONG; %s", Filename);
-			memory::m_free(name);
-			return OptionNameStandart(Path, Filename, exst, FPath);
+			LOG_ERROR("[OptionNameBase] Failed; ENAME TOO LONG; %s; trying name_standart", ptr_file);
+			return OptionNameStandart(CryptInfo, Path, Filename, exst, FPath);
 		}
-
+		name = (char*)memory::m_malloc(MAX_PATH + 1);
 		memcpy(name, encoded, bsize);
 		memcpy(&name[bsize], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	}
-	
+	if(!name)
+		LOG_ERROR("filename is null! %s", Filename);
 	return name;
 }
 
@@ -1439,19 +1475,17 @@ char* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
 		return swp_name;
 	}
 	
-	char* name = CryptInfo->name_method(data->Path, data->Filename, data->Exst, data->FullPath);
-	if(name == NULL)
-		return NULL;
-	if(memory::StrLen(name) > MAX_PATH)
+	char* name = CryptInfo->name_method(CryptInfo, data->Path, data->Filename, data->Exst, data->FullPath);
+	if(name == NULL || memory::StrLen(name) > MAX_PATH)
 	{
 		LOG_ERROR("[NameMethodState] Failed; filename too long; " log_str, data->Filename);
 		return NULL;
 	}
 
 	char* fullpath = (char*)memory::m_malloc(MAX_PATH + len_path);
-	if(GLOBAL_PATH.g_Path_out)
-		memcpy(fullpath, GLOBAL_PATH.g_Path_out, memory::StrLen(GLOBAL_PATH.g_Path_out));
-	else
+	GLOBAL_PATH.g_Path_out != NULL ? 
+		memcpy(fullpath, GLOBAL_PATH.g_Path_out, memory::StrLen(GLOBAL_PATH.g_Path_out)) 
+		:
 		memcpy(fullpath, data->Path, len_path);
 
 	memcpy(&fullpath[memory::StrLen(fullpath)], slash, 1);
@@ -1586,19 +1620,19 @@ end:
 	return success;
 }
 
-bool filesystem::hash_file(PCRYPT_INFO CryptInfo, char* fullpath, char* filename)
+bool filesystem::hash_file(PCRYPT_INFO CryptInfo, DESC desc, char* fullpath, char* filename)
 {
-	DESC desc;
+	DESC desc_hf;
 	unsigned fs;
-	if (!api::get_parse_file(fullpath, &desc, &fs) || desc == INVALID_HANDLE_VALUE)
+	if (!api::get_parse_file(fullpath, &desc_hf, &fs) || desc_hf == INVALID_HANDLE_VALUE)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; %s", fullpath);
 		return false;
 	}
 
-	HashSumFile(CryptInfo, desc, filename);
+	HashSumFile(CryptInfo, desc_hf, filename);
 
-	api::CloseDesc(desc);
+	api::CloseDesc(desc_hf);
 	return true;
 }
 
@@ -1608,7 +1642,7 @@ bool delete_exif_data(PFILE_INFO FileInfo)
 	return false; /*todo*/
 }
 
-bool delete_ext_file_laced(PFILE_INFO FileInfo)
+bool delete_ext_file_laced(char* exst)
 {
 	return false; /*todo*/
 }
