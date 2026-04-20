@@ -15,6 +15,7 @@ extern bool signature;
 extern bool PIPELINE;
 extern bool HASH_FILE;
 extern bool NO_LOG;
+extern bool NOUT;
 extern bool PPATH;
 
 
@@ -112,6 +113,7 @@ public:
     bool config = false;
     std::queue<std::pair<size_t, std::unique_ptr<char[]>>> q_paths;
 
+    static bool NOUT;
     static bool NO_LOG;
     static bool THREAD_ENABLE;
     static bool O_REWRITE;

@@ -106,55 +106,53 @@ VOID logs::initLog(BOOL append)
 #endif
 }
 
-#ifdef __linux__
 VOID logs::CloseLog()
 {
+#ifdef __linux__
 	if (g_LogHandle != -1)
 		api::CloseDesc(g_LogHandle);
 	g_LogHandle = -1;
+	fprintf(stderr, "\033[0;29m");
+#elif _WIN32
+	if (g_LogHandle && g_LogHandle != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(g_LogHandle);
+		g_LogHandle = INVALID_HANDLE_VALUE;
+	}
+#endif
 	if (ptr_dir)
 		memory::m_free(ptr_dir);
-	printf("\033[0;29m");
 }
 
 VOID SetConsoleColor(LogLevel level)
 {
+#ifdef __linux__
 	switch (level)
 	{
 	case LogLevel::LOG_STDOUT:
 		break;
 	case LogLevel::LOG_INFO:
-		printf("\033[0;34m");
+		fprintf(stderr,"\033[0;34m");
 		break;
 	case LogLevel::LOG_ERROR:
-		printf("\033[0;31m");
+		fprintf(stderr,"\033[0;31m");
 		break;
 	case LogLevel::LOG_SUCCESS:
-		printf("\033[0;32m");
+		fprintf(stderr,"\033[0;32m");
 		break;
 	case LogLevel::LOG_NONE:
-		printf("\033[0;36m");
+		fprintf(stderr,"\033[0;36m");
 		break;
 	case LogLevel::LOG_DISABLE:
-		printf("\033[0;29m");
+		fprintf(stderr,"\033[0;29m");
 		break;
 	case LogLevel::LOG_CMD_DIS:
-		printf("\033[0;29m");
+		fprintf(stderr,"\033[0;29m");
 		break;
 	default:
 		break;
 	}
-}
-
-VOID ResetConsoleColor()
-{
-	printf("\033[0");
-}
-
 #elif _WIN32
-
-VOID SetConsoleColor(LogLevel level)
-{
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 	WORD color = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
 
@@ -178,55 +176,53 @@ VOID SetConsoleColor(LogLevel level)
 	}
 
 	SetConsoleTextAttribute(hConsole, color);
+#endif
 }
 
 VOID ResetConsoleColor()
 {
+#ifdef __linux__
+	fprintf(stderr, "\033[0");
+#elif _WIN32
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
-}
 #endif
+}
 
 VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
-	if (g_LogHandle == INVALID_HANDLE_VALUE || CommandParser::NO_LOG)
-	{
-		va_list args;
-		char Buffer[1024];
-		va_start(args, Format);
-		int size = vsprintf(Buffer, Format, args);
-		va_end(args);
-		printf("%s\n", Buffer);
+	static bool b_stdout = (log == LogLevel::LOG_STDOUT);
+	static bool b_console = !CommandParser::NOUT;
+	static bool b_logfile = true;
+                     		
+                     		
+	
+	if(!b_stdout && !b_console && !b_logfile)
 		return;
-	}
 
 	size_t size_log = static_cast<size_t>(log);
-	if (size_log >= LogSize)
-	{
-		printf("Doesnt exists the log level\n");
-		ResetConsoleColor();
-		return;
-	}
-
 	va_list args;
 	char Buffer[1024];
-
 	va_start(args, Format);
-
 	int size = vsprintf(Buffer, Format, args);
-
 	va_end(args);
-
+	
 	if (size == 0)
 		return;
-
-	std::lock_guard<std::mutex> lock(mtx);
-	SetConsoleColor(log);
-	if (log != LogLevel::LOG_CMD_DIS)
-		printf("%s\n", Buffer);
-	if (log == LogLevel::LOG_DISABLE)
+	if(b_stdout)
+	{
+		fprintf(stdout, "%s", Buffer);
+	}
+	
+	if(b_console)
+	{
+		SetConsoleColor(log);
+        fprintf(stderr, "%s\n", Buffer);
+        ResetConsoleColor();
+	}
+	
+	if(!b_logfile)
 		return;
-	ResetConsoleColor();
 #ifdef __linux__
 	char time_b[64];
 	time_t now = time(NULL);
@@ -250,22 +246,3 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	api::WriteFile(g_LogHandle, Buffer, size, &written);
 	api::WriteFile(g_LogHandle, crlf, 2, &written);
 }
-
-
-#ifdef _WIN32
-VOID logs::CloseLog()
-{
-	if (g_LogHandle && g_LogHandle != INVALID_HANDLE_VALUE)
-	{
-		CloseHandle(g_LogHandle);
-		g_LogHandle = INVALID_HANDLE_VALUE;
-	}
-	if (ptr_dir)
-		memory::m_free(ptr_dir);
-}
-
-VOID SetConsoleColor(LogLevel level);
-VOID ResetConsoleColor();
-
-
-#endif
