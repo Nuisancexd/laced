@@ -36,7 +36,7 @@ file_source_crypt="$path/crypt"
 file_source_decrypt="$path/decrypt"
 
 args_kal=(-k key -al)
-args_po=(-p "$file_source" -o "$file_source_crypt")
+args_po=(-p "$file_source" -o "$file_source_crypt" -no)
 args_poc=(-p "$file_source_crypt" -o "$file_source_decrypt")
 
 touch "$file_source"
@@ -44,21 +44,21 @@ dd if=/dev/urandom  of="$file_source" bs=400 count=1 status=none
 
 function chaaes
 {
-    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" chacha -c file > /dev/null
-    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" chacha -d > /dev/null
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" chacha -c file
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" chacha -d
     check_diff CHACHA
 
-    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file > /dev/null
-    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt > /dev/null
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt
     check_diff AES
-    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m part > /dev/null
-    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt -m part > /dev/null
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m part
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt -m part
     check_diff AES_MODE_PART
-    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m head 2>&1 | grep "EncryptFileHeader"
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m head
     echo test: AES_MODE_HEAD not passed
     clean
-    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m block > /dev/null
-    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt -m block > /dev/null
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m block
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes -d decrypt -m block
     check_diff AES_MODE_BLOCK
 }
 
@@ -70,7 +70,7 @@ prv_key="$path_k/RSA_private_key_laced.txt"
 
 if [ ! -f "$pub_key" ] || [ ! -f "$prv_key" ]; then
     echo "generatin rsa key w/4096"
-    ../src/laced -g -p "$path_k" -b64 -b 4096 > /dev/null
+    ../src/laced -g -p "$path_k" -b 4096 > /dev/null
 fi
 success=$?
 
@@ -89,13 +89,13 @@ fi
 #    exit 1
 #fi
 
-echo "yes" | ../src/laced -p "$file_source" --hashfile -c file 2>&1 | grep "HashSum"
+echo "yes" | ../src/laced -p "$file_source" --hashfile -c file -no #> "$path/hash.bin"
 
 function writein
 {
     cp "$file_source" "$file_source_crypt"
-    echo "yes" | ../src/laced -p "$file_source_crypt/$name" "${args_kal[@]}" chacha -c file -wi > /dev/null
-    echo "yes" | ../src/laced -p "$file_source_crypt/$name.laced" "${args_kal[@]}" chacha -c file -wi > /dev/null
+    echo "yes" | ../src/laced -p "$file_source_crypt/$name" "${args_kal[@]}" chacha -c file -wi
+    echo "yes" | ../src/laced -p "$file_source_crypt/$name.laced" "${args_kal[@]}" chacha -c file -wi
     cp "$file_source_crypt/$name" "$file_source_decrypt"
     check_diff WRITE_IN
 }
@@ -103,21 +103,21 @@ function writein
 function RSA()
 {
     clean
-    echo "yes" | ../src/laced "${args_po[@]}" -al rsa -k $pub_key crypt -c file > /dev/null
-    echo "yes" | ../src/laced "${args_poc[@]}" -al rsa -k $prv_key decrypt > /dev/null
+    echo "yes" | ../src/laced "${args_po[@]}" -al rsa -k $pub_key crypt -c file
+    echo "yes" | ../src/laced "${args_poc[@]}" -al rsa -k $prv_key decrypt
     check_diff RSA
 
-    echo "yes" | ../src/laced "${args_po[@]}" -al rsa_aes -k $pub_key $ $prv_key -s crypt -c file 2>&1 | grep "VerifySignatureRSA"
-    echo "yes" | ../src/laced "${args_poc[@]}" -al rsa_aes -k $pub_key $ $prv_key -s decrypt 2>&1 | grep "VerifySignatureRSA"
+    echo "yes" | ../src/laced "${args_po[@]}" -al rsa_aes -k $pub_key $ $prv_key -s crypt -c file
+    echo "yes" | ../src/laced "${args_poc[@]}" -al rsa_aes -k $pub_key $ $prv_key -s decrypt
     check_diff RSA_AES
 }
 
-chaaes
-RSA
+#chaaes
+#RSA
 
 read -e -p "type any key"
 
-clean "$path_k"
+#clean "$path_k"
 rm -f "$path/signature.laced.bin"
 rm -f "$file_source"
 

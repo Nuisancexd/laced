@@ -11,7 +11,7 @@ namespace memory
 {
 	unsigned int MurmurHash2A(const void* key, int len, int seed);
 	VOID* CopyMem(PVOID dst, PVOID src, size_t size);
-	int my_stoi(const char* str);
+	int my_stoi(char* str);
 	int my_stoi2(char* str);
 	VOID* CopyMemW(PVOID dst, PVOID src, size_t size);
 	VOID Copy(PVOID pDst, CONST PVOID pSrc, size_t size);

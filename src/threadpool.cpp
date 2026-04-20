@@ -188,9 +188,9 @@ void ThreadPipeLine::work_read()
 
         PDATA_READ read = new DATA_READ;
         read->data = (BYTE*)memory::m_malloc(1048576 + AES_BLOCK_SIZE);
-        if(api::ReadFile(state->file->FileHandle, read->data, 1048576, &read->bytes) && read->bytes != 0)
+        if(api::ReadFile(state->file->filehandle, read->data, 1048576, &read->bytes) && read->bytes != 0)
         {
-            if (read->bytes < 1048576 && que_state->front()->file->CryptInfo->method_policy == CryptoPolicy::AES256)
+            if (read->bytes < 1048576 && que_state->front()->file->crypt_info->method_policy == CryptoPolicy::AES256)
             {
                 state->padding = read->bytes % 16;
                 read->bytes -= state->padding;
@@ -233,9 +233,9 @@ void ThreadPipeLine::work_encrypt()
                 que_re->pop();
             }
 
-            if (que_state->front()->file->CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
-		        que_state->front()->file->CryptInfo->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
-            que_state->front()->file->CryptInfo->crypt_method(que_state->front()->file, que_state->front()->file->ctx, 
+            if (que_state->front()->file->crypt_info->gen_policy == GENKEY_EVERY_ONCE)
+		        que_state->front()->file->crypt_info->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+            que_state->front()->file->crypt_info->crypt_method(que_state->front()->file, que_state->front()->file->ctx, 
                 &que_state->front()->file->padding, data->data, data->data, data->bytes);
             
             lock.unlock();
@@ -272,7 +272,7 @@ void ThreadPipeLine::work_write()
             }
             lock.unlock();
             
-            filesystem::WriteFullData(que_state->front()->file->newFileHandle, data->data, data->bytes + que_state->front()->padding);
+            filesystem::WriteFullData(que_state->front()->file->recent_filehandle, data->data, data->bytes + que_state->front()->padding);
             memory::m_free(data->data);
             delete data;
         }

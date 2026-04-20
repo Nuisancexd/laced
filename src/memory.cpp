@@ -69,15 +69,18 @@ unsigned int memory::MurmurHash2A(const void* key, int len, int seed)
 }
 
 
-int memory::my_stoi(const char* str)
+int memory::my_stoi(char* str)
 {
-	unsigned int strLen = memory::StrLen(str);
+	unsigned int str_len = memory::StrLen(str);
 	int num = 0;
 	int ten;
-	for (int i = 0; i < strLen; ++i)
+	for (int i = 0; i < str_len; ++i)
 	{
+		if (str[i] < '0' || str[i] > '9')
+			continue;
+		
 		ten = 1;
-		for (unsigned int j = 0; j < strLen - 1 - i; ++j)
+		for (unsigned int j = 0; j < str_len - 1 - i; ++j)
 		{
 			ten *= 10;
 		}
@@ -88,24 +91,23 @@ int memory::my_stoi(const char* str)
 	return num;
 }
 
-int memory::my_stoi2(char* str) {
-	unsigned int strLen = 0;
-	unsigned int i = 0;
-	while (str[i] != '\0') {
-		strLen += 1;
-		i++;
-	}
-
+int memory::my_stoi2(char* str) 
+{
+	size_t str_len = memory::StrLen(str);
 	int num = 0;
 	int ten;
-	BOOL signFlag = TRUE; //true: +, false: -
-	for (i = 0; i < strLen; i++) {
-		if (str[i] < '0' || str[i] > '9') {
-			if (i == 0 && str[i] == '-') {
+	BOOL signFlag = TRUE;
+	for (int i = 0; i < str_len; i++) 
+	{
+		if (str[i] < '0' || str[i] > '9') 
+		{
+			if (i == 0 && str[i] == '-') 
+			{
 				signFlag = FALSE;
 				continue;
 			}
-			if (i == 0 && str[i] == '+') {
+			if (i == 0 && str[i] == '+') 
+			{
 				signFlag = TRUE;
 				continue;
 			}
@@ -114,19 +116,14 @@ int memory::my_stoi2(char* str) {
 		}
 
 		ten = 1;
-		for (unsigned int j = 0; j < strLen - 1 - i; j++) {
+		for (unsigned int j = 0; j < str_len - 1 - i; j++) 
+		{
 			ten *= 10;
 		}
 
 		num += ten * (str[i] - '0');
 	}
-
-	if (signFlag) {
-		return num;
-	}
-	else {
-		return -num;
-	}
+	return signFlag == 1 ? num : -num;
 }
 
 
