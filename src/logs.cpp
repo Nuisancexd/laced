@@ -193,7 +193,7 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
 	static bool b_stdout = (log == LogLevel::LOG_STDOUT);
 	static bool b_console = !CommandParser::NOUT;
-	static bool b_logfile = true;
+	static bool b_logfile = true;/*todo*/
                      		
                      		
 	
