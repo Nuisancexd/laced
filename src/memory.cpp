@@ -299,6 +299,18 @@ size_t memory::FindCharI(const char* Str, char ch)
 	return 0;
 }
 
+bool memory::memcmp(const void* str, const void* streq, size_t bytes)
+{
+	const BYTE* s = (BYTE*)str;
+	const BYTE* sq = (BYTE*)streq;
+	while(bytes--)
+	{
+		if(*s++ != *sq++)
+			return false;
+	}
+
+	return true;
+}
 
 unsigned char* memory::BinaryToHex(unsigned char* src, size_t size)
 {

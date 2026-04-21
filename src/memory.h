@@ -27,6 +27,7 @@ namespace memory
 	BOOL StrStrC(const char* Str, const char* StrEq);
 	BOOL StrStrCW(const wchar_t* wstr, const wchar_t* wstreq);
 	size_t FindCharI(const char* Str, char ch);
+	bool memcmp(const void* str, const void* streq, size_t bytes);
 	unsigned char* BinaryToHex(unsigned char* src, size_t size);
 	unsigned char* HexToBinary(const char* hexStr, size_t hexSize);
 	VOID memzero_explicit(volatile VOID* ptr, size_t size_of_ptr);

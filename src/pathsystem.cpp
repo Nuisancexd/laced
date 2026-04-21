@@ -296,10 +296,14 @@ void PathSystem::free_drive_info()
     if (drive_info == NULL) return;
     LIST_FOREACH(data, drive_info)
     {
-        memory::m_free(data->Exst);
-        memory::m_free(data->Filename);
-        memory::m_free(data->FullPath);
-        memory::m_free(data->Path);
+        if(data->Exst)
+            memory::m_free(data->Exst);
+        if(data->Filename)
+            memory::m_free(data->Filename);
+        if(data->FullPath)
+            memory::m_free(data->FullPath);
+        if(data->Path)
+            memory::m_free(data->Path);
     }
 }
 
@@ -313,7 +317,6 @@ void PathSystem::free_directory_info()
 
 PathSystem::~PathSystem()
 {  
-    free_drive_info();
     free_directory_info();
     if(drive_info)     delete drive_info;
     if(directory_info) delete directory_info;

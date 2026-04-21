@@ -37,8 +37,11 @@ constexpr unsigned MB = 1048576;
 #define ECRYPT_NAME_P ".laced"
 #define ECRYPT_NAME_LEN 6
 #define ECRYPT_VERSION "1.0"
+#define ECRYPT_VERSION_LEN 3
+#define ECRYPT_NAME_STORAGE "LACEDSTORAGE"
+#define ECRYPT_LEN_STORAGE 12
 #define PSIZE_BLOCK 256
-#define HPSIZE_BLOCK 128
+#define HPSIZE_BLOCK PSIZE_BLOCK/2
 
 #define SET(v,w) ((v) = (w))
 
@@ -1048,38 +1051,60 @@ static void memcpy_offset(void* pdst, const void* psrc, size_t size, size_t* off
 	*offset += size;
 } 
 
-PHEAD_BLOCK filesystem::fill_struct_hblock(DESC recent_handle, const char* crypt_name)
+PHEAD_BLOCK filesystem::fill_struct_hblock(DESC filehandle, size_t filesize, const char* crypt_name)
 {
+	size_t offset = 0;
 	PHEAD_BLOCK hblock_t = (PHEAD_BLOCK)memory::m_malloc(sizeof(HEAD_BLOCK));
 	*hblock_t = 
 	{
 		.ctx = (laced_ctx*)memory::m_malloc(sizeof(laced_ctx)),
-		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK),
-		.offset = 0
+		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK)
 	};
-	size_t offset = 0;
-	memcpy_offset(&hblock_t->pblock[offset], "LACEDVAULT", 10, &offset);
-	memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, 3, &offset);
-	memcpy_offset(&hblock_t->pblock[offset], crypt_name, memory::StrLen(crypt_name), &offset);
+
+	if(filesize >= PSIZE_BLOCK)
+	{
+		// DESC desc;
+		// size_t fs = 0;
+		// api::get_parse_file("", &desc, &fs);
+		size_t bytes_read;
+		api::ReadFile(filehandle, hblock_t->pblock, PSIZE_BLOCK, &bytes_read);
+		if (!memory::memcmp(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE))
+		{
+			LOG_ERROR("header block is not valid");
+			return NULL;
+		}
+		offset += ECRYPT_LEN_STORAGE;
+		if (!memory::memcmp(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN))
+		{
+			LOG_ERROR("header block ecrypt version is not valid");
+			return NULL;
+		}
+		offset += ECRYPT_VERSION_LEN;
+	}
+	else
+	{
+		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE, &offset);
+		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN, &offset);
+		memcpy_offset(&hblock_t->pblock[offset], crypt_name, memory::StrLen(crypt_name), &offset);
 
 #ifdef _WIN32
-	HandleError(BCryptGenRandom(0, &hblock_t->pblock[offset], HPSIZE_BLOCK - offset + 40, BCRYPT_USE_SYSTEM_PREFERRED_RNG));
+		HandleError(BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG));
 #else
-	RAND_bytes(&hblock_t->pblock[offset], HPSIZE_BLOCK - offset + 40);
+		RAND_bytes(&hblock_t->pblock[offset], PSIZE_BLOCK - offset);
 #endif
+
+	// HANDLE desc1 = NULL;
+	// DWORD written = 0;
+	// api::create_file_open(&desc1, "");
+	// api::WriteFile(desc1, hblock_t->pblock, PSIZE_BLOCK, &written);
+	}
 
 	offset = HPSIZE_BLOCK;
 	ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset], 256, 64);
 	offset += 32;
 	ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset]);
 	offset += 8;
-
-#ifdef _WIN32
-	HandleError(BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG));
-#else
-	RAND_bytes(&hblock_t->pblock[offset], PSIZE_BLOCK - offset);
-#endif
-
+	
 	return hblock_t;
 }
 

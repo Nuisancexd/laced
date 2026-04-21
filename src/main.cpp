@@ -75,9 +75,7 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
 
     if(CommandParser::O_REWRITE) operation = rewrite_operation;
     else if(CommandParser::HASH_FILE) operation = hash_operation;
-    else operation = crypt_operation;
-
-    if(CommandParser::PIPELINE)
+    else if(CommandParser::PIPELINE)
     {
         ThreadPipeLine* pipeline = new ThreadPipeLine;
         LIST_FOREACH(data, DriveInfo)
@@ -86,7 +84,9 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
         pipeline->wait();
         delete pipeline;
     }
-    else if(f == 1 || !CommandParser::THREAD_ENABLE)
+    else operation = crypt_operation;
+
+    if(f == 1 || !CommandParser::THREAD_ENABLE)
     {
         LIST_FOREACH(data, DriveInfo)
             operation(CryptInfo, data);
@@ -94,9 +94,7 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
     else
     {
         int maxThreads = std::thread::hardware_concurrency() - 1;
-        int threads = maxThreads;
-        if (f <= maxThreads)
-            threads = f - 1;
+        int threads = f <= maxThreads ? f - 1 : maxThreads;
 
         ThreadPool pool(threads);
         LIST_FOREACH(data, DriveInfo)
@@ -125,11 +123,7 @@ void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
     CryptInfo->hash_sum_method
     (
         CryptInfo,  
-#ifdef _WIN32
         NULL,
-#elif __linux__
-        0,
-#endif
         data->FullPath,
         data->Filename
     );
