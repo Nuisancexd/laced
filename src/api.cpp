@@ -28,6 +28,9 @@ BOOL api::ReadFile(HANDLE desc_file, VOID* buf, size_t size, size_t* BytesRead)
 
 BOOL api::WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, DWORD* BytesWritten)
 {
+    DWORD written = 0;
+    if(!BytesWritten)
+        BytesWritten = &written;
     return ::WriteFile(desc_file, buff, BytesToWrite, BytesWritten, NULL);
 }
 

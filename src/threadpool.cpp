@@ -170,7 +170,7 @@ void ThreadPipeLine::work_read()
         {
             std::lock_guard<std::mutex> lck(mtx_state);
             {
-                locker::free_file_info(que_state->front()->file, true);
+                locker::free_file_info(que_state->front()->file, NULL, true);
                 delete que_state->front()->file;
                 auto* p = que_state->front();
                 que_state->pop();

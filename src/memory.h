@@ -17,6 +17,7 @@ namespace memory
 	VOID Copy(PVOID pDst, CONST PVOID pSrc, size_t size);
 	PVOID m_malloc(size_t size);
 	VOID m_free(PVOID memory);
+	void memzero_free(void* mem, size_t mem_size);
 	size_t StrLen(const char* Str);
 	size_t StrLen(const wchar_t* Str);
 	char* FindChar(char* Str, char Ch);

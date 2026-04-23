@@ -143,6 +143,12 @@ VOID memory::m_free(PVOID memory)
 		free(memory);
 }
 
+void memory::memzero_free(void* mem, size_t mem_size)
+{
+	memory::memzero_explicit(mem, mem_size);
+    memory::m_free(mem);
+}
+
 
 size_t memory::StrLen(const char* Str)
 {

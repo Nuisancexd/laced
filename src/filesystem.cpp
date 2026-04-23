@@ -40,6 +40,8 @@ constexpr unsigned MB = 1048576;
 #define ECRYPT_VERSION_LEN 3
 #define ECRYPT_NAME_STORAGE "LACEDSTORAGE"
 #define ECRYPT_LEN_STORAGE 12
+#define ECRYPT_NAMEHEAD "LACEDEND"
+#define ECRYPT_NAMEHEAD_LEN 8
 #define PSIZE_BLOCK 256
 #define HPSIZE_BLOCK PSIZE_BLOCK/2
 
@@ -1049,9 +1051,22 @@ static void memcpy_offset(void* pdst, const void* psrc, size_t size, size_t* off
 {
 	memcpy(pdst, psrc, size);
 	*offset += size;
-} 
+}
 
-PHEAD_BLOCK filesystem::fill_struct_hblock(DESC filehandle, size_t filesize, const char* crypt_name)
+static bool read_metadata(DESC filehandle)
+{
+	BYTE buff[ECRYPT_NAMEHEAD_LEN];
+	api::ReadFile(filehandle, buff, ECRYPT_NAMEHEAD_LEN, NULL);
+	return memory::memcmp(buff, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN);
+}
+
+void filesystem::add_ecrypt_namend(DESC filehandle)
+{
+	api::SetPoint(filehandle, FILE_END);
+	api::WriteFile(filehandle, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN, NULL);
+}
+
+PHEAD_BLOCK filesystem::init_meta_hblock(DESC filehandle, size_t* filesize, const char* crypt_name)
 {
 	size_t offset = 0;
 	PHEAD_BLOCK hblock_t = (PHEAD_BLOCK)memory::m_malloc(sizeof(HEAD_BLOCK));
@@ -1061,51 +1076,54 @@ PHEAD_BLOCK filesystem::fill_struct_hblock(DESC filehandle, size_t filesize, con
 		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK)
 	};
 
-	if(filesize >= PSIZE_BLOCK)
+	if(*filesize >= PSIZE_BLOCK && !read_metadata(filehandle))
 	{
-		// DESC desc;
-		// size_t fs = 0;
-		// api::get_parse_file("", &desc, &fs);
-		size_t bytes_read;
-		api::ReadFile(filehandle, hblock_t->pblock, PSIZE_BLOCK, &bytes_read);
-		if (!memory::memcmp(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE))
-		{
-			LOG_ERROR("header block is not valid");
-			return NULL;
-		}
-		offset += ECRYPT_LEN_STORAGE;
-		if (!memory::memcmp(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN))
-		{
-			LOG_ERROR("header block ecrypt version is not valid");
-			return NULL;
-		}
-		offset += ECRYPT_VERSION_LEN;
+		hblock_t->crypt = false;
+		api::SetPointOff(filehandle, -ECRYPT_NAMEHEAD_LEN, FILE_END);
+		*filesize -= ECRYPT_NAMEHEAD_LEN;
+#ifdef _WIN32
+		SetEndOfFile(filehandle);
+#else
+		ftruncate(filehandle, 0);
+#endif
 	}
 	else
 	{
-		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE, &offset);
-		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN, &offset);
-		memcpy_offset(&hblock_t->pblock[offset], crypt_name, memory::StrLen(crypt_name), &offset);
-
+ 		hblock_t->crypt = true;
+ 		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE, &offset);
+ 		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN, &offset);
+ 		memcpy_offset(&hblock_t->pblock[offset], crypt_name, memory::StrLen(crypt_name), &offset);
 #ifdef _WIN32
-		HandleError(BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG));
+		BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 #else
 		RAND_bytes(&hblock_t->pblock[offset], PSIZE_BLOCK - offset);
 #endif
+ 		offset = HPSIZE_BLOCK;
+ 		ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset], 256, 64);
+ 		ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
 
-	// HANDLE desc1 = NULL;
-	// DWORD written = 0;
-	// api::create_file_open(&desc1, "");
-	// api::WriteFile(desc1, hblock_t->pblock, PSIZE_BLOCK, &written);
+		/*	ADD HASH HBLOCK	*/
+
+		api::SetPoint(filehandle, FILE_END);
+		api::WriteFile(filehandle, hblock_t->pblock, PSIZE_BLOCK, NULL);
+		api::SetPoint(filehandle, FILE_BEGIN);
+		*filesize += PSIZE_BLOCK;
 	}
-
-	offset = HPSIZE_BLOCK;
-	ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset], 256, 64);
-	offset += 32;
-	ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset]);
-	offset += 8;
 	
 	return hblock_t;
+}
+
+void filesystem::delete_hblock(DESC filehandle, size_t* filesize)
+{
+	if(*filesize < PSIZE_BLOCK)
+		return;
+	api::SetPointOff(filehandle, -PSIZE_BLOCK, FILE_END);
+	*filesize -= PSIZE_BLOCK;
+#ifdef _WIN32
+	SetEndOfFile(filehandle);
+#else
+	ftruncate(filehandle, 0);
+#endif
 }
 
 STATIC VOID dump_hash(CONST BYTE* hash, size_t len)

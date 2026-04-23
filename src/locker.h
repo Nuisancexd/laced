@@ -45,6 +45,7 @@ namespace locker
 		void* ctx;
 		BYTE* pblock;
 		size_t offset;
+		bool crypt;
 	} HEAD_BLOCK, *PHEAD_BLOCK;
 
 	typedef struct HashList
@@ -108,6 +109,7 @@ namespace locker
 		DESC recent_filehandle;
 		size_t filesize;
 		int padding;
+		PHEAD_BLOCK hblock;
 	}FILE_INFO, * PFILE_INFO;
 
 	

