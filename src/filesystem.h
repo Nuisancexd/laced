@@ -23,9 +23,9 @@ namespace filesystem
 	bool VerifySignatureRSA(SLIST<HASH_LIST>* HashList);
 	bool VerificationSignatureFile(SLIST<HASH_LIST>* HashList);
 	void RootKeySignatureTrust(VOID);
-	PHEAD_BLOCK init_meta_hblock(DESC filehandle, size_t *filesize, const char* crypt_name);
+	PHEAD_BLOCK init_meta_hblock(PFILE_INFO fileinfo);
 	void delete_hblock(DESC filehandle, size_t* filesize);
-	void add_ecrypt_namend(DESC filehandle);
+	void add_ecrypt_namend(PFILE_INFO fileinfo);
 	void sort_hash_list(SLIST<HASH_LIST>* list);
 	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
 	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
