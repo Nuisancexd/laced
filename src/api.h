@@ -21,7 +21,7 @@ namespace api
 
     HANDLE OpenFile(CONST WCHAR* wstr);
     HANDLE OpenFile(CONST CHAR* str);
-    BOOL WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, DWORD* BytesWritten);
+    BOOL WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, size_t* BytesWritten);
     VOID CloseDesc(HANDLE desc_file);
     BOOL ReadFile(HANDLE desc_file, VOID* buf, size_t size, size_t* BytesRead);
     BOOL GetCurrentDir(WCHAR* dir_buf, size_t size);

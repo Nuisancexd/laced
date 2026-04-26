@@ -59,11 +59,7 @@ bool filesystem::WriteFullData
 )
 {
 	DWORD TotalWritten = 0;
-#ifdef _WIN32
-	DWORD BytesWritten = 0;
-#else
-	int BytesWritten = 0;
-#endif
+	size_t BytesWritten = 0;
 	DWORD BytesToWrite = Size;
 	DWORD Offset = 0;
 
@@ -87,11 +83,7 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 {
 	BOOL success = FALSE;
 	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
-#ifdef _WIN32
-	DWORD written = 0;
-#else
-	int written = 0;
-#endif
+	size_t written = 0;
 	DWORD BytesRead = FileInfo->filesize;
 	size_t dwread = 0;
 	DWORD padding = 0;
@@ -154,11 +146,7 @@ static bool EncryptFilePartly
 {
 	BOOL success = FALSE;
 	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
-#ifdef _WIN32
-	DWORD written = 0;
-#else
-	int written = 0;
-#endif
+	size_t written = 0;
 	size_t total_write = 0;
 	DWORD multiply = 0;
 	size_t BytesRead;
@@ -189,16 +177,15 @@ static bool EncryptFilePartly
 
 	BOOL isAes = FileInfo->crypt_info->method_policy == CryptoPolicy::AES256
 		|| FileInfo->crypt_info->method_policy == CryptoPolicy::RSA_AES256;
+	
+	// if (PartSize < 300)
+	// {
+	// 	LOG_ERROR("[EncryptFilePartly] Failed - small size file, size must be >= 300 byte. Filename: " log_str, FileInfo->filename);
+	// 	return FALSE;
+	// }
 	if (isAes)
-	{
-		if (PartSize < AES_BLOCK_SIZE)
-		{
-			LOG_ERROR("[EncryptFilePartly] Failed - small size file, size must be >= 300 byte. Filename: " log_str, FileInfo->filename);
-			return FALSE;
-		}
-		multiply = PartSize % 16;
-	}
-
+			multiply = PartSize % 16;
+	
 
 	BYTE* BufferPart = (BYTE*)memory::m_malloc(PartSize);
 	BYTE* BufferStep = (BYTE*)memory::m_malloc(StepSize);
@@ -217,7 +204,7 @@ static bool EncryptFilePartly
 		}
 
 		FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
-
+	
 		if(GLOBAL_STATE.g_write_in)
 		{
 			if(!api::SetPointOff(FileInfo->recent_filehandle, total_write, SEEK_SET) || 
@@ -237,6 +224,8 @@ static bool EncryptFilePartly
 		while (TotalRead < StepSize)
 		{
 			if (!api::ReadFile(FileInfo->filehandle, BufferStep, StepSize, &BytesReadW) || !BytesReadW)
+				break;
+			if(memory::memcmp(&BufferStep[BytesReadW - ECRYPT_NAMEHEAD_LEN], ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN))
 				break;
 			if(GLOBAL_STATE.g_write_in)
 			{
@@ -274,11 +263,7 @@ static bool EncryptFileBlock
 	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
 	size_t BytesRead;
 	size_t total_write = 0;
-#ifdef _WIN32
-	DWORD written = 0;
-#else
-	int written = 0;
-#endif
+	size_t written = 0;
 	u32 padding = 0;
 	BYTE* Buffer = (BYTE*)memory::m_malloc(1048576 + AES_BLOCK_SIZE);
 
@@ -286,12 +271,13 @@ static bool EncryptFileBlock
 	{
 		if (BytesRead < 1048576)
 		{
+			if(BytesRead > (PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN))
+				BytesRead -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
 			if(FileInfo->crypt_info->method_policy == CryptoPolicy::AES256)
 			{
 				padding = BytesRead % 16;
 				BytesRead -= padding;
 			}
-			BytesRead -= PSIZE_BLOCK + ECRYPT_NAME_LEN;
 		}
 
 		FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
@@ -353,11 +339,7 @@ static bool EncryptFileHeader
 	
 	if(GLOBAL_STATE.g_write_in)
 	{
-#ifdef _WIN32
-		DWORD written = 0;
-#else
-		int written = 0;
-#endif
+		size_t written = 0;
 		if(!api::SetPoint(FileInfo->recent_filehandle, SEEK_SET) || 
 			!api::WriteFile(FileInfo->recent_filehandle, Buffer, BytesEncrypt, &written))
 			{
@@ -369,12 +351,15 @@ static bool EncryptFileHeader
 	{
 		if (!filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, BytesEncrypt))
 		{
-			LOG_ERROR("[EncryptFileH	eader] [WriteFullData] failed");
+			LOG_ERROR("[EncryptFileHeader] [WriteFullData] failed");
 			goto end;
 		}
 
 		while (api::ReadFile(FileInfo->filehandle, Buffer, BytesEncrypt, &BytesRead) && BytesRead != 0)
 		{
+			if(memory::memcmp(&Buffer[BytesRead - ECRYPT_NAMEHEAD_LEN], ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN))
+				BytesRead -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
+
 			if (!filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, BytesRead))
 			{
 				LOG_ERROR("[EncryptFileHeader] [WriteFullData] failed");
@@ -1094,7 +1079,7 @@ PHEAD_BLOCK filesystem::init_meta_hblock(PFILE_INFO fileinfo)
 		{
 			api::SetPointOff(fileinfo->filehandle, -(PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN), FILE_END);
 #ifdef _WIN32
-			SetEndOfFile(filehandle);
+			SetEndOfFile(fileinfo->filehandle);
 #else
 			ftruncate(fileinfo->filehandle, fileinfo->filesize);
 #endif
@@ -1602,11 +1587,7 @@ static bool Write(DESC desc_file, unsigned filesize, BYTE* buff)
 	api::SetPoint(desc_file, 0);
 	auto fsize = filesize;
 	size_t toWrite;
-#ifdef _WIN32
-	DWORD written = 0;
-#elif __linux__
-	int written = 0;
-#endif
+	size_t written = 0;
 	size_t offset = 0;
 	while (fsize > 0)
 	{

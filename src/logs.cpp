@@ -236,7 +236,7 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	GetLocalTime(&st);
 	INT TimeSize = sprintf(time_b, "[%04d-%02d-%02d %02d:%02d:%02d]\t",
 		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-	DWORD written = 0;
+	size_t written = 0;
 #endif
 
 	api::WriteFile(g_LogHandle, time_b, TimeSize, &written);

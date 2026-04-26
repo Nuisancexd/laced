@@ -26,12 +26,12 @@ BOOL api::ReadFile(HANDLE desc_file, VOID* buf, size_t size, size_t* BytesRead)
     return TRUE;
 }
 
-BOOL api::WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, DWORD* BytesWritten)
+BOOL api::WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, size_t* BytesWritten)
 {
-    DWORD written = 0;
+    size_t written = 0;
     if(!BytesWritten)
         BytesWritten = &written;
-    return ::WriteFile(desc_file, buff, BytesToWrite, BytesWritten, NULL);
+    return ::WriteFile(desc_file, buff, BytesToWrite, (LPDWORD)BytesWritten, NULL);
 }
 
 BOOL api::GetCurrentDir(WCHAR* dir_buf, size_t size)

