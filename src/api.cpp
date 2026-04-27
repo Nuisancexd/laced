@@ -162,9 +162,9 @@ BOOL api::ReadFile(int desc_file, VOID* buf, size_t size, size_t* BytesRead)
     return TRUE;
 }
 
-BOOL api::WriteFile(int desc_file, CONST VOID* buf, unsigned size, int* written)
+BOOL api::WriteFile(int desc_file, CONST VOID* buf, unsigned size, size_t* written)
 {
-    int writtenb = 0;
+    size_t writtenb = 0;
     if(!written)
         written = &writtenb;
     if ((*written = write(desc_file, buf, size)) == -1)

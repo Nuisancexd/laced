@@ -23,9 +23,10 @@ namespace filesystem
 	bool VerifySignatureRSA(SLIST<HASH_LIST>* HashList);
 	bool VerificationSignatureFile(SLIST<HASH_LIST>* HashList);
 	void RootKeySignatureTrust(VOID);
-	PHEAD_BLOCK init_meta_hblock(PFILE_INFO fileinfo);
-	void delete_hblock(DESC filehandle, size_t* filesize);
-	void add_ecrypt_namend(PFILE_INFO fileinfo);
+	PHEAD_BLOCK init_mdata_hblock(PFILE_INFO fileinfo);
+	void delete_metadata(DESC filehandle, size_t* filesize);
+	void free_hblock_mdata(PHEAD_BLOCK hblock_t);
+	void write_metadata(PFILE_INFO fileinfo);
 	void sort_hash_list(SLIST<HASH_LIST>* list);
 	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
 	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);

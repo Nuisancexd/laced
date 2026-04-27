@@ -36,7 +36,7 @@ namespace api
     int CreateFile(const char* pathaname);
     VOID CloseDesc(int desc_file);
     BOOL ReadFile(int desc_file, VOID* buf, size_t size, size_t* BytesRead);
-    BOOL WriteFile(int desc_file, CONST VOID* buf, size_t size, int* written);
+    BOOL WriteFile(int desc_file, CONST VOID* buf, size_t size, size_t* written);
     BOOL GetCurrentDir(char* dir_buf, size_t size);
     BOOL GetExecPath(CHAR* dir_buf, size_t size);
     BOOL SetPoint(int desc, int seek);

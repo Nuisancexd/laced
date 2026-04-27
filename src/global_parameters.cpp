@@ -206,6 +206,8 @@ BOOL global::print_command_g()
 		print_kv("", "PIPELINE");
 
 end:
+	if(CommandParser::NOUT)
+		return true;
 	std::string str;
 	LOG_DISABLE("PROCEED [Y-enter/n]");
 	std::getline(std::cin, str);

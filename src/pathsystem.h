@@ -58,6 +58,7 @@ public:
     size_t start_local_search();
     void free_drive_info();
     void free_directory_info();
+    static void free_driveinfo_st(DriveInfo* data);
 private:
     typedef void (PathSystem::*qpaths_method)();
     bool check_filename(char* cFilename);

