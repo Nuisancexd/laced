@@ -1055,10 +1055,8 @@ void filesystem::write_metadata(PFILE_INFO fileinfo)
 
 void filesystem::delete_metadata(DESC filehandle, size_t* filesize)
 {
-	if(*filesize < (PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN))
-		return;
-	api::SetPointOff(filehandle, -PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN, FILE_END);
 #ifdef _WIN32
+	api::SetPointOff(filehandle, *filesize, FILE_BEGIN);
 	SetEndOfFile(filehandle);
 #else
 	if(ftruncate(filehandle, *filesize) == -1)
@@ -1080,17 +1078,32 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 	*hblock_t = 
 	{
 		.ctx = (laced_ctx*)memory::m_malloc(sizeof(laced_ctx)),
-		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK)
+		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK),
+		.status = true,
+		.crypt = true
 	};
 
 	if(fileinfo->filesize >= PSIZE_BLOCK && read_headname(fileinfo->filehandle))
 	{
 		hblock_t->crypt = false;
 		fileinfo->filesize -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
+		api::SetPointOff(fileinfo->filehandle, fileinfo->filesize, FILE_BEGIN);
+		api::ReadFile(fileinfo->filehandle, hblock_t->pblock, PSIZE_BLOCK, NULL);
+		api::SetPoint(fileinfo->filehandle, FILE_BEGIN);
+		offset = HPSIZE_BLOCK;
+ 		ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
+ 		ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
+		ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
+		BYTE hash[32];
+		sha256(hblock_t->pblock, HPSIZE_BLOCK, hash);
+		if(!memory::memcmp(&hblock_t->pblock[offset + 40], hash, 32))
+		{
+			LOG_ERROR("[init_mdata_hblock] hash metadata invalid");
+			hblock_t->status = false;
+		}
 	}
 	else
 	{
- 		hblock_t->crypt = true;
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE, &offset);
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN, &offset);
  		memcpy_offset(&hblock_t->pblock[offset], fileinfo->crypt_info->name, memory::StrLen(fileinfo->crypt_info->name), &offset);
@@ -1100,16 +1113,13 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 		RAND_bytes(&hblock_t->pblock[offset], PSIZE_BLOCK - offset);
 #endif
  		offset = HPSIZE_BLOCK;
- 		ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset], 256, 64);
+ 		ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
  		ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
-
-		/*	ADD HASH HBLOCK	*/
-
-		//fileinfo->crypt_info->gen_key_method(fileinfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
-		//ECRYPT_encrypt_bytes((laced_ctx*)fileinfo->ctx, hblock_t->pblock, hblock_t->pblock, PSIZE_BLOCK);
-
+		offset += 40;
+		sha256(hblock_t->pblock, HPSIZE_BLOCK, &hblock_t->pblock[offset]);
+		ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
 	}
-	
+
 	return hblock_t;
 }
 
@@ -1537,16 +1547,12 @@ char* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
 	if(false)
 	{
 		size_t lenf = memory::StrLen(data->Filename);
-		if((lenf + 5) > MAX_PATH)
-		{
-			LOG_ERROR("[NameMethodState] Failed; filename too long; " log_str, data->Filename);
-			return NULL;
-		}
 		char* swp_name = (char*)memory::m_malloc(MAX_PATH + len_path);
-		memcpy(swp_name, data->Path, len_path);
-		memcpy(&swp_name[len_path], slash, 1);
-		memcpy(&swp_name[len_path + 1], data->Filename, lenf);
-		memcpy(&swp_name[len_path + 1 + lenf], ".swp", 4);
+		size_t offset = 0;
+		memcpy_offset(swp_name, data->Path, len_path, &offset);
+		memcpy_offset(swp_name, slash, 1, &offset);
+		memcpy_offset(swp_name, data->Filename, lenf, &offset);
+		memcpy_offset(swp_name, ".swp", 4, &offset);
 		return swp_name;
 	}
 	

