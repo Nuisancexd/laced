@@ -1050,7 +1050,6 @@ void filesystem::write_metadata(PFILE_INFO fileinfo)
 {
 	api::SetPoint(fileinfo->recent_filehandle, FILE_END);
 	api::WriteFile(fileinfo->recent_filehandle, fileinfo->hblock->pblock, PSIZE_BLOCK, NULL);
-	api::WriteFile(fileinfo->recent_filehandle, ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN, NULL);
 }
 
 void filesystem::delete_metadata(DESC filehandle, size_t* filesize)
@@ -1086,7 +1085,7 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 	if(fileinfo->filesize >= PSIZE_BLOCK && read_headname(fileinfo->filehandle))
 	{
 		hblock_t->crypt = false;
-		fileinfo->filesize -= PSIZE_BLOCK + ECRYPT_NAMEHEAD_LEN;
+		fileinfo->filesize -= PSIZE_BLOCK;
 		api::SetPointOff(fileinfo->filehandle, fileinfo->filesize, FILE_BEGIN);
 		api::ReadFile(fileinfo->filehandle, hblock_t->pblock, PSIZE_BLOCK, NULL);
 		api::SetPoint(fileinfo->filehandle, FILE_BEGIN);
@@ -1112,6 +1111,7 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 #else
 		RAND_bytes(&hblock_t->pblock[offset], PSIZE_BLOCK - offset);
 #endif
+		memcpy(&hblock_t->pblock[PSIZE_BLOCK - ECRYPT_NAMEHEAD_LEN], ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN);
  		offset = HPSIZE_BLOCK;
  		ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
  		ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
@@ -1412,7 +1412,7 @@ end:
 	return success;
 }
 
-char* filesystem::OptionNameStandart(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath)
+char* filesystem::OptionNameStandart(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
 	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
@@ -1428,7 +1428,7 @@ char* filesystem::OptionNameStandart(PCRYPT_INFO CryptInfo, char* Path, char* Fi
 	return name;
 }
 
-char* filesystem::OptionNameHash(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath)
+char* filesystem::OptionNameHash(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
 	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
@@ -1448,36 +1448,10 @@ char* filesystem::OptionNameHash(PCRYPT_INFO CryptInfo, char* Path, char* Filena
 	return name;
 }
 
-static char* base_name_encode(PCRYPT_INFO CryptInfo, char* filename, size_t len_filename, char* exst, bool mode_encr)
-{
-	char* cpy_flname = (char*)memory::m_malloc(len_filename + 1);
-	memcpy(cpy_flname, filename, len_filename);
-	crypto_aes_ctx ctx;
-	u32 padding = 0;
-	MODE_AES mode = mode_encr == 1 ? AES_DECRYPT_NO_PADDING : AES_CRYPT_NO_PADDING;
-	
-	if((CryptoPolicy::RSA == GLOBAL_ENUM.g_EncryptMethod 
-		|| CryptoPolicy::RSA_AES256 == GLOBAL_ENUM.g_EncryptMethod
-		|| CryptoPolicy::RSA_CHACHA == GLOBAL_ENUM.g_EncryptMethod)
-		&& CryptInfo->desc.key_data != NULL)
-		{
-			BYTE key[32] = {0};
-			memcpy(key, CryptInfo->desc.key_data, 32);
-			aes_expandkey(&ctx, key);
-		}
-	else
-		aes_expandkey(&ctx, GLOBAL_KEYS.g_Key);
-	aes_encrypt_blocks(&ctx, (BYTE*)filename, (BYTE*)cpy_flname, len_filename, &padding, mode);
-	memory::memzero_explicit(&ctx, sizeof(ctx));
-	
-	return cpy_flname;
-}
-
-char* filesystem::OptionNameBase(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath)
+char* filesystem::OptionNameBase(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
-	//char* name = (char*)memory::m_malloc(MAX_PATH + 1);
-	char* name = NULL;
+	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
 
 	if (memory::StrStrC(exst, ECRYPT_NAME_P))
 	{
@@ -1490,41 +1464,37 @@ char* filesystem::OptionNameBase(PCRYPT_INFO CryptInfo, char* Path, char* Filena
 		{
 			LOG_ERROR("[OptionNameBase] Failed; %s", Filename);
 			memory::m_free(name);
-			return OptionNameStandart(CryptInfo, Path, Filename, exst, FPath);
+			return OptionNameStandart(fileinfo, Filename, exst, FPath);
 		}
-		if(false) 
-			name = base_name_encode(CryptInfo, decoded, bsize, exst, true);
-		else
-		{
-			name = (char*)memory::m_malloc(MAX_PATH + 1);
-			memcpy(name, decoded, bsize);
-		}
+		memcpy(name, decoded, bsize);
+		if(GLOBAL_ENUM.g_CryptName == NAME::BASE64_NAME_CRYPT)
+			ECRYPT_encrypt_bytes((laced_ctx*)fileinfo->hblock->ctx, (BYTE*)name, (BYTE*)name, bsize);
 	}
 	else
 	{
-		char* ptr_file = Filename;
-		if(false)
+		const char* ptr = Filename;
+		if(GLOBAL_ENUM.g_CryptName == NAME::BASE64_NAME_CRYPT)
 		{
-			ptr_file = base_name_encode(CryptInfo, Filename, len_filename, exst, false);
-			len_filename = memory::StrLen(ptr_file);
+			ECRYPT_encrypt_bytes((laced_ctx*)fileinfo->hblock->ctx, (BYTE*)Filename, (BYTE*)name, len_filename);
+			ptr = name;
 		}
 		char encoded[MAX_PATH + MAX_PATH];
 		int bsize = 0;
 		if (!base64::base64(BASE_E::ENCODE,
-			(const BYTE*)ptr_file,
+			(const BYTE*)ptr,
 			(int)len_filename,
 			encoded, &bsize))
 		{
-			LOG_ERROR("[OptionNameBase] Failed; %s; trying name_standart", ptr_file);
-			return OptionNameStandart(CryptInfo, Path, Filename, exst, FPath);
+			LOG_ERROR("[OptionNameBase] Failed; %s; trying name_standart", Filename);
+			return OptionNameStandart(fileinfo, Filename, exst, FPath);
 		}
 
 		if (bsize > MAX_PATH)
 		{
-			LOG_ERROR("[OptionNameBase] Failed; ENAME TOO LONG; %s; trying name_standart", ptr_file);
-			return OptionNameStandart(CryptInfo, Path, Filename, exst, FPath);
+			LOG_ERROR("[OptionNameBase] Failed; ENAME TOO LONG; %s; trying name_standart", Filename);
+			return OptionNameStandart(fileinfo, Filename, exst, FPath);
 		}
-		name = (char*)memory::m_malloc(MAX_PATH + 1);
+		memory::memzero_explicit(name, MAX_PATH + 1);
 		memcpy(name, encoded, bsize);
 		memcpy(&name[bsize], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	}
@@ -1534,7 +1504,7 @@ char* filesystem::OptionNameBase(PCRYPT_INFO CryptInfo, char* Path, char* Filena
 }
 
 
-char* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
+char* filesystem::NameMethodState(PFILE_INFO fileinfo, PDRIVE_INFO data)
 {
 	size_t len_path = memory::StrLen(data->Path);
 	size_t len_FPath = memory::StrLen(data->FullPath);
@@ -1556,7 +1526,7 @@ char* filesystem::NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data)
 		return swp_name;
 	}
 	
-	char* name = CryptInfo->name_method(CryptInfo, data->Path, data->Filename, data->Exst, data->FullPath);
+	char* name = fileinfo->crypt_info->name_method(fileinfo, data->Filename, data->Exst, data->FullPath);
 	if(name == NULL || memory::StrLen(name) > MAX_PATH)
 	{
 		LOG_ERROR("[NameMethodState] Failed; filename too long; " log_str, data->Filename);

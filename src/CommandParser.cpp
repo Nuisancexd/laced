@@ -78,10 +78,10 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -hf / --hashfile   Only output the file hash sum.\n"
            "[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n"
            "                        first specify the public key, followed by the private key, separating them with the '$'/'$$' symbol.\n"
-           "[*]  -n / --name        Encrypt FILENAME with: (default: false)\n"
-           "                        hash -- hash Irrevocably Hash FILENAME with sha256. (default: false)\n"
-           "                        base -- encrypt FILENAME with Base64. (default: false)\n"
-           "                        cbase -- chacha20\n"
+           "[*]  -n / --name        Encrypt FILENAME. (default: none)\n"
+           "                        hash -- hash Irrevocably Hash FILENAME with sha256.\n"
+           "                        base -- encrypt FILENAME with Base64.\n"
+           "                        enbase -- encrypt FILENAME with chacha->Base64\n"
            "[*]  -m / --mode        Select the encryption mode. (default: FULL_ENCRYPT)\n"
            "                        a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n"
            "                        f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n"
@@ -437,6 +437,8 @@ void CommandParser::ParsingCommandLine()
             GLOBAL_ENUM.g_CryptName = NAME::HASH_NAME;
         else if (memory::StrStrC(pair.second, "base"))
         { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME; BASE64 = true; }
+        else if (memory::StrStrC(pair.second, "enbase"))
+        { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME_CRYPT; BASE64 = true; }
     }
 
     pair = GetCommandsNext(argc, argv, "-m", "--mode");

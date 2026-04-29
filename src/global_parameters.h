@@ -48,7 +48,8 @@ enum class NAME
 {
 	NONE = 0,
 	BASE64_NAME = 17,
-	HASH_NAME = 18
+	BASE64_NAME_CRYPT = 18,
+	HASH_NAME = 19
 };
 
 enum overwrite

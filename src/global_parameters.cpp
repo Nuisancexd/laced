@@ -130,6 +130,9 @@ BOOL global::print_command_g()
 	case NAME::BASE64_NAME:
 		print_kv("name:","BASE64_NAME");
 		break;
+	case NAME::BASE64_NAME_CRYPT:
+		print_kv("name:","BASE64_NAME_CRYPT");
+		break;
 	case NAME::HASH_NAME:
 		print_kv("name:", "HASH_NAME");
 		break;

