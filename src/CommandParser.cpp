@@ -51,15 +51,6 @@ VOID CommandParser::CommandLineHelper()
     printf("%s\n\n", std::string(120, '-').c_str());
 
     /*
-
-    printf(" __           ___       ______  _______  _______\n");
-    printf("|  |         /   \\     /      ||   ____||       \\\n");
-    printf("|  |        /  ^  \\   |  ,----'|  |__   |  .--.  |\n");
-    printf("|  |       /  /_\\  \\  |  |     |   __|  |  |  |  |\n");
-    printf("|  `----. /  _____  \\ |  `----.|  |____ |  '--'  |\n");
-    printf("|_______|/__/     \\__\\ \\______||_______||_______/\n");
-
-
      __           ___      ______  _______  _______
     |  |         /   \    /      ||   ____||       \
     |  |        /  ^  \  |  ,----'|  |__   |  .--.  |
@@ -489,7 +480,7 @@ void CommandParser::ParsingCommandLine()
 
         auto funcKey = ([this, &argument]
             {
-                std::pair<bool, char*> pair = GetCommandsN(argc, argument, "-k", "--key");
+                std::pair<bool, char*> pair = GetCommandsNext(argc, argv, "-k", "--key");
                 if (!pair.first) { LOG_ERROR("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
                 auto pair_sign = GetCommandsC(argc, argument, "-s", "--sign");
                 if (pair_sign.first)

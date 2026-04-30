@@ -521,7 +521,7 @@ bool filesystem::ReadRSAFile
 		))
 		{
 			LOG_ERROR("[ReadRSAFile] [BCryptImportKeyPair] Failed");
-			LOG_INFO("[ReadRSAFile] if key in format Base64 - check flag -B64");
+			LOG_INFO("[ReadRSAFile] if key in format Base64 - check flag -b64");
 			goto END;
 		}
 	}
@@ -891,7 +891,7 @@ static BYTE* ReadEncryptInfo
 
 #ifdef _WIN32
 	LARGE_INTEGER Offset;
-	Offset.QuadPart = -4;
+	Offset.QuadPart = -(4 + PSIZE_BLOCK);
 
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_END)
 		|| !ReadFile(handle, ReadInfo, 4, NULL, NULL))
@@ -923,7 +923,7 @@ static BYTE* ReadEncryptInfo
 	}
 	BYTE* read_key = (BYTE*)memory::m_malloc(size_bit);
 #ifdef _WIN32
-	Offset.QuadPart = -(size_bit + 4);
+	Offset.QuadPart = -(size_bit + 4 + PSIZE_BLOCK);
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_END)
 		|| !ReadFile(handle, read_key, size_bit, NULL, NULL))
 	{
@@ -1090,9 +1090,12 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 		api::ReadFile(fileinfo->filehandle, hblock_t->pblock, PSIZE_BLOCK, NULL);
 		api::SetPoint(fileinfo->filehandle, FILE_BEGIN);
 		offset = HPSIZE_BLOCK;
- 		ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
- 		ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
-		ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
+ 		if(GLOBAL_KEYS.g_Key)
+		{
+			ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
+ 			ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
+			ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
+		}
 		BYTE hash[32];
 		sha256(hblock_t->pblock, HPSIZE_BLOCK, hash);
 		if(!memory::memcmp(&hblock_t->pblock[offset + 40], hash, 32))
@@ -1113,11 +1116,13 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 #endif
 		memcpy(&hblock_t->pblock[PSIZE_BLOCK - ECRYPT_NAMEHEAD_LEN], ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN);
  		offset = HPSIZE_BLOCK;
- 		ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
- 		ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
-		offset += 40;
-		sha256(hblock_t->pblock, HPSIZE_BLOCK, &hblock_t->pblock[offset]);
-		ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
+		sha256(hblock_t->pblock, HPSIZE_BLOCK, &hblock_t->pblock[offset + 40]);
+		if(GLOBAL_KEYS.g_Key)
+		{
+			ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
+ 		 	ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
+			ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
+		}
 	}
 
 	return hblock_t;
