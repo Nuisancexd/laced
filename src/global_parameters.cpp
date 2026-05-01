@@ -207,6 +207,7 @@ BOOL global::print_command_g()
 		print_kv("","THREAD");
 	if (CommandParser::PIPELINE)
 		print_kv("", "PIPELINE");
+	CommandParser::NOMETA ? print_kv("", "NOMETADATA") : print_kv("", "METADATA");
 
 end:
 	if(CommandParser::NOUT)

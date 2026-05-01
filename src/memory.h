@@ -32,4 +32,11 @@ namespace memory
 	unsigned char* BinaryToHex(unsigned char* src, size_t size);
 	unsigned char* HexToBinary(const char* hexStr, size_t hexSize);
 	VOID memzero_explicit(volatile VOID* ptr, size_t size_of_ptr);
+
+	constexpr size_t cStrLen(const char* str) 
+	{
+        size_t Length = 0;
+        while (*str++) ++Length;
+        return Length;
+    }
 }

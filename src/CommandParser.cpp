@@ -8,6 +8,7 @@
 #include "network/port_scanner.h"
 #endif
 #include <string>
+#include <array>
 
 VOID CommandParser::subCommandHelper()
 {
@@ -66,6 +67,7 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -o / --out         Path to directory for encrypted files. (default: false)\n"
            "[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n"
            "                        '--path' followed by the path to the configuration.\n"
+           "[*]  -nm / --no-meta    Disable metadata block. (default: false)\n"
            "[*]  -hf / --hashfile   Only output the file hash sum.\n"
            "[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n"
            "                        first specify the public key, followed by the private key, separating them with the '$'/'$$' symbol.\n"
@@ -90,7 +92,7 @@ VOID CommandParser::CommandLineHelper()
            "                        rsa_aes   -- HYBRID: uses RSA and AES256 CBE encryption.\n"
            "                        rsa       -- RSA_ONLY: uses only RSA encryption.\n"
            "                                     Type:(for aes&rsa) crypt or decrypt. This is a required field. (default: null)\n"
-           "[*] -wi / --writein     overwrite in source file with risk. (default: false)\n"
+           "[*] -wi / --writein     overwrite in source file. (default: false)\n"
            "[*] -t / --throttling   select sleep time beetwen process blocks. (default: base(0ms))\n"
            "                        fast      -- fast    encr (sleep 5ms)\n"
            "                        slow      -- slowly  encr (sleep 15ms)\n"
@@ -138,6 +140,7 @@ bool CommandParser::signature = false;
 bool CommandParser::PIPELINE = false;
 bool CommandParser::HASH_FILE = false;
 bool CommandParser::PPATH = false;
+bool CommandParser::NOMETA = false;
 
 
 #ifdef __linux__
@@ -242,27 +245,65 @@ std::pair<bool, char*> CommandParser::GetCommandsNext(int argc, char* argv[], co
 #define GetCommandsC(argc, argv, fstr, sstr) CommandParser::GetCommandsCurr(argc, argv, fstr, sstr)
 #define GetCommandsN(argc, argv, fstr, sstr) CommandParser::GetCommandsNext(argc, argv, fstr, sstr)
 
+struct flags
+{
+    const char* name;
+    bool* flag;
+};
+
+void CommandParser::commands_state(int* argumentc, char** argument)
+{
+    flags list[]
+    {
+        {"-nl",         &NO_LOG},
+        {"--nolog",     &NO_LOG},
+        {"-no",         &NOUT},
+        {"--nout",      &NOUT},
+        {"-nm",         &NOMETA},
+        {"--no-meta",   &NOMETA},
+        {"-wi",         &GLOBAL_STATE.g_write_in},
+        {"--writein",   &GLOBAL_STATE.g_write_in},
+        {"-hs",         &GLOBAL_STATE.g_print_hash},
+        {"--hashsum",   &GLOBAL_STATE.g_print_hash},
+        {"-d",          &GLOBAL_STATE.g_FlagDelete},
+        {"--delete",    &GLOBAL_STATE.g_FlagDelete},
+        {"-et",         &THREAD_ENABLE},
+        {"--en_thread", &THREAD_ENABLE},
+    };
+
+    constexpr size_t count = sizeof(list) / sizeof(list[0]);
+    auto list_size = [&] 
+    {
+        std::array<size_t, count> tmp;
+        for(int i = 0; i < count; ++i)
+            tmp[i] = memory::cStrLen(list[i].name);
+        return tmp;
+    }();
+
+    int index_ptr = 0;
+    bool flag;
+    for (int i = 0; i < *argumentc; ++i, flag = false)
+    {
+        size_t len = memory::StrLen(argument[i]);
+        for(int j = 0; j < count; ++j)
+        {
+            if (len == list_size[j] && memory::memcmp(argument[i], list[j].name, list_size[j]))
+            {
+                *list[j].flag = true;
+                flag = true;
+                break;
+            }
+        }
+        if(!flag)
+            argument[index_ptr++] = argument[i];
+    }
+    *argumentc = index_ptr;
+}
 
 void CommandParser::ParsingCommandLine()
 {
     if (!argv || argc <= 1)
         subCommandHelper();
-
-    char** argument = NULL;
-
-#ifdef _WIN32
-    WCHAR** wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    
-    argument = (char**)memory::m_malloc((argc + 1) * sizeof(char*));
-    for(int i = 0; i < argc; ++i)
-    {
-        argument[i] = api::wchar_to_utf8(wargv[i], memory::StrLen(wargv[i]));
-    }
-    argument[argc] = NULL;
-    LocalFree(wargv);
-#else
-    argument = argv;
-#endif
 
     std::pair<bool, char*> pair;
     pair = GetCommandsCurr(argc, argv, "-h", "--help");
@@ -279,18 +320,22 @@ void CommandParser::ParsingCommandLine()
         }
         argv = pair_c.second;
         argc = pair_c.first;
-        argument = argv;
         config = true;
     }
 
-    pair = GetCommandsCurr(argc, argv, "-nl", "--nolog");
-    if(pair.first) NO_LOG = true;
-    pair = GetCommandsCurr(argc, argv, "-no", "--nout");
-    if(pair.first) NOUT = true;
+    int argumentc = argc;
+    char** argument = (char**)memory::m_malloc((argc + 1) * sizeof(char*));
+    for(int i = 0; i < argc; ++i)
+        argument[i] = argv[i];
+    argument[argc] = NULL;
+
+    commands_state(&argumentc, argument);
+    //for(int i = 0; i < argumentc; ++i)
+        //LOG_INFO("%s", argument[i]);
 
     {
         std::pair<bool, char*> pp;        
-        auto p = GetCommandsN(argc, argument, "-p", "--path");
+        auto p = GetCommandsN(argumentc, argument, "-p", "--path");
         if (p.first)
         {
             size_t len = memory::StrLen(p.second);
@@ -303,7 +348,7 @@ void CommandParser::ParsingCommandLine()
         else
         {
             char* locale = (char*)memory::m_malloc(MAX_PATH);
-            if((pp = GetCommandsN(argc, argument, "-pp", "--ppath")).first)
+            if((pp = GetCommandsN(argc, argv, "-pp", "--ppath")).first)
             {
                 size_t len = memory::StrLen(pp.second);
                 if(len > MAX_PATH)
@@ -322,7 +367,7 @@ void CommandParser::ParsingCommandLine()
             }
         }
 
-        p = GetCommandsN(argc, argument, "-o", "--out");
+        p = GetCommandsN(argc, argv, "-o", "--out");
         if(p.first)
         {
             char* outpath = (char*)memory::m_malloc(MAX_PATH);
@@ -330,9 +375,6 @@ void CommandParser::ParsingCommandLine()
             GLOBAL_PATH.g_Path_out = outpath;
         }
     }
-
-    pair = GetCommandsCurr(argc, argv, "-wi", "--writein");
-    if(pair.first) GLOBAL_STATE.g_write_in = true;
 
     pair = GetCommandsNext(argc, argv, "-t", "--throttling");
     if(pair.first) 
@@ -478,15 +520,15 @@ void CommandParser::ParsingCommandLine()
                 }
             });
 
-        auto funcKey = ([this, &argument]
+        auto funcKey = ([this]
             {
                 std::pair<bool, char*> pair = GetCommandsNext(argc, argv, "-k", "--key");
                 if (!pair.first) { LOG_ERROR("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
-                auto pair_sign = GetCommandsC(argc, argument, "-s", "--sign");
+                auto pair_sign = GetCommandsC(argc, argv, "-s", "--sign");
                 if (pair_sign.first)
                 {
                     signature = true;
-                    pair_sign = GetCommandsN(argc, argument, "$", "$$");
+                    pair_sign = GetCommandsN(argc, argv, "$", "$$");
                     if (!pair_sign.first)
                     {
                         LOG_ERROR("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
@@ -603,15 +645,6 @@ void CommandParser::ParsingCommandLine()
     }
     else { LOG_ERROR("[ParsingCommandLine] Miss the command --algo"); exit(1); }
 
-    pair = GetCommandsCurr(argc, argv, "-hs", "--hashsum");
-    if (pair.first) GLOBAL_STATE.g_print_hash = true;
-
-    pair = GetCommandsCurr(argc, argv, "-d", "--delete");
-    if (pair.first) GLOBAL_STATE.g_FlagDelete = true;
-
-    pair = GetCommandsCurr(argc, argv, "-et", "--en_thread");
-    if (pair.first)THREAD_ENABLE = TRUE;
-
     pair = GetCommandsCurr(argc, argv, "-pl", "--pipeline");
     if(pair.first) 
     {
@@ -619,29 +652,24 @@ void CommandParser::ParsingCommandLine()
         PIPELINE = true;
     }
 
-        if (config)
+    if (config)
+    {
+        for (int i = 0; i < argc; ++i)
         {
-            for (int i = 0; i < argc; ++i)
-            {
-                memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-                memory::m_free(argv[i]);
-#ifdef _WIN32
-                memory::m_free(argument[i]);
-#endif
-            }
+            memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
+            memory::m_free(argv[i]);
+        }
         memory::m_free(argv);
-#ifdef _WIN32
+    }
+    else
+    {
+        for (int i = 0; i < argc; ++i)
+        memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
         memory::m_free(argument);
-#endif
-        }
-        else
-        {
-            for (int i = 0; i < argc; ++i)
-                memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-            /*char* ptr_start = argv[0];
-            char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
-            memory::memzero_explicit(argv, ptr_end - ptr_start);*/
-        }
+        /*char* ptr_start = argv[0];
+        char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
+        memory::memzero_explicit(argv, ptr_end - ptr_start);*/   
+    }
 
     logs::call_log();
 }

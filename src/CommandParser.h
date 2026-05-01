@@ -17,6 +17,7 @@ extern bool HASH_FILE;
 extern bool NO_LOG;
 extern bool NOUT;
 extern bool PPATH;
+extern bool NOMETA;
 
 
 class FileParser
@@ -82,6 +83,8 @@ private:
     VOID subCommandHelper();
     VOID CommandLineHelper();
 
+    void commands_state(int* argumentc, char** argument);
+
     static CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name);
     static CHAR* GetCommandLineArgChCurr(int argc, CHAR** argv, const CHAR* argv_name);
     static WCHAR* GetCommandLineArg(int argc, WCHAR** argv, const WCHAR* argv_name);
@@ -122,7 +125,7 @@ public:
     static bool PIPELINE;
     static bool HASH_FILE;
     static bool PPATH;
-
+    static bool NOMETA;
 };
 
 #endif

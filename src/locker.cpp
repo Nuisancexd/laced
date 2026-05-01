@@ -14,7 +14,6 @@
 #include "CommandParser.h"
 
 
-static bool isCrypt = false;
 constexpr unsigned MB = 1048576;
 
 void aes_block_fn(PFILE_INFO FileInfo, crypto_aes_ctx* ctx, u32* padding, BYTE* in, BYTE* out, u32 bytes)
@@ -382,8 +381,6 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 			return TRUE;
 	}
 
-	if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT) isCrypt = true;
-
 	switch (GLOBAL_ENUM.g_EncryptMode)
 	{
 	case EncryptModes::FULL_ENCRYPT:
@@ -514,7 +511,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
-	if(success)
+	if(success && !CommandParser::NOMETA)
 		FileInfo->hblock->crypt ? 
 			filesystem::write_metadata(FileInfo)
 			:
@@ -568,8 +565,8 @@ bool locker::HandlerCrypt
 		CryptInfo->hash_sum_method
 		(
 			CryptInfo,
-			isCrypt ? FileInfo.filehandle : FileInfo.recent_filehandle,
-			isCrypt ? FileInfo.filename : FileInfo.recent_filename,
+			FileInfo.hblock->crypt ? FileInfo.filehandle : FileInfo.recent_filehandle,
+			FileInfo.hblock->crypt ? FileInfo.filename : FileInfo.recent_filename,
 			NULL
 		));
 

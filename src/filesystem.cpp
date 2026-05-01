@@ -1082,6 +1082,12 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 		.crypt = true
 	};
 
+	if(CommandParser::NOMETA)
+	{
+		GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT ? hblock_t->crypt = true : hblock_t->crypt = false;
+		return hblock_t;
+	}
+
 	if(fileinfo->filesize >= PSIZE_BLOCK && read_headname(fileinfo->filehandle))
 	{
 		hblock_t->crypt = false;
