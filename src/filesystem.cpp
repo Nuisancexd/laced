@@ -615,8 +615,7 @@ bool filesystem::EncryptRSA
 
 	size_t size = 0;
 	DWORD dwDataLen = 0;
-	BYTE* FileBuffer = NULL;
-	FileBuffer = (BYTE*)memory::m_malloc(FileInfo->crypt_info->desc.size);
+	BYTE* FileBuffer = (BYTE*)memory::m_malloc(FileInfo->crypt_info->desc.size);
 	BYTE* Buffer = NULL;
 	if (!api::ReadFile(FileInfo->filehandle, FileBuffer, FileInfo->filesize, &size) || FileInfo->filesize != size)
 	{
@@ -699,7 +698,7 @@ bool filesystem::EncryptRSA
 	}
 #endif
 
-
+	FileInfo->filesize = size;
 	success = TRUE;
 
 END:
@@ -901,7 +900,7 @@ static BYTE* ReadEncryptInfo
 	}
 #else
 	unsigned read;
-	if (!api::SetPointOff(handle, -4, SEEK_END)
+	if (!api::SetPointOff(handle, -(4 + PSIZE_BLOCK), SEEK_END)
 		|| !api::ReadFile(handle, ReadInfo, 4, &read))
 	{
 		LOG_ERROR("[ReadEncryptInfo] Failed to read file info");
@@ -934,7 +933,7 @@ static BYTE* ReadEncryptInfo
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_BEGIN))
 		return NULL;
 #else
-	if (!api::SetPointOff(handle, -(size_bit + 4), SEEK_END)
+	if (!api::SetPointOff(handle, -(size_bit + 4 + PSIZE_BLOCK), SEEK_END)
 		|| !api::ReadFile(handle, read_key, size_bit, &read)
 		|| !api::SetPoint(handle, SEEK_SET))
 	{

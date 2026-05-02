@@ -225,7 +225,6 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	char time_b[64];
 	time_t now = time(NULL);
 	struct tm* lt = localtime(&now);
-	int written = 0;
 	int TimeSize = sprintf(time_b,
 		"[%04d-%02d-%02d %02d:%02d:%02d]\t",
 		lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
@@ -236,11 +235,10 @@ VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 	GetLocalTime(&st);
 	INT TimeSize = sprintf(time_b, "[%04d-%02d-%02d %02d:%02d:%02d]\t",
 		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-	size_t written = 0;
 #endif
-
-	api::WriteFile(g_LogHandle, time_b, TimeSize, &written);
-	api::WriteFile(g_LogHandle, (CONST CHAR*)LogLevelStr[size_log], LogSizeStr, &written);
-	api::WriteFile(g_LogHandle, Buffer, size, &written);
-	api::WriteFile(g_LogHandle, crlf, 2, &written);
+	
+	api::WriteFile(g_LogHandle, time_b, TimeSize, NULL);
+	api::WriteFile(g_LogHandle, (CONST CHAR*)LogLevelStr[size_log], LogSizeStr, NULL);
+	api::WriteFile(g_LogHandle, Buffer, size, NULL);
+	api::WriteFile(g_LogHandle, crlf, 2, NULL);
 }

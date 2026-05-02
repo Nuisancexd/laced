@@ -282,9 +282,10 @@ void CommandParser::commands_state(int* argumentc, char** argument)
 
     int index_ptr = 0;
     bool flag;
+    size_t len;
     for (int i = 0; i < *argumentc; ++i, flag = false)
     {
-        size_t len = memory::StrLen(argument[i]);
+        len = memory::StrLen(argument[i]);
         for(int j = 0; j < count; ++j)
         {
             if (len == list_size[j] && memory::memcmp(argument[i], list[j].name, list_size[j]))
@@ -323,19 +324,13 @@ void CommandParser::ParsingCommandLine()
         config = true;
     }
 
-    int argumentc = argc;
-    char** argument = (char**)memory::m_malloc((argc + 1) * sizeof(char*));
-    for(int i = 0; i < argc; ++i)
-        argument[i] = argv[i];
-    argument[argc] = NULL;
-
-    commands_state(&argumentc, argument);
-    //for(int i = 0; i < argumentc; ++i)
-        //LOG_INFO("%s", argument[i]);
+    commands_state(&argc, argv);
+//    for(int i = 0; i < argc; ++i)
+//        LOG_INFO("%s", argv[i]);
 
     {
         std::pair<bool, char*> pp;        
-        auto p = GetCommandsN(argumentc, argument, "-p", "--path");
+        auto p = GetCommandsN(argc, argv, "-p", "--path");
         if (p.first)
         {
             size_t len = memory::StrLen(p.second);
@@ -664,13 +659,14 @@ void CommandParser::ParsingCommandLine()
     else
     {
         for (int i = 0; i < argc; ++i)
-        memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-        memory::m_free(argument);
+            memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
         /*char* ptr_start = argv[0];
         char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
         memory::memzero_explicit(argv, ptr_end - ptr_start);*/   
     }
 
+    if(BASE64)
+        base64::init_table_base64_decode();
     logs::call_log();
 }
 

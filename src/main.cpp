@@ -127,6 +127,7 @@ void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
         data->FullPath,
         data->Filename
     );
+    PathSystem::free_driveinfo_st(data);
 }
 
 void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)

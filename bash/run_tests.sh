@@ -121,7 +121,7 @@ function writein
 function RSA()
 {
     clean
-    echo "yes" | ../src/laced "${args_po[@]}" -al rsa -k $pub_key crypt -c file
+    echo "yes" | ../src/laced "${args_po[@]}" -al rsa -k $pub_key crypt -c file 
     echo "yes" | ../src/laced "${args_poc[@]}" -al rsa -k $prv_key decrypt
     check_diff RSA
 
@@ -132,12 +132,12 @@ function RSA()
 
 chacha
 aes
-#RSA
+RSA
 
 printf "\ntype any key"
 read -e
 
-clean "$path_k"
+#clean "$path_k"
 rm -f "$path/signature.laced.bin"
 rm -f "$file_source"
 rm -f "$path/hash.bin"

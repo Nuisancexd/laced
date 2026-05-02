@@ -101,10 +101,6 @@ public:
     CommandParser(int argc_, char** argv_) : argc(argc_), argv(argv_) 
     {
         ParsingCommandLine();
-        if(BASE64)
-        {
-            base64::init_table_base64_decode();
-        }
     }
     CommandParser(){};
     ~CommandParser()
