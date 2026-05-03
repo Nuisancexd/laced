@@ -662,6 +662,7 @@ bool filesystem::EncryptRSA
 		LOG_ERROR("[WriteFullData] Failed to write");
 		goto END;
 	}
+	FileInfo->filesize = dwDataLen;
 #else
 	if (g_crypt && !rsa::EncryptRSA
 	(
@@ -696,9 +697,9 @@ bool filesystem::EncryptRSA
 		LOG_ERROR("[WriteFullData] Failed to write");
 		goto END;
 	}
+	FileInfo->filesize = size;
 #endif
 
-	FileInfo->filesize = size;
 	success = TRUE;
 
 END:

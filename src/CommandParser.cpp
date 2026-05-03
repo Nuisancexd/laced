@@ -245,10 +245,6 @@ std::pair<bool, char*> CommandParser::GetCommandsNext(int argc, char* argv[], co
 #define GetCommandsC(argc, argv, fstr, sstr) CommandParser::GetCommandsCurr(argc, argv, fstr, sstr)
 #define GetCommandsN(argc, argv, fstr, sstr) CommandParser::GetCommandsNext(argc, argv, fstr, sstr)
 
-#define size_state(a, b) {a, b} 
-//#define size_state_t(a,b,c) {a, b, sizeof(a) - 1, sizeof(b) - 1, c}
-
-
 struct flags
 {
     const char* name;
