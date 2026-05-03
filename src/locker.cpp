@@ -419,6 +419,9 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		break;
 	}
 
+	if(CommandParser::BASE64)
+        base64::init_table_base64_decode();
+
 	return true;
 }
 

@@ -245,9 +245,14 @@ std::pair<bool, char*> CommandParser::GetCommandsNext(int argc, char* argv[], co
 #define GetCommandsC(argc, argv, fstr, sstr) CommandParser::GetCommandsCurr(argc, argv, fstr, sstr)
 #define GetCommandsN(argc, argv, fstr, sstr) CommandParser::GetCommandsNext(argc, argv, fstr, sstr)
 
+#define size_state(a, b) {a, b} 
+//#define size_state_t(a,b,c) {a, b, sizeof(a) - 1, sizeof(b) - 1, c}
+
+
 struct flags
 {
     const char* name;
+    int size;
     bool* flag;
 };
 
@@ -255,31 +260,23 @@ void CommandParser::commands_state(int* argumentc, char** argument)
 {
     flags list[]
     {
-        {"-nl",         &NO_LOG},
-        {"--nolog",     &NO_LOG},
-        {"-no",         &NOUT},
-        {"--nout",      &NOUT},
-        {"-nm",         &NOMETA},
-        {"--no-meta",   &NOMETA},
-        {"-wi",         &GLOBAL_STATE.g_write_in},
-        {"--writein",   &GLOBAL_STATE.g_write_in},
-        {"-hs",         &GLOBAL_STATE.g_print_hash},
-        {"--hashsum",   &GLOBAL_STATE.g_print_hash},
-        {"-d",          &GLOBAL_STATE.g_FlagDelete},
-        {"--delete",    &GLOBAL_STATE.g_FlagDelete},
-        {"-et",         &THREAD_ENABLE},
-        {"--en_thread", &THREAD_ENABLE},
+        {"-nl",        4,  &NO_LOG},
+        {"--nolog",    8,  &NO_LOG},
+        {"-no",        4,  &NOUT},
+        {"--nout",     7,  &NOUT},
+        {"-nm",        4,  &NOMETA},
+        {"--no-meta",  10, &NOMETA},
+        {"-wi",        4,  &GLOBAL_STATE.g_write_in},
+        {"--writein",  10, &GLOBAL_STATE.g_write_in},
+        {"-hs",        4,  &GLOBAL_STATE.g_print_hash},
+        {"--hashsum",  10, &GLOBAL_STATE.g_print_hash},
+        {"-d",         4,  &GLOBAL_STATE.g_FlagDelete},
+        {"--delete",   9,  &GLOBAL_STATE.g_FlagDelete},
+        {"-et",        4,  &THREAD_ENABLE},
+        {"--en_thread",12, &THREAD_ENABLE},
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
-    auto list_size = [&] 
-    {
-        std::array<size_t, count> tmp;
-        for(int i = 0; i < count; ++i)
-            tmp[i] = memory::cStrLen(list[i].name);
-        return tmp;
-    }();
-
     int index_ptr = 0;
     bool flag;
     size_t len;
@@ -288,10 +285,77 @@ void CommandParser::commands_state(int* argumentc, char** argument)
         len = memory::StrLen(argument[i]);
         for(int j = 0; j < count; ++j)
         {
-            if (len == list_size[j] && memory::memcmp(argument[i], list[j].name, list_size[j]))
+            if (len == list[j].size && memory::memcmp(argument[i], list[j].name, list[j].size))
             {
                 *list[j].flag = true;
                 flag = true;
+                break;
+            }
+        }
+        if(!flag)
+            argument[index_ptr++] = argument[i];
+    }
+    *argumentc = index_ptr;
+}
+
+struct commands
+{
+    const char* short_str;
+    const char* long_str;
+    int short_size;
+    int long_size;
+    void (*setter)(const char* value);
+};
+
+void set_throttle(const char* val)
+{
+    if (memory::StrStrC(val, "fast"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::fast;
+    else if (memory::StrStrC(val, "slow"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::minimal;
+    else if (memory::StrStrC(val, "optm"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::optimal;
+    else if (memory::StrStrC(val, "back"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::background;
+    else
+        GLOBAL_ENUM.g_throttle_time = throttle_time::base;
+}
+
+void set_name(const char* val)
+{
+    if (memory::StrStrC(val, "hash"))
+        GLOBAL_ENUM.g_CryptName = NAME::HASH_NAME;
+    else if (memory::StrStrC(val, "base"))
+    { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME; CommandParser::BASE64 = true; }
+    else if (memory::StrStrC(val, "enbase"))
+    { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME_CRYPT; CommandParser::BASE64 = true; }
+}
+
+void CommandParser::commands_state_t(int* argumentc, char** argument)
+{
+    commands list[]
+    {
+        {"-t", "--throttling", memory::cStrLen("-t"), memory::cStrLen("--throttling"), set_throttle},
+        {"-n", "--name", memory::cStrLen("-n"), memory::cStrLen("--name"), set_name},
+    };
+
+    constexpr size_t count = sizeof(list) / sizeof(list[0]);
+
+    size_t len;
+    bool flag;
+    int index_ptr = 0;
+    for(int i = 0; i < *argumentc; ++i, flag = false)
+    {
+        len = memory::StrLen(argument[i]);
+        for(int j = 0; j < count; ++j)
+        {
+            if((len == list[j].short_size && memory::memcmp(argument[i], list[j].short_str, list[j].short_size)
+             || len == list[j].long_size && memory::memcmp(argument[i], list[j].long_str, list[j].long_size))
+                && (i + 1) < *argumentc)
+            {
+                list[j].setter(argv[i + 1]);
+                flag = true;
+                ++i;
                 break;
             }
         }
@@ -325,9 +389,11 @@ void CommandParser::ParsingCommandLine()
     }
 
     commands_state(&argc, argv);
-//    for(int i = 0; i < argc; ++i)
-//        LOG_INFO("%s", argv[i]);
-
+    for(int i = 0; i < argc; ++i)
+        LOG_INFO("%s", argv[i]);
+    commands_state_t(&argc, argv);
+    for(int i = 0; i < argc; ++i)
+        LOG_SUCCESS("%s", argv[i]);
     {
         std::pair<bool, char*> pp;        
         auto p = GetCommandsN(argc, argv, "-p", "--path");
@@ -369,21 +435,6 @@ void CommandParser::ParsingCommandLine()
             memcpy(outpath, p.second, memory::StrLen(p.second));
             GLOBAL_PATH.g_Path_out = outpath;
         }
-    }
-
-    pair = GetCommandsNext(argc, argv, "-t", "--throttling");
-    if(pair.first) 
-    {
-        if (memory::StrStrC(pair.second, "fast"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::fast;
-        else if (memory::StrStrC(pair.second, "slow"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::minimal;
-        else if (memory::StrStrC(pair.second, "optm"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::optimal;
-        else if (memory::StrStrC(pair.second, "back"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::background;
-        else
-            GLOBAL_ENUM.g_throttle_time = throttle_time::base;
     }
 
     pair = GetCommandsCurr(argc, argv, "-hf", "--hashfile");
@@ -455,18 +506,6 @@ void CommandParser::ParsingCommandLine()
             if (pair.first) THREAD_ENABLE = TRUE;
             O_REWRITE = true; return;
         }
-    }
-
-
-    pair = GetCommandsNext(argc, argv, "-n", "--name");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "hash"))
-            GLOBAL_ENUM.g_CryptName = NAME::HASH_NAME;
-        else if (memory::StrStrC(pair.second, "base"))
-        { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME; BASE64 = true; }
-        else if (memory::StrStrC(pair.second, "enbase"))
-        { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME_CRYPT; BASE64 = true; }
     }
 
     pair = GetCommandsNext(argc, argv, "-m", "--mode");
@@ -665,8 +704,6 @@ void CommandParser::ParsingCommandLine()
         memory::memzero_explicit(argv, ptr_end - ptr_start);*/   
     }
 
-    if(BASE64)
-        base64::init_table_base64_decode();
     logs::call_log();
 }
 

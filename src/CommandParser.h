@@ -84,7 +84,7 @@ private:
     VOID CommandLineHelper();
 
     void commands_state(int* argumentc, char** argument);
-
+    void commands_state_t(int* argumentc, char** argument);
     static CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name);
     static CHAR* GetCommandLineArgChCurr(int argc, CHAR** argv, const CHAR* argv_name);
     static WCHAR* GetCommandLineArg(int argc, WCHAR** argv, const WCHAR* argv_name);
