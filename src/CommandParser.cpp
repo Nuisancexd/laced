@@ -252,24 +252,20 @@ struct flags
     bool* flag;
 };
 
+#define setinlist(a, b, c) {a, memory::cStrLen(a), c}, {b, memory::cStrLen(b), c}
+
 void CommandParser::commands_state(int* argumentc, char** argument)
 {
     flags list[]
     {
-        {"-nl",        4,  &NO_LOG},
-        {"--nolog",    8,  &NO_LOG},
-        {"-no",        4,  &NOUT},
-        {"--nout",     7,  &NOUT},
-        {"-nm",        4,  &NOMETA},
-        {"--no-meta",  10, &NOMETA},
-        {"-wi",        4,  &GLOBAL_STATE.g_write_in},
-        {"--writein",  10, &GLOBAL_STATE.g_write_in},
-        {"-hs",        4,  &GLOBAL_STATE.g_print_hash},
-        {"--hashsum",  10, &GLOBAL_STATE.g_print_hash},
-        {"-d",         4,  &GLOBAL_STATE.g_FlagDelete},
-        {"--delete",   9,  &GLOBAL_STATE.g_FlagDelete},
-        {"-et",        4,  &THREAD_ENABLE},
-        {"--en_thread",12, &THREAD_ENABLE},
+        setinlist("-nl", "--nolog", &NO_LOG),
+        setinlist("-no", "--nout", &NOUT),
+        setinlist("-nm", "--no-meta", &NOMETA),
+        setinlist("-wi", "--writein", &GLOBAL_STATE.g_write_in),
+        setinlist("-hs", "--hashsum", &GLOBAL_STATE.g_print_hash),
+        setinlist("-d", "--delete", &GLOBAL_STATE.g_FlagDelete),
+        setinlist("-et", "--en_thread", &THREAD_ENABLE),
+        setinlist("-hf", "--hashfile", &HASH_FILE),
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
@@ -327,12 +323,38 @@ void set_name(const char* val)
     { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME_CRYPT; CommandParser::BASE64 = true; }
 }
 
+void set_mode(const char* val)
+{
+    if (memory::StrStrC(val, "a") || memory::StrStrC(val, "auto"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::AUTO_ENCRYPT;
+    else if (memory::StrStrC(val, "f") || memory::StrStrC(val, "full"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::FULL_ENCRYPT;
+    else if (memory::StrStrC(val, "p") || memory::StrStrC(val, "part"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::PARTLY_ENCRYPT;
+    else if (memory::StrStrC(val, "h") || memory::StrStrC(val, "head"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::HEADER_ENCRYPT;
+    else if (memory::StrStrC(val, "b") || memory::StrStrC(val, "block"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::BLOCK_ENCRYPT;
+}
+
+void set_cat(const char* val)
+{
+    if (memory::StrStrC(val, "dir"))
+        GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
+    else if (memory::StrStrC(val, "indir"))
+        GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
+    else if (memory::StrStrC(val, "file"))
+        GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
+}
+
 void CommandParser::commands_state_t(int* argumentc, char** argument)
 {
     commands list[]
     {
         {"-t", "--throttling", memory::cStrLen("-t"), memory::cStrLen("--throttling"), set_throttle},
         {"-n", "--name", memory::cStrLen("-n"), memory::cStrLen("--name"), set_name},
+        {"-m", "--mode", memory::cStrLen("-m"), memory::cStrLen("--mode"), set_mode},
+        {"-c", "--cat", memory::cStrLen("-c"), memory::cStrLen("--cat"), set_cat},
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
@@ -376,22 +398,16 @@ void CommandParser::ParsingCommandLine()
         FileParser pars(argc, argv);
         std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
-        {
             LOG_ERROR("[ParseFileConfig] Failed;"); exit(1);
-        }
         argv = pair_c.second;
         argc = pair_c.first;
         config = true;
     }
 
     commands_state(&argc, argv);
-    for(int i = 0; i < argc; ++i)
-        LOG_INFO("%s", argv[i]);
     commands_state_t(&argc, argv);
-    for(int i = 0; i < argc; ++i)
-        LOG_SUCCESS("%s", argv[i]);
+    
     {
-        std::pair<bool, char*> pp;        
         auto p = GetCommandsN(argc, argv, "-p", "--path");
         if (p.first)
         {
@@ -405,12 +421,12 @@ void CommandParser::ParsingCommandLine()
         else
         {
             char* locale = (char*)memory::m_malloc(MAX_PATH);
-            if((pp = GetCommandsN(argc, argv, "-pp", "--ppath")).first)
+            if((p = GetCommandsN(argc, argv, "-pp", "--ppath")).first)
             {
-                size_t len = memory::StrLen(pp.second);
+                size_t len = memory::StrLen(p.second);
                 if(len > MAX_PATH)
                     { LOG_ERROR("len path > MAX_PATH"); exit(1); }                
-                memcpy(locale, pp.second, len);
+                memcpy(locale, p.second, len);
                 FileParser pars(locale);
                 pars.parse_paths_file(q_paths);
                 GLOBAL_PATH.g_Path = NULL;
@@ -431,26 +447,6 @@ void CommandParser::ParsingCommandLine()
             memcpy(outpath, p.second, memory::StrLen(p.second));
             GLOBAL_PATH.g_Path_out = outpath;
         }
-    }
-
-    pair = GetCommandsCurr(argc, argv, "-hf", "--hashfile");
-    if(pair.first)
-    {
-        GLOBAL_STATE.g_print_hash = true;
-        pair = GetCommandsCurr(argc, argv, "-e", "--enable");
-        if (pair.first) THREAD_ENABLE = TRUE;
-        HASH_FILE = true;
-        pair = GetCommandsNext(argc, argv, "-c", "--cat");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "dir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
-        else if (memory::StrStrC(pair.second, "indir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
-        else if (memory::StrStrC(pair.second, "file"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
-    }
-        return;
     }
 
     pair = GetCommandsCurr(argc, argv, "-b64", "--base64");
@@ -497,36 +493,7 @@ void CommandParser::ParsingCommandLine()
 
         pair = GetCommandsCurr(argc, argv, "-rw", "--rewrite");
         if (pair.first)
-        {
-            pair = GetCommandsCurr(argc, argv, "-e", "--enable");
-            if (pair.first) THREAD_ENABLE = TRUE;
             O_REWRITE = true; return;
-        }
-    }
-
-    pair = GetCommandsNext(argc, argv, "-m", "--mode");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "a") || memory::StrStrC(pair.second, "auto"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::AUTO_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "f") || memory::StrStrC(pair.second, "full"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::FULL_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "p") || memory::StrStrC(pair.second, "part"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::PARTLY_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "h") || memory::StrStrC(pair.second, "head"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::HEADER_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "b") || memory::StrStrC(pair.second, "block"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::BLOCK_ENCRYPT;
-    }
-    pair = GetCommandsNext(argc, argv, "-c", "--cat");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "dir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
-        else if (memory::StrStrC(pair.second, "indir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
-        else if (memory::StrStrC(pair.second, "file"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
     }
 
     pair = GetCommandsNext(argc, argv, "-al", "--algo");

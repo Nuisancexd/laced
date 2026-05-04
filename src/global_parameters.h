@@ -93,7 +93,7 @@ namespace global
 	{
 		bool g_write_in = false;
 		bool g_Status = false;
-		bool g_print_hash = false;
+		bool g_print_hash = true;
 		bool g_DropMode = false;
 		bool g_print_hex = false;
 		bool g_FlagDelete = false;
