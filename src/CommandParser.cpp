@@ -102,7 +102,6 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -k / --key         Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n"
            "                        For HYBRID & ASYMMETRIC: the full path to private/public RSA key.\n"
            "                        For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n"
-           "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
            "[*]  -et / --en_thread  Enable the Thread Pool. When enabled all logical CPU cores are used. (default: false)\n"
            "[*]  -nl / --nolog      Disable the log.\n"
@@ -574,7 +573,6 @@ void CommandParser::ParsingCommandLine()
                     if(key && iv)
                     {
                         GLOBAL_KEYS.g_Key = key;
-                        GLOBAL_KEYS.g_IV = iv;
                         return;
                     } else exit(0);
                 }
@@ -587,22 +585,6 @@ void CommandParser::ParsingCommandLine()
                     GLOBAL_KEYS.g_Key = key_set;
                 }
                 else { LOG_ERROR("Type -key \"...\" for are symmetrical encrypts. Size key must be beetwen 1 nad 32"); exit(0); };
-
-                CHAR* IV = GetCommandLineArgCh(argc, argv, "--iv");
-                if (IV)
-                {
-                    BYTE* ivbuff = (BYTE*)memory::m_malloc(9);
-                    memcpy(ivbuff, IV, 8);
-                    GLOBAL_KEYS.g_IV = ivbuff;
-                }
-                else
-                {
-                    unsigned chachaIV = memory::MurmurHash2A(GLOBAL_KEYS.g_Key, 32, HASHING_SEED);
-                    std::string s = std::to_string(chachaIV);
-                    BYTE* iv = (BYTE*)memory::m_malloc(9);
-                    memcpy(iv, s.c_str(), min(s.size(), size_t(8)));
-                    GLOBAL_KEYS.g_IV = iv;
-                }
             });
 
         if (memory::StrStrC(pair.second, "chacha") || memory::StrStrC(pair.second, "CHACHA"))
@@ -610,6 +592,8 @@ void CommandParser::ParsingCommandLine()
             GLOBAL_ENUM.g_Encrypt = EncryptCipher::SYMMETRIC;
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::CHACHA;
             funcKeySym();
+            if(NOMETA)
+                funcDeCrypt();    
         }
         else if (memory::StrStrC(pair.second, "aes") || memory::StrStrC(pair.second, "AES"))
         {

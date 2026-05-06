@@ -44,6 +44,7 @@ namespace locker
 	{
 		void* ctx;
 		BYTE* pblock;
+		BYTE* IV;
 		bool status;
 		bool crypt;
 	} HEAD_BLOCK, *PHEAD_BLOCK;

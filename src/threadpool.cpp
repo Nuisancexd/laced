@@ -234,7 +234,7 @@ void ThreadPipeLine::work_encrypt()
             }
 
             if (que_state->front()->file->crypt_info->gen_policy == GENKEY_EVERY_ONCE)
-		        que_state->front()->file->crypt_info->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+		        que_state->front()->file->crypt_info->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, que_state->front()->file->hblock->IV);
             que_state->front()->file->crypt_info->crypt_method(que_state->front()->file, que_state->front()->file->ctx, 
                 &que_state->front()->file->padding, data->data, data->data, data->bytes);
             

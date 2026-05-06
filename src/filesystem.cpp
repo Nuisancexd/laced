@@ -46,6 +46,7 @@ constexpr unsigned MB = 1048576;
 #define ECRYPT_NAMEHEAD_LEN 8
 #define PSIZE_BLOCK 256
 #define HPSIZE_BLOCK PSIZE_BLOCK/2
+#define IV_SIZE 8
 
 #define SET(v,w) ((v) = (w))
 
@@ -1049,7 +1050,11 @@ static bool read_headname(DESC filehandle)
 void filesystem::write_metadata(PFILE_INFO fileinfo)
 {
 	api::SetPoint(fileinfo->recent_filehandle, FILE_END);
-	api::WriteFile(fileinfo->recent_filehandle, fileinfo->hblock->pblock, PSIZE_BLOCK, NULL);
+	
+	CommandParser::NOMETA ? 
+		api::WriteFile(fileinfo->recent_filehandle, fileinfo->hblock->IV, IV_SIZE, NULL)
+		:
+	 	api::WriteFile(fileinfo->recent_filehandle, fileinfo->hblock->pblock, PSIZE_BLOCK, NULL);
 }
 
 void filesystem::delete_metadata(DESC filehandle, size_t* filesize)
@@ -1067,6 +1072,7 @@ void filesystem::free_hblock_mdata(PHEAD_BLOCK hblock_t)
 {
 	memory::memzero_free(hblock_t->pblock, 256);
 	memory::memzero_free(hblock_t->ctx, sizeof(laced_ctx));
+	memory::memzero_free(hblock_t->IV, IV_SIZE);
 	memory::m_free(hblock_t);
 }
 
@@ -1078,13 +1084,31 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 	{
 		.ctx = (laced_ctx*)memory::m_malloc(sizeof(laced_ctx)),
 		.pblock = (BYTE*)memory::m_malloc(PSIZE_BLOCK),
+		.IV = (BYTE*)memory::m_malloc(IV_SIZE),
 		.status = true,
 		.crypt = true
 	};
 
 	if(CommandParser::NOMETA)
 	{
-		GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT ? hblock_t->crypt = true : hblock_t->crypt = false;
+		if(GLOBAL_ENUM.g_DeCrypt == EncryptCipher::DECRYPT)
+		{
+			hblock_t->crypt = false;
+			fileinfo->filesize -= IV_SIZE;
+			api::SetPointOff(fileinfo->filehandle, fileinfo->filesize, FILE_BEGIN);
+			api::ReadFile(fileinfo->filehandle, hblock_t->IV, IV_SIZE, NULL);
+			api::SetPoint(fileinfo->filehandle, FILE_BEGIN);
+		}
+		else if(GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
+		{
+#ifdef _WIN32
+			BCryptGenRandom(0, hblock_t->IV, IV_SIZE, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+#else
+			RAND_bytes(hblock_t->IV, IV_SIZE);
+#endif
+		}
+		else hblock_t->status = false;
+		
 		return hblock_t;
 	}
 
@@ -1109,6 +1133,7 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 			LOG_ERROR("[init_mdata_hblock] hash metadata invalid");
 			hblock_t->status = false;
 		}
+		memcpy(hblock_t->IV, &hblock_t->pblock[HPSIZE_BLOCK + 24], 8);
 	}
 	else
 	{
@@ -1129,6 +1154,7 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
  		 	ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
 			ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
 		}
+		memcpy(hblock_t->IV, &hblock_t->pblock[HPSIZE_BLOCK + 24], 8);
 	}
 
 	return hblock_t;
