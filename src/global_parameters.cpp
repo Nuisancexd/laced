@@ -130,6 +130,9 @@ BOOL global::print_command_g()
 	case NAME::BASE64_NAME:
 		print_kv("name:","BASE64_NAME");
 		break;
+	case NAME::BASE64_NAME_CRYPT:
+		print_kv("name:","BASE64_NAME_CRYPT");
+		break;
 	case NAME::HASH_NAME:
 		print_kv("name:", "HASH_NAME");
 		break;
@@ -204,8 +207,11 @@ BOOL global::print_command_g()
 		print_kv("","THREAD");
 	if (CommandParser::PIPELINE)
 		print_kv("", "PIPELINE");
+	CommandParser::NOMETA ? print_kv("", "NOMETADATA") : print_kv("", "METADATA");
 
 end:
+	if(CommandParser::NOUT)
+		return true;
 	std::string str;
 	LOG_DISABLE("PROCEED [Y-enter/n]");
 	std::getline(std::cin, str);

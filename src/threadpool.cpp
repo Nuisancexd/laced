@@ -1,6 +1,6 @@
 #include "threadpool.h"
 #include "api.h"
-#include "filesystem.h"
+#include "filesystem/filesystem.h"
 #include "memory.h"
 #include "logs.h"
 
@@ -170,7 +170,7 @@ void ThreadPipeLine::work_read()
         {
             std::lock_guard<std::mutex> lck(mtx_state);
             {
-                locker::free_file_info(que_state->front()->file, true);
+                locker::free_file_info(que_state->front()->file, NULL, true);
                 delete que_state->front()->file;
                 auto* p = que_state->front();
                 que_state->pop();
@@ -234,7 +234,7 @@ void ThreadPipeLine::work_encrypt()
             }
 
             if (que_state->front()->file->crypt_info->gen_policy == GENKEY_EVERY_ONCE)
-		        que_state->front()->file->crypt_info->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, GLOBAL_KEYS.g_IV);
+		        que_state->front()->file->crypt_info->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, que_state->front()->file->hblock->IV);
             que_state->front()->file->crypt_info->crypt_method(que_state->front()->file, que_state->front()->file->ctx, 
                 &que_state->front()->file->padding, data->data, data->data, data->bytes);
             

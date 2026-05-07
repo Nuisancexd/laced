@@ -2,7 +2,7 @@
 #define _COMMAND_PARSER_H_
 
 #include "memory.h"
-#include "base64/base64.h"
+#include "crypto/base64/base64.h"
 #include <queue>
 #include <memory>
 
@@ -17,6 +17,7 @@ extern bool HASH_FILE;
 extern bool NO_LOG;
 extern bool NOUT;
 extern bool PPATH;
+extern bool NOMETA;
 
 
 class FileParser
@@ -82,6 +83,8 @@ private:
     VOID subCommandHelper();
     VOID CommandLineHelper();
 
+    void commands_state(int* argumentc, char** argument);
+    void commands_state_t(int* argumentc, char** argument);
     static CHAR* GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name);
     static CHAR* GetCommandLineArgChCurr(int argc, CHAR** argv, const CHAR* argv_name);
     static WCHAR* GetCommandLineArg(int argc, WCHAR** argv, const WCHAR* argv_name);
@@ -98,10 +101,6 @@ public:
     CommandParser(int argc_, char** argv_) : argc(argc_), argv(argv_) 
     {
         ParsingCommandLine();
-        if(BASE64)
-        {
-            base64::init_table_base64_decode();
-        }
     }
     CommandParser(){};
     ~CommandParser()
@@ -122,7 +121,7 @@ public:
     static bool PIPELINE;
     static bool HASH_FILE;
     static bool PPATH;
-
+    static bool NOMETA;
 };
 
 #endif

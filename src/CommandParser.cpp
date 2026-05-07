@@ -1,13 +1,14 @@
 #include "logs.h"
 #include "CommandParser.h"
-#include "filesystem.h"
-#include "rsa/rsa.h"
+#include "filesystem/filesystem.h"
+#include "crypto/rsa/rsa.h"
 #include "global_parameters.h"
 
 #ifdef __linux__
 #include "network/port_scanner.h"
 #endif
 #include <string>
+#include <array>
 
 VOID CommandParser::subCommandHelper()
 {
@@ -51,15 +52,6 @@ VOID CommandParser::CommandLineHelper()
     printf("%s\n\n", std::string(120, '-').c_str());
 
     /*
-
-    printf(" __           ___       ______  _______  _______\n");
-    printf("|  |         /   \\     /      ||   ____||       \\\n");
-    printf("|  |        /  ^  \\   |  ,----'|  |__   |  .--.  |\n");
-    printf("|  |       /  /_\\  \\  |  |     |   __|  |  |  |  |\n");
-    printf("|  `----. /  _____  \\ |  `----.|  |____ |  '--'  |\n");
-    printf("|_______|/__/     \\__\\ \\______||_______||_______/\n");
-
-
      __           ___      ______  _______  _______
     |  |         /   \    /      ||   ____||       \
     |  |        /  ^  \  |  ,----'|  |__   |  .--.  |
@@ -75,13 +67,14 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -o / --out         Path to directory for encrypted files. (default: false)\n"
            "[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n"
            "                        '--path' followed by the path to the configuration.\n"
+           "[*]  -nm / --no-meta    Disable metadata block. (default: false)\n"
            "[*]  -hf / --hashfile   Only output the file hash sum.\n"
            "[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n"
            "                        first specify the public key, followed by the private key, separating them with the '$'/'$$' symbol.\n"
-           "[*]  -n / --name        Encrypt FILENAME with: (default: false)\n"
-           "                        hash -- hash Irrevocably Hash FILENAME with sha256. (default: false)\n"
-           "                        base -- encrypt FILENAME with Base64. (default: false)\n"
-           "                        cbase -- chacha20\n"
+           "[*]  -n / --name        Encrypt FILENAME. (default: none)\n"
+           "                        hash -- hash Irrevocably Hash FILENAME with sha256.\n"
+           "                        base -- encrypt FILENAME with Base64.\n"
+           "                        enbase -- encrypt FILENAME with chacha->Base64\n"
            "[*]  -m / --mode        Select the encryption mode. (default: FULL_ENCRYPT)\n"
            "                        a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n"
            "                        f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n"
@@ -99,7 +92,7 @@ VOID CommandParser::CommandLineHelper()
            "                        rsa_aes   -- HYBRID: uses RSA and AES256 CBE encryption.\n"
            "                        rsa       -- RSA_ONLY: uses only RSA encryption.\n"
            "                                     Type:(for aes&rsa) crypt or decrypt. This is a required field. (default: null)\n"
-           "[*] -wi / --writein     overwrite in source file with risk. (default: false)\n"
+           "[*] -wi / --writein     overwrite in source file. (default: false)\n"
            "[*] -t / --throttling   select sleep time beetwen process blocks. (default: base(0ms))\n"
            "                        fast      -- fast    encr (sleep 5ms)\n"
            "                        slow      -- slowly  encr (sleep 15ms)\n"
@@ -109,7 +102,6 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -k / --key         Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n"
            "                        For HYBRID & ASYMMETRIC: the full path to private/public RSA key.\n"
            "                        For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n"
-           "[*]  --iv               For SYMMETRIC   The initialization vector (IV). Size must be between 1 & 8 bytes. Optional field.\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
            "[*]  -et / --en_thread  Enable the Thread Pool. When enabled all logical CPU cores are used. (default: false)\n"
            "[*]  -nl / --nolog      Disable the log.\n"
@@ -147,11 +139,12 @@ bool CommandParser::signature = false;
 bool CommandParser::PIPELINE = false;
 bool CommandParser::HASH_FILE = false;
 bool CommandParser::PPATH = false;
+bool CommandParser::NOMETA = false;
 
 
 #ifdef __linux__
 #include <sys/stat.h>
-constexpr int MAX_PATH = 255;
+#define MAX_PATH 255
 #endif
 
 CHAR* CommandParser::GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)
@@ -251,27 +244,148 @@ std::pair<bool, char*> CommandParser::GetCommandsNext(int argc, char* argv[], co
 #define GetCommandsC(argc, argv, fstr, sstr) CommandParser::GetCommandsCurr(argc, argv, fstr, sstr)
 #define GetCommandsN(argc, argv, fstr, sstr) CommandParser::GetCommandsNext(argc, argv, fstr, sstr)
 
+struct flags
+{
+    const char* name;
+    int size;
+    bool* flag;
+};
+
+#define setinlist(a, b, c) {a, memory::cStrLen(a), c}, {b, memory::cStrLen(b), c}
+
+void CommandParser::commands_state(int* argumentc, char** argument)
+{
+    flags list[]
+    {
+        setinlist("-nl", "--nolog", &NO_LOG),
+        setinlist("-no", "--nout", &NOUT),
+        setinlist("-nm", "--no-meta", &NOMETA),
+        setinlist("-wi", "--writein", &GLOBAL_STATE.g_write_in),
+        setinlist("-hs", "--hashsum", &GLOBAL_STATE.g_print_hash),
+        setinlist("-d", "--delete", &GLOBAL_STATE.g_FlagDelete),
+        setinlist("-et", "--en_thread", &THREAD_ENABLE),
+        setinlist("-hf", "--hashfile", &HASH_FILE),
+    };
+
+    constexpr size_t count = sizeof(list) / sizeof(list[0]);
+    int index_ptr = 0;
+    bool flag;
+    size_t len;
+    for (int i = 0; i < *argumentc; ++i, flag = false)
+    {
+        len = memory::StrLen(argument[i]);
+        for(int j = 0; j < count; ++j)
+        {
+            if (len == list[j].size && memory::memcmp(argument[i], list[j].name, list[j].size))
+            {
+                *list[j].flag = true;
+                flag = true;
+                break;
+            }
+        }
+        if(!flag)
+            argument[index_ptr++] = argument[i];
+    }
+    *argumentc = index_ptr;
+}
+
+struct commands
+{
+    const char* short_str;
+    const char* long_str;
+    int short_size;
+    int long_size;
+    void (*setter)(const char* value);
+};
+
+void set_throttle(const char* val)
+{
+    if (memory::StrStrC(val, "fast"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::fast;
+    else if (memory::StrStrC(val, "slow"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::minimal;
+    else if (memory::StrStrC(val, "optm"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::optimal;
+    else if (memory::StrStrC(val, "back"))
+        GLOBAL_ENUM.g_throttle_time = throttle_time::background;
+    else
+        GLOBAL_ENUM.g_throttle_time = throttle_time::base;
+}
+
+void set_name(const char* val)
+{
+    if (memory::StrStrC(val, "hash"))
+        GLOBAL_ENUM.g_CryptName = NAME::HASH_NAME;
+    else if (memory::StrStrC(val, "base"))
+    { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME; CommandParser::BASE64 = true; }
+    else if (memory::StrStrC(val, "enbase"))
+    { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME_CRYPT; CommandParser::BASE64 = true; }
+}
+
+void set_mode(const char* val)
+{
+    if (memory::StrStrC(val, "a") || memory::StrStrC(val, "auto"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::AUTO_ENCRYPT;
+    else if (memory::StrStrC(val, "f") || memory::StrStrC(val, "full"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::FULL_ENCRYPT;
+    else if (memory::StrStrC(val, "p") || memory::StrStrC(val, "part"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::PARTLY_ENCRYPT;
+    else if (memory::StrStrC(val, "h") || memory::StrStrC(val, "head"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::HEADER_ENCRYPT;
+    else if (memory::StrStrC(val, "b") || memory::StrStrC(val, "block"))
+        GLOBAL_ENUM.g_EncryptMode = EncryptModes::BLOCK_ENCRYPT;
+}
+
+void set_cat(const char* val)
+{
+    if (memory::StrStrC(val, "dir"))
+        GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
+    else if (memory::StrStrC(val, "indir"))
+        GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
+    else if (memory::StrStrC(val, "file"))
+        GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
+}
+
+void CommandParser::commands_state_t(int* argumentc, char** argument)
+{
+    commands list[]
+    {
+        {"-t", "--throttling", memory::cStrLen("-t"), memory::cStrLen("--throttling"), set_throttle},
+        {"-n", "--name", memory::cStrLen("-n"), memory::cStrLen("--name"), set_name},
+        {"-m", "--mode", memory::cStrLen("-m"), memory::cStrLen("--mode"), set_mode},
+        {"-c", "--cat", memory::cStrLen("-c"), memory::cStrLen("--cat"), set_cat},
+    };
+
+    constexpr size_t count = sizeof(list) / sizeof(list[0]);
+
+    size_t len;
+    bool flag;
+    int index_ptr = 0;
+    for(int i = 0; i < *argumentc; ++i, flag = false)
+    {
+        len = memory::StrLen(argument[i]);
+        for(int j = 0; j < count; ++j)
+        {
+            if((len == list[j].short_size && memory::memcmp(argument[i], list[j].short_str, list[j].short_size)
+             || len == list[j].long_size && memory::memcmp(argument[i], list[j].long_str, list[j].long_size))
+                && (i + 1) < *argumentc)
+            {
+                list[j].setter(argv[i + 1]);
+                flag = true;
+                ++i;
+                break;
+            }
+        }
+        if(!flag)
+            argument[index_ptr++] = argument[i];
+    }
+    *argumentc = index_ptr;
+}
 
 void CommandParser::ParsingCommandLine()
 {
     if (!argv || argc <= 1)
         subCommandHelper();
-
-    char** argument = NULL;
-
-#ifdef _WIN32
-    WCHAR** wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    
-    argument = (char**)memory::m_malloc((argc + 1) * sizeof(char*));
-    for(int i = 0; i < argc; ++i)
-    {
-        argument[i] = api::wchar_to_utf8(wargv[i], memory::StrLen(wargv[i]));
-    }
-    argument[argc] = NULL;
-    LocalFree(wargv);
-#else
-    argument = argv;
-#endif
 
     std::pair<bool, char*> pair;
     pair = GetCommandsCurr(argc, argv, "-h", "--help");
@@ -283,23 +397,17 @@ void CommandParser::ParsingCommandLine()
         FileParser pars(argc, argv);
         std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
-        {
             LOG_ERROR("[ParseFileConfig] Failed;"); exit(1);
-        }
         argv = pair_c.second;
         argc = pair_c.first;
-        argument = argv;
         config = true;
     }
 
-    pair = GetCommandsCurr(argc, argv, "-nl", "--nolog");
-    if(pair.first) NO_LOG = true;
-    pair = GetCommandsCurr(argc, argv, "-no", "--nout");
-    if(pair.first) NOUT = true;
-
+    commands_state(&argc, argv);
+    commands_state_t(&argc, argv);
+    
     {
-        std::pair<bool, char*> pp;        
-        auto p = GetCommandsN(argc, argument, "-p", "--path");
+        auto p = GetCommandsN(argc, argv, "-p", "--path");
         if (p.first)
         {
             size_t len = memory::StrLen(p.second);
@@ -312,12 +420,12 @@ void CommandParser::ParsingCommandLine()
         else
         {
             char* locale = (char*)memory::m_malloc(MAX_PATH);
-            if((pp = GetCommandsN(argc, argument, "-pp", "--ppath")).first)
+            if((p = GetCommandsN(argc, argv, "-pp", "--ppath")).first)
             {
-                size_t len = memory::StrLen(pp.second);
+                size_t len = memory::StrLen(p.second);
                 if(len > MAX_PATH)
                     { LOG_ERROR("len path > MAX_PATH"); exit(1); }                
-                memcpy(locale, pp.second, len);
+                memcpy(locale, p.second, len);
                 FileParser pars(locale);
                 pars.parse_paths_file(q_paths);
                 GLOBAL_PATH.g_Path = NULL;
@@ -331,51 +439,13 @@ void CommandParser::ParsingCommandLine()
             }
         }
 
-        p = GetCommandsN(argc, argument, "-o", "--out");
+        p = GetCommandsN(argc, argv, "-o", "--out");
         if(p.first)
         {
             char* outpath = (char*)memory::m_malloc(MAX_PATH);
             memcpy(outpath, p.second, memory::StrLen(p.second));
             GLOBAL_PATH.g_Path_out = outpath;
         }
-    }
-
-    pair = GetCommandsCurr(argc, argv, "-wi", "--writein");
-    if(pair.first) GLOBAL_STATE.g_write_in = true;
-
-    pair = GetCommandsNext(argc, argv, "-t", "--throttling");
-    if(pair.first) 
-    {
-        if (memory::StrStrC(pair.second, "fast"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::fast;
-        else if (memory::StrStrC(pair.second, "slow"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::minimal;
-        else if (memory::StrStrC(pair.second, "optm"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::optimal;
-        else if (memory::StrStrC(pair.second, "back"))
-            GLOBAL_ENUM.g_throttle_time = throttle_time::background;
-        else
-            GLOBAL_ENUM.g_throttle_time = throttle_time::base;
-    }
-
-    pair = GetCommandsCurr(argc, argv, "-hf", "--hashfile");
-    if(pair.first)
-    {
-        GLOBAL_STATE.g_print_hash = true;
-        pair = GetCommandsCurr(argc, argv, "-e", "--enable");
-        if (pair.first) THREAD_ENABLE = TRUE;
-        HASH_FILE = true;
-        pair = GetCommandsNext(argc, argv, "-c", "--cat");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "dir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
-        else if (memory::StrStrC(pair.second, "indir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
-        else if (memory::StrStrC(pair.second, "file"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
-    }
-        return;
     }
 
     pair = GetCommandsCurr(argc, argv, "-b64", "--base64");
@@ -422,46 +492,7 @@ void CommandParser::ParsingCommandLine()
 
         pair = GetCommandsCurr(argc, argv, "-rw", "--rewrite");
         if (pair.first)
-        {
-            pair = GetCommandsCurr(argc, argv, "-e", "--enable");
-            if (pair.first) THREAD_ENABLE = TRUE;
             O_REWRITE = true; return;
-        }
-    }
-
-
-    pair = GetCommandsNext(argc, argv, "-n", "--name");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "hash"))
-            GLOBAL_ENUM.g_CryptName = NAME::HASH_NAME;
-        else if (memory::StrStrC(pair.second, "base"))
-        { GLOBAL_ENUM.g_CryptName = NAME::BASE64_NAME; BASE64 = true; }
-    }
-
-    pair = GetCommandsNext(argc, argv, "-m", "--mode");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "a") || memory::StrStrC(pair.second, "auto"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::AUTO_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "f") || memory::StrStrC(pair.second, "full"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::FULL_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "p") || memory::StrStrC(pair.second, "part"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::PARTLY_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "h") || memory::StrStrC(pair.second, "head"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::HEADER_ENCRYPT;
-        else if (memory::StrStrC(pair.second, "b") || memory::StrStrC(pair.second, "block"))
-            GLOBAL_ENUM.g_EncryptMode = EncryptModes::BLOCK_ENCRYPT;
-    }
-    pair = GetCommandsNext(argc, argv, "-c", "--cat");
-    if (pair.first)
-    {
-        if (memory::StrStrC(pair.second, "dir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::DIR_CAT;            
-        else if (memory::StrStrC(pair.second, "indir"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::INDIR_CAT;
-        else if (memory::StrStrC(pair.second, "file"))
-            GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
     }
 
     pair = GetCommandsNext(argc, argv, "-al", "--algo");
@@ -485,15 +516,15 @@ void CommandParser::ParsingCommandLine()
                 }
             });
 
-        auto funcKey = ([this, &argument]
+        auto funcKey = ([this]
             {
-                std::pair<bool, char*> pair = GetCommandsN(argc, argument, "-k", "--key");
+                std::pair<bool, char*> pair = GetCommandsNext(argc, argv, "-k", "--key");
                 if (!pair.first) { LOG_ERROR("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
-                auto pair_sign = GetCommandsC(argc, argument, "-s", "--sign");
+                auto pair_sign = GetCommandsC(argc, argv, "-s", "--sign");
                 if (pair_sign.first)
                 {
                     signature = true;
-                    pair_sign = GetCommandsN(argc, argument, "$", "$$");
+                    pair_sign = GetCommandsN(argc, argv, "$", "$$");
                     if (!pair_sign.first)
                     {
                         LOG_ERROR("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
@@ -542,7 +573,6 @@ void CommandParser::ParsingCommandLine()
                     if(key && iv)
                     {
                         GLOBAL_KEYS.g_Key = key;
-                        GLOBAL_KEYS.g_IV = iv;
                         return;
                     } else exit(0);
                 }
@@ -555,22 +585,6 @@ void CommandParser::ParsingCommandLine()
                     GLOBAL_KEYS.g_Key = key_set;
                 }
                 else { LOG_ERROR("Type -key \"...\" for are symmetrical encrypts. Size key must be beetwen 1 nad 32"); exit(0); };
-
-                CHAR* IV = GetCommandLineArgCh(argc, argv, "--iv");
-                if (IV)
-                {
-                    BYTE* ivbuff = (BYTE*)memory::m_malloc(9);
-                    memcpy(ivbuff, IV, 8);
-                    GLOBAL_KEYS.g_IV = ivbuff;
-                }
-                else
-                {
-                    unsigned chachaIV = memory::MurmurHash2A(GLOBAL_KEYS.g_Key, 32, HASHING_SEED);
-                    std::string s = std::to_string(chachaIV);
-                    BYTE* iv = (BYTE*)memory::m_malloc(9);
-                    memcpy(iv, s.c_str(), min(s.size(), size_t(8)));
-                    GLOBAL_KEYS.g_IV = iv;
-                }
             });
 
         if (memory::StrStrC(pair.second, "chacha") || memory::StrStrC(pair.second, "CHACHA"))
@@ -578,6 +592,8 @@ void CommandParser::ParsingCommandLine()
             GLOBAL_ENUM.g_Encrypt = EncryptCipher::SYMMETRIC;
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::CHACHA;
             funcKeySym();
+            if(NOMETA)
+                funcDeCrypt();    
         }
         else if (memory::StrStrC(pair.second, "aes") || memory::StrStrC(pair.second, "AES"))
         {
@@ -610,15 +626,6 @@ void CommandParser::ParsingCommandLine()
     }
     else { LOG_ERROR("[ParsingCommandLine] Miss the command --algo"); exit(1); }
 
-    pair = GetCommandsCurr(argc, argv, "-hs", "--hashsum");
-    if (pair.first) GLOBAL_STATE.g_print_hash = true;
-
-    pair = GetCommandsCurr(argc, argv, "-d", "--delete");
-    if (pair.first) GLOBAL_STATE.g_FlagDelete = true;
-
-    pair = GetCommandsCurr(argc, argv, "-et", "--en_thread");
-    if (pair.first)THREAD_ENABLE = TRUE;
-
     pair = GetCommandsCurr(argc, argv, "-pl", "--pipeline");
     if(pair.first) 
     {
@@ -626,29 +633,23 @@ void CommandParser::ParsingCommandLine()
         PIPELINE = true;
     }
 
-        if (config)
+    if (config)
+    {
+        for (int i = 0; i < argc; ++i)
         {
-            for (int i = 0; i < argc; ++i)
-            {
-                memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-                memory::m_free(argv[i]);
-#ifdef _WIN32
-                memory::m_free(argument[i]);
-#endif
-            }
+            memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
+            memory::m_free(argv[i]);
+        }
         memory::m_free(argv);
-#ifdef _WIN32
-        memory::m_free(argument);
-#endif
-        }
-        else
-        {
-            for (int i = 0; i < argc; ++i)
-                memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-            /*char* ptr_start = argv[0];
-            char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
-            memory::memzero_explicit(argv, ptr_end - ptr_start);*/
-        }
+    }
+    else
+    {
+        for (int i = 0; i < argc; ++i)
+            memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
+        /*char* ptr_start = argv[0];
+        char* ptr_end = argv[argc - 1] + strlen(argv[argc - 1]);
+        memory::memzero_explicit(argv, ptr_end - ptr_start);*/   
+    }
 
     logs::call_log();
 }

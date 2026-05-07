@@ -246,10 +246,10 @@ size_t PathSystem::start_local_search()
         {
             if (directory[i] == ('/') || directory[i] == ('\\'))
             {
-                name = (char*)memory::m_malloc((j + 1) * Tsize);
+                name = (char*)memory::m_malloc(i + 1);
                 memcpy(name, &directory[i + 1], j);
 
-                path = (char*)memory::m_malloc((i + 1) * Tsize);
+                path = (char*)memory::m_malloc(i + 1);
                 memcpy(path, directory, i);
 
                 break;
@@ -296,11 +296,23 @@ void PathSystem::free_drive_info()
     if (drive_info == NULL) return;
     LIST_FOREACH(data, drive_info)
     {
-        memory::m_free(data->Exst);
-        memory::m_free(data->Filename);
-        memory::m_free(data->FullPath);
-        memory::m_free(data->Path);
+        if(data->Exst)
+            memory::m_free(data->Exst);
+        if(data->Filename)
+            memory::m_free(data->Filename);
+        if(data->FullPath)
+            memory::m_free(data->FullPath);
+        if(data->Path)
+            memory::m_free(data->Path);
     }
+}
+
+void PathSystem::free_driveinfo_st(PDRIVE_INFO data)
+{
+    memory::memzero_free(data->Path, memory::StrLen(data->Path));
+	memory::memzero_free(data->Exst, memory::StrLen(data->Exst));
+	memory::memzero_free(data->Filename, memory::StrLen(data->Filename));
+	memory::memzero_free(data->FullPath, memory::StrLen(data->FullPath));
 }
 
 void PathSystem::free_directory_info()
@@ -313,7 +325,6 @@ void PathSystem::free_directory_info()
 
 PathSystem::~PathSystem()
 {  
-    free_drive_info();
     free_directory_info();
     if(drive_info)     delete drive_info;
     if(directory_info) delete directory_info;

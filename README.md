@@ -1,22 +1,12 @@
-# Laced - Hybrid, Symmetric, and Asymmetric Encryption Tool.
+# Laced - File Encryption Toolkit
+Laced is a command-line cryptography toolkit for encrypting files, generating keys, signing, hashing, and secure file operations.
 
-A versatile encryption tool implementing:
-* Hybrid encryption (RSA + ChaCha20 / RSA + AES)
-* Pure asymmetric encryption (RSA)
-* Pure symmetric encryption (ChaCha20 or AES)
-* supports digital signatures and RSA key generation.
-
-## Options:
-* Hybrid encryption
-Encrypts a random symmetric key (ChaCha20 or AES) using RSA and then encrypts the file with that symmetric key.
-* Pure RSA encryption
-Encrypts the data directly using RSA.
-* Pure symmetric encryption
-Encrypts data using a secret key with ChaCha20 or AES.
-* RSA key generation
-* Generates RSA public/private key pairs (supports Base64 export).
-* Digital signatures
-Signs files or RSA public keys to verify their authenticity and integrity (supports Root key signing).
+## Features:
+* Hybrid encryption encrypts a random symmetric key (ChaCha20 or AES) using RSA and then encrypts the file with that symmetric key
+* RSA encryption the data using RSA
+* Symmetric encryption data using a secret key with ChaCha20 or AES
+* RSA key generation - RSA public/private key pairs (supports Base64 export)
+* Digital signatures files or RSA public keys to verify their authenticity and integrity
  
 ## Usage Options:
 ```shell
@@ -28,22 +18,29 @@ DESCRIPTION
 LACED is a cryptography toolkit implementing crpyto standarts.
 The laced program is a command-line utility providing various crypto funcs:
 o  Uses for RSA crypt/gen OpenSSL for Linux, BCrypt for Win
-o  Creation of public/private RSA keys
+o  Generation of public/private RSA keys
 o  Symmetric encryption (ChaCha20, AES256)
 o  Hybrid encryption (RSA + ChaCha20 / AES256)
-o  Pure RSA encryption and decryption
+o  RSA encryption and decryption
 o  Digital sigantures and verification
 o  File hashing with SHA256
 o  Base64 encoding/decoding
 o  Secure file overwrite
 o  Recursive directory encryption
 o  Thread pool parallel processing
-o  ThreadPipeLine - Multithreaded File processing Pipeline
 ```
 
+## Key options summary
+- **Input/output:** `--path`, `--out`, `--config`, `--name`
+- **Encryption mode:** `--mode`, `--cat`
+- **Algorithm:** `-al`
+- **Key management:** `--key`, `--base64`, `--gen`, `--bit`
+- **Performance:** `--en_thread`, `--throttling`
+- **Security:** `--sign`, `-ow`/`-rw`, `--delete`
+- **Logging:** `--nolog`, `--nout`
 
  # Installation
-This project builds with MinGW (g++).
+This project builds with g++.
 Clone the repository and build the project:
 ```bash
 git clone https://github.com/Nuisancexd/laced.git

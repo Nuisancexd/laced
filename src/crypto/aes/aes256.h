@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <stdio.h>
 
-#include "../macro.h"
+#include "../../macro.h"
 
 #undef INLINE
 #define INLINE inline

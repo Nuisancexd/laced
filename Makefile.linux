@@ -1,8 +1,15 @@
 CC = g++
-CFLAGS = -m32 -O3 -std=c++20 -DNDEBUG -fsanitize=address -pthread
+#boost/asio -I network/asio/asio/include
+CFLAGS = -D_FILE_OFFSET_BITS=64 -m32 -O3 -std=c++20 -DNDEBUG -fsanitize=address -pthread -I./src
+#CDEBUG = -g -O0
 LDFLAGS = -lssl -lcrypto 
-SRC = main.cpp threadpool.cpp api.cpp logs.cpp memory.cpp global_parameters.cpp CommandParser.cpp pathsystem.cpp locker.cpp filesystem.cpp chacha20/laced.cpp sha/sha256.cpp aes/aes256.cpp base64/base64.cpp rsa/rsa.cpp
-OBJ = $(SRC:.cpp=.o)
+SRC = main.cpp threadpool.cpp api.cpp logs.cpp memory.cpp global_parameters.cpp CommandParser.cpp pathsystem.cpp locker.cpp \
+filesystem/meta.cpp filesystem/crypt.cpp filesystem/rsa.cpp filesystem/hash.cpp filesystem/names.cpp filesystem/wipe.cpp \
+crypto/chacha20/laced.cpp crypto/sha/sha256.cpp crypto/aes/aes256.cpp crypto/base64/base64.cpp crypto/rsa/rsa.cpp
+#network/port_scanner.cpp network/server/server.cpp network/protocol.cpp network/client/client.cpp \
+
+SRCS = $(addprefix src/,$(SRC))
+OBJ = $(SRCS:.cpp=.o)
 EXEC = laced
 
 all: $(EXEC)

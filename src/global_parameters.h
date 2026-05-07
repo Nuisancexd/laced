@@ -48,7 +48,8 @@ enum class NAME
 {
 	NONE = 0,
 	BASE64_NAME = 17,
-	HASH_NAME = 18
+	BASE64_NAME_CRYPT = 18,
+	HASH_NAME = 19
 };
 
 enum overwrite
@@ -92,7 +93,7 @@ namespace global
 	{
 		bool g_write_in = false;
 		bool g_Status = false;
-		bool g_print_hash = false;
+		bool g_print_hash = true;
 		bool g_DropMode = false;
 		bool g_print_hex = false;
 		bool g_FlagDelete = false;

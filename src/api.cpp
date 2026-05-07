@@ -26,9 +26,12 @@ BOOL api::ReadFile(HANDLE desc_file, VOID* buf, size_t size, size_t* BytesRead)
     return TRUE;
 }
 
-BOOL api::WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, DWORD* BytesWritten)
+BOOL api::WriteFile(HANDLE desc_file, CONST VOID* buff, DWORD BytesToWrite, size_t* BytesWritten)
 {
-    return ::WriteFile(desc_file, buff, BytesToWrite, BytesWritten, NULL);
+    size_t written = 0;
+    if(!BytesWritten)
+        BytesWritten = &written;
+    return ::WriteFile(desc_file, buff, BytesToWrite, (LPDWORD)BytesWritten, NULL);
 }
 
 BOOL api::GetCurrentDir(WCHAR* dir_buf, size_t size)
@@ -148,6 +151,9 @@ VOID api::CloseDesc(int desc_file)
 
 BOOL api::ReadFile(int desc_file, VOID* buf, size_t size, size_t* BytesRead)
 {
+    size_t bytesread = 0;
+    if(!BytesRead)
+        BytesRead = &bytesread;
     if ((*BytesRead = read(desc_file, buf, size)) == -1)
     {
         LOG_ERROR("[ReadFile] %s", strerror(errno));
@@ -156,9 +162,11 @@ BOOL api::ReadFile(int desc_file, VOID* buf, size_t size, size_t* BytesRead)
     return TRUE;
 }
 
-BOOL api::WriteFile(int desc_file, CONST VOID* buf, unsigned size, int* written)
+BOOL api::WriteFile(int desc_file, CONST VOID* buf, unsigned size, size_t* written)
 {
-
+    size_t writtenb = 0;
+    if(!written)
+        written = &writtenb;
     if ((*written = write(desc_file, buf, size)) == -1)
     {
         LOG_ERROR("[WriteFile] %s", strerror(errno));
@@ -210,7 +218,7 @@ BOOL api::SetPointOff(int desc, int offset, int seek)
 {
     if (lseek(desc, offset, seek) == -1)
     {
-        LOG_ERROR("[ReadFile] %s", strerror(errno));
+        LOG_ERROR("[SetPointOff] %s", strerror(errno));
         return FALSE;
     }
     return TRUE;

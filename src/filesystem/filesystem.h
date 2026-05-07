@@ -1,9 +1,12 @@
 #ifndef _FILE_SYSTEM_H_
 #define _FILE_SYSTEM_H_
 
-#include "locker.h"
-#include "structures.h"
-#include "pathsystem.h"
+#include "../logs.h"
+#include "../locker.h"
+#include "../structures.h"
+#include "../pathsystem.h"
+
+#define MAX_PATH 255
 
 namespace filesystem
 {
@@ -23,17 +26,19 @@ namespace filesystem
 	bool VerifySignatureRSA(SLIST<HASH_LIST>* HashList);
 	bool VerificationSignatureFile(SLIST<HASH_LIST>* HashList);
 	void RootKeySignatureTrust(VOID);
-	PHEAD_BLOCK fill_struct_hblock(DESC recent_handle, const char* crypt_name);
-
+	PHEAD_BLOCK init_mdata_hblock(PFILE_INFO fileinfo);
+	void delete_metadata(DESC filehandle, size_t* filesize);
+	void free_hblock_mdata(PHEAD_BLOCK hblock_t);
+	void write_metadata(PFILE_INFO fileinfo);
 	void sort_hash_list(SLIST<HASH_LIST>* list);
 	bool nopHashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
 	bool HashSumFile(CRYPT_INFO* CryptInfo, DESC desc_file, char* Filename);
 	bool hash_file(PCRYPT_INFO CryptInfo, DESC desc, char* fullpath, char* filename);
 
-	char* NameMethodState(PCRYPT_INFO CryptInfo, PDRIVE_INFO data);
-	char* OptionNameStandart(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
-	char* OptionNameHash(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
-	char* OptionNameBase(PCRYPT_INFO CryptInfo, char* Path, char* Filename, char* exst, char* FPath);
+	char* NameMethodState(PFILE_INFO fileinfo, PDRIVE_INFO data);
+	char* OptionNameStandart(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
+	char* OptionNameHash(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
+	char* OptionNameBase(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
 
 	bool nopOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
 	bool ZerosOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);

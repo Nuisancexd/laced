@@ -1,8 +1,8 @@
 #include "rsa.h"
-#include "../logs.h"
-#include "../memory.h"
+#include "../../logs.h"
+#include "../../memory.h"
+#include "../../global_parameters.h"
 #include "../base64/base64.h"
-#include "../global_parameters.h"
 
 #include <stdalign.h>
 
