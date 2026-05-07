@@ -1,7 +1,7 @@
 # Laced - File Encryption Toolkit
-Laced is a command-line cryptography toolkit for encrypting files, generating keys, signing data, and performing secure file operations.
+Laced is a command-line cryptography toolkit for encrypting files, generating keys, signing, hashing, and secure file operations.
 
-## Options:
+## Features:
 * Hybrid encryption encrypts a random symmetric key (ChaCha20 or AES) using RSA and then encrypts the file with that symmetric key
 * RSA encryption the data using RSA
 * Symmetric encryption data using a secret key with ChaCha20 or AES
@@ -32,8 +32,8 @@ o  Thread pool parallel processing
 
 ## Key options summary
 - **Input/output:** `--path`, `--out`, `--config`, `--name`
-- **Encryption mode:** `--mode` (full, part, head, block, auto), `--cat`
-- **Algorithm:** `-al` (chacha, aes, rsa_chacha, rsa_aes, rsa) – **required**
+- **Encryption mode:** `--mode`, `--cat`
+- **Algorithm:** `-al`
 - **Key management:** `--key`, `--base64`, `--gen`, `--bit`
 - **Performance:** `--en_thread`, `--throttling`
 - **Security:** `--sign`, `-ow`/`-rw`, `--delete`

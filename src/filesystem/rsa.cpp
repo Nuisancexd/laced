@@ -1,3 +1,4 @@
+#include "CommandParser.h"
 #include "filesystem.h"
 #include "api.h"
 #include "crypto/rsa/rsa.h"
@@ -11,6 +12,7 @@
 #endif
 
 #define PSIZE_BLOCK 256
+#define IV_SIZE 8
 
 bool filesystem::ReadRSAFile
 (
@@ -454,10 +456,11 @@ static BYTE* ReadEncryptInfo
 )
 {
 	BYTE ReadInfo[4];
+	int off_meta = CommandParser::NOMETA ? IV_SIZE : PSIZE_BLOCK;
 
 #ifdef _WIN32
 	LARGE_INTEGER Offset;
-	Offset.QuadPart = -(4 + PSIZE_BLOCK);
+	Offset.QuadPart = -(4 + off_meta);
 
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_END)
 		|| !ReadFile(handle, ReadInfo, 4, NULL, NULL))
@@ -467,7 +470,7 @@ static BYTE* ReadEncryptInfo
 	}
 #else
 	unsigned read;
-	if (!api::SetPointOff(handle, -(4 + PSIZE_BLOCK), SEEK_END)
+	if (!api::SetPointOff(handle, -(4 + off_meta), SEEK_END)
 		|| !api::ReadFile(handle, ReadInfo, 4, &read))
 	{
 		LOG_ERROR("[ReadEncryptInfo] Failed to read file info");
@@ -489,7 +492,7 @@ static BYTE* ReadEncryptInfo
 	}
 	BYTE* read_key = (BYTE*)memory::m_malloc(size_bit);
 #ifdef _WIN32
-	Offset.QuadPart = -(size_bit + 4 + PSIZE_BLOCK);
+	Offset.QuadPart = -(size_bit + 4 + off_meta);
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_END)
 		|| !ReadFile(handle, read_key, size_bit, NULL, NULL))
 	{
@@ -500,7 +503,7 @@ static BYTE* ReadEncryptInfo
 	if (!SetFilePointerEx(handle, Offset, NULL, FILE_BEGIN))
 		return NULL;
 #else
-	if (!api::SetPointOff(handle, -(size_bit + 4 + PSIZE_BLOCK), SEEK_END)
+	if (!api::SetPointOff(handle, -(size_bit + 4 + off_meta), SEEK_END)
 		|| !api::ReadFile(handle, read_key, size_bit, &read)
 		|| !api::SetPoint(handle, SEEK_SET))
 	{

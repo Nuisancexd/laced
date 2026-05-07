@@ -6,6 +6,8 @@
 #include "../structures.h"
 #include "../pathsystem.h"
 
+#define MAX_PATH 255
+
 namespace filesystem
 {
 	bool WriteFullData(DESC desc, void* buffer, unsigned size);

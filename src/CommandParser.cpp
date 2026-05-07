@@ -144,7 +144,7 @@ bool CommandParser::NOMETA = false;
 
 #ifdef __linux__
 #include <sys/stat.h>
-constexpr int MAX_PATH = 255;
+#define MAX_PATH 255
 #endif
 
 CHAR* CommandParser::GetCommandLineArgCh(int argc, CHAR** argv, const CHAR* argv_name)

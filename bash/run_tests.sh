@@ -36,8 +36,13 @@ file_source_crypt="$path/crypt"
 file_source_decrypt="$path/decrypt"
 
 args_kal=(-k key -al)
+
 args_po=(-no -p "$file_source" -o "$file_source_crypt")
 args_poc=(-no -p "$file_source_crypt" -o "$file_source_decrypt")
+
+args_po_=(-no -nm crypt -p "$file_source" -o "$file_source_crypt")
+args_poc_=(-no -nm decrypt -p "$file_source_crypt" -o "$file_source_decrypt")
+
 
 touch "$file_source"
 dd if=/dev/urandom  of="$file_source" bs=400 count=1 status=none
@@ -128,11 +133,16 @@ function RSA()
     echo "yes" | ../src/laced "${args_po[@]}" -al rsa_aes -k $pub_key $ $prv_key -s crypt -c file >> "$path/hash.bin"
     echo "yes" | ../src/laced "${args_poc[@]}" -al rsa_aes -k $pub_key $ $prv_key -s decrypt >> "$path/hash.bin"
     check_diff RSA_AES
+
+    echo "yes" | ../src/laced "${args_po[@]}" -al rsa_chacha -k $pub_key $ $prv_key -s crypt -c file >> "$path/hash.bin"
+    echo "yes" | ../src/laced "${args_poc[@]}" -al rsa_chacha -k $pub_key $ $prv_key -s decrypt >> "$path/hash.bin"
+    check_diff RSA_CHACHA
 }
 
 chacha
 aes
 RSA
+writein
 
 printf "\ntype any key"
 read -e
