@@ -1,4 +1,4 @@
-﻿#include "filesystem.h"
+#include "filesystem.h"
 #include <thread>
 
 bool filesystem::WriteFullData

@@ -34,13 +34,13 @@ o  Thread pool parallel processing
 - **Input/output:** `--path`, `--out`, `--config`, `--name`
 - **Encryption mode:** `--mode` (full, part, head, block, auto), `--cat`
 - **Algorithm:** `-al` (chacha, aes, rsa_chacha, rsa_aes, rsa) – **required**
-- **Key management:** `--key`, `--iv`, `--base64`, `--gen`, `--bit`
+- **Key management:** `--key`, `--base64`, `--gen`, `--bit`
 - **Performance:** `--en_thread`, `--throttling`
 - **Security:** `--sign`, `-ow`/`-rw`, `--delete`
 - **Logging:** `--nolog`, `--nout`
 
  # Installation
-This project builds with MinGW (g++).
+This project builds with g++.
 Clone the repository and build the project:
 ```bash
 git clone https://github.com/Nuisancexd/laced.git
