@@ -4,8 +4,8 @@
 #include "api.h"
 #include "macro.h"
 #include "pathsystem.h"
-#include "chacha20/ecrypt-sync.h"
-#include "aes/aes256.h"
+#include "crypto/chacha20/ecrypt-sync.h"
+#include "crypto/aes/aes256.h"
 #include "global_parameters.h"
 
 

@@ -1,7 +1,7 @@
 #include "filesystem.h"
-#include "../api.h"
-#include "../rsa/rsa.h"
-#include "../sha/sha256.h"
+#include "api.h"
+#include "crypto/rsa/rsa.h"
+#include "crypto/sha/sha256.h"
 
 #ifdef _WIN32
 #include <windows.h>

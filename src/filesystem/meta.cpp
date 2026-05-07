@@ -1,6 +1,6 @@
 #include "filesystem.h"
-#include "../memory.h"
-#include "../sha/sha256.h"
+#include "memory.h"
+#include "crypto/sha/sha256.h"
 
 #define ECRYPT_VERSION "1.0"
 #define ECRYPT_VERSION_LEN 3

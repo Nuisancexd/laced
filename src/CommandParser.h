@@ -2,7 +2,7 @@
 #define _COMMAND_PARSER_H_
 
 #include "memory.h"
-#include "base64/base64.h"
+#include "crypto/base64/base64.h"
 #include <queue>
 #include <memory>
 

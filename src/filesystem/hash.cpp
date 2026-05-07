@@ -1,6 +1,6 @@
 #include "filesystem.h"
-#include "../rsa/rsa.h"
-#include "../sha/sha256.h"
+#include "crypto/rsa/rsa.h"
+#include "crypto/sha/sha256.h"
 #include <map>
 
 #include <thread>

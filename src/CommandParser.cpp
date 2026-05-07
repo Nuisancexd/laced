@@ -1,7 +1,7 @@
 #include "logs.h"
 #include "CommandParser.h"
 #include "filesystem/filesystem.h"
-#include "rsa/rsa.h"
+#include "crypto/rsa/rsa.h"
 #include "global_parameters.h"
 
 #ifdef __linux__
