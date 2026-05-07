@@ -1,9 +1,10 @@
 #ifndef _FILE_SYSTEM_H_
 #define _FILE_SYSTEM_H_
 
-#include "locker.h"
-#include "structures.h"
-#include "pathsystem.h"
+#include "../logs.h"
+#include "../locker.h"
+#include "../structures.h"
+#include "../pathsystem.h"
 
 namespace filesystem
 {
