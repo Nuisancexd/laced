@@ -1,0 +1,22 @@
+# ARMv7 32-bit
+CC = g++
+ARCH_FLAGS = -march=armv7-a -mtune=cortex-a8 -mfpu=neon -mfloat-abi=hard
+CFLAGS = -D_FILE_OFFSET_BITS=64 -O3 -std=c++20 -DNDEBUG -pthread -I. $(ARCH_FLAGS)
+LDFLAGS = -lssl -lcrypto -pthread
+SRC = main.cpp threadpool.cpp api.cpp logs.cpp memory.cpp global_parameters.cpp CommandParser.cpp pathsystem.cpp locker.cpp \
+filesystem/meta.cpp filesystem/crypt.cpp filesystem/rsa.cpp filesystem/hash.cpp filesystem/names.cpp filesystem/wipe.cpp \
+crypto/chacha20/laced.cpp crypto/sha/sha256.cpp crypto/aes/aes256.cpp crypto/base64/base64.cpp crypto/rsa/rsa.cpp
+
+OBJ = $(SRC:.cpp=.o)
+EXEC = laced
+
+all: $(EXEC)
+
+$(EXEC): $(OBJ)
+	$(CC) $(CFLAGS) $(OBJ) -o $(EXEC) $(LDFLAGS)
+
+%.o: %.cpp
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJ) $(EXEC)
