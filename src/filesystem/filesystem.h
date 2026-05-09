@@ -1,12 +1,14 @@
 #ifndef _FILE_SYSTEM_H_
 #define _FILE_SYSTEM_H_
 
-#include "../logs.h"
-#include "../locker.h"
-#include "../structures.h"
-#include "../pathsystem.h"
+#include "logs.h"
+#include "locker.h"
+#include "structures.h"
+#include "pathsystem.h"
 
+#ifdef __linux__
 #define MAX_PATH 255
+#endif
 
 namespace filesystem
 {

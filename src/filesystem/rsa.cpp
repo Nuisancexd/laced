@@ -1,6 +1,6 @@
+#include "api.h"
 #include "CommandParser.h"
 #include "filesystem.h"
-#include "api.h"
 #include "crypto/rsa/rsa.h"
 #include "crypto/sha/sha256.h"
 

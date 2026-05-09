@@ -7,7 +7,8 @@ SRC = main.cpp threadpool.cpp api.cpp logs.cpp memory.cpp global_parameters.cpp 
 filesystem/meta.cpp filesystem/crypt.cpp filesystem/rsa.cpp filesystem/hash.cpp filesystem/names.cpp filesystem/wipe.cpp \
 crypto/chacha20/laced.cpp crypto/sha/sha256.cpp crypto/aes/aes256.cpp crypto/base64/base64.cpp crypto/rsa/rsa.cpp
 
-OBJ = $(SRC:.cpp=.o)
+SRCS = $(addprefix src/,$(SRC))
+OBJ = $(SRCS:.cpp=.o)
 EXEC = laced
 
 all: $(EXEC)
