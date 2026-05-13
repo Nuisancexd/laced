@@ -14,6 +14,11 @@
 
 static void memcpy_offset(void* pdst, const void* psrc, size_t size, size_t* offset)
 {
+	if((*offset + size) > PSIZE_BLOCK)
+	{
+		LOG_ERROR("failed offset metadata");
+		return;
+	}
 	memcpy(pdst, psrc, size);
 	*offset += size;
 }
@@ -103,17 +108,35 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
  		if(GLOBAL_KEYS.g_Key)
 		{
 			ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
- 			ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
+ 			ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 72]);
 			ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
 		}
 		BYTE hash[32];
 		sha256(hblock_t->pblock, HPSIZE_BLOCK, hash);
-		if(!memory::memcmp(&hblock_t->pblock[offset + 40], hash, 32))
+		if(!memory::memcmp(&hblock_t->pblock[offset], hash, 32))
 		{
 			LOG_ERROR("[init_mdata_hblock] hash metadata invalid");
 			hblock_t->status = false;
 		}
-		memcpy(hblock_t->IV, &hblock_t->pblock[HPSIZE_BLOCK + 24], 8);
+		offset += 32;
+		memcpy_offset(hblock_t->IV, &hblock_t->pblock[offset], 8, &offset);
+		sha256(hblock_t->IV, 8, hash);
+		if(!memory::memcmp(&hblock_t->pblock[offset], hash, 32))
+		{
+			LOG_ERROR("[init_mdata_hblock] hash metadata IV invalid");
+			hblock_t->status = false;
+		}
+		offset += 32;
+		if(!memory::memcmp(&hblock_t->pblock[ECRYPT_LEN_STORAGE], ECRYPT_VERSION, ECRYPT_VERSION_LEN))
+		{
+			LOG_ERROR("[init_mdata_hblock] ecrypt_version metadata invalid");
+			hblock_t->status = false;
+		}
+		if(!memory::memcmp(&hblock_t->pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN], fileinfo->crypt_info->name, memory::StrLen(fileinfo->crypt_info->name)))
+		{
+			LOG_ERROR("[init_mdata_hblock] namecrypt metadata invalid");
+			hblock_t->status = false;
+		}
 	}
 	else
 	{
@@ -127,14 +150,20 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 #endif
 		memcpy(&hblock_t->pblock[PSIZE_BLOCK - ECRYPT_NAMEHEAD_LEN], ECRYPT_NAMEHEAD, ECRYPT_NAMEHEAD_LEN);
  		offset = HPSIZE_BLOCK;
-		sha256(hblock_t->pblock, HPSIZE_BLOCK, &hblock_t->pblock[offset + 40]);
+		sha256(hblock_t->pblock, HPSIZE_BLOCK, &hblock_t->pblock[offset]);
+		offset += 32;
+		memcpy_offset(hblock_t->IV, &hblock_t->pblock[offset], 8, &offset);
+		sha256(hblock_t->IV, 8, &hblock_t->pblock[offset]);
+		offset += 32;
 		if(GLOBAL_KEYS.g_Key)
 		{
 			ECRYPT_keysetup((laced_ctx*)hblock_t->ctx, GLOBAL_KEYS.g_Key, 256, 64);
- 		 	ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset + 32]);
+ 		 	ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, &hblock_t->pblock[offset]);
+			offset += 8;
 			ECRYPT_encrypt_bytes((laced_ctx*)hblock_t->ctx, hblock_t->pblock, hblock_t->pblock, HPSIZE_BLOCK);
 		}
-		memcpy(hblock_t->IV, &hblock_t->pblock[HPSIZE_BLOCK + 24], 8);
+		else
+			ECRYPT_ivsetup((laced_ctx*)hblock_t->ctx, hblock_t->IV);
 	}
 
 	return hblock_t;

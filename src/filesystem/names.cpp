@@ -9,10 +9,14 @@
 char* filesystem::OptionNameStandart(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
-	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
+	size_t size = fileinfo->hblock->crypt ?
+		 len_filename + ECRYPT_NAME_LEN
+		 : 
+		 len_filename - ECRYPT_NAME_LEN;
+	char* name = (char*)memory::m_malloc(size + 1);
 
-	if (memory::StrStrC(exst, ECRYPT_NAME_P))
-		memcpy(name, Filename, len_filename - ECRYPT_NAME_LEN);
+	if(!fileinfo->hblock->crypt)
+		memcpy(name, Filename, size);
 	else
 	{
 		memcpy(name, Filename, len_filename);
@@ -25,10 +29,14 @@ char* filesystem::OptionNameStandart(PFILE_INFO fileinfo, char* Filename, char* 
 char* filesystem::OptionNameHash(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
-	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
+	size_t size = fileinfo->hblock->crypt ?
+		 len_filename + ECRYPT_NAME_LEN
+		 : 
+		 len_filename - ECRYPT_NAME_LEN;
+	char* name = (char*)memory::m_malloc(size + 1);
 
-	if (memory::StrStrC(exst, ECRYPT_NAME_P))
-		memcpy(name, Filename, len_filename - ECRYPT_NAME_LEN);
+	if (!fileinfo->hblock->crypt)
+		memcpy(name, Filename, size);
 	else
 	{
 		unsigned char out[32] = { 0 };
@@ -45,15 +53,19 @@ char* filesystem::OptionNameHash(PFILE_INFO fileinfo, char* Filename, char* exst
 char* filesystem::OptionNameBase(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath)
 {
 	size_t len_filename = memory::StrLen(Filename);
-	char* name = (char*)memory::m_malloc(MAX_PATH + 1);
+	size_t size = fileinfo->hblock->crypt ?
+		 len_filename + ECRYPT_NAME_LEN + (((len_filename + 2)/3)*4)
+		 : 
+		 len_filename - ECRYPT_NAME_LEN;
+	char* name = (char*)memory::m_malloc(size + 1);
 
-	if (memory::StrStrC(exst, ECRYPT_NAME_P))
+	if (!fileinfo->hblock->crypt)
 	{
 		char decoded[MAX_PATH + MAX_PATH];
 		int bsize = 0;
 		if (!base64::base64(BASE_E::DECODE,
 			(const BYTE*)Filename,
-			(int)len_filename - ECRYPT_NAME_LEN,
+			(int)size,
 			decoded, &bsize))
 		{
 			LOG_ERROR("[OptionNameBase] Failed; %s", Filename);
@@ -80,15 +92,17 @@ char* filesystem::OptionNameBase(PFILE_INFO fileinfo, char* Filename, char* exst
 			encoded, &bsize))
 		{
 			LOG_ERROR("[OptionNameBase] Failed; %s; trying name_standart", Filename);
+			memory::m_free(name);
 			return OptionNameStandart(fileinfo, Filename, exst, FPath);
 		}
 
 		if (bsize > MAX_PATH)
 		{
 			LOG_ERROR("[OptionNameBase] Failed; ENAME TOO LONG; %s; trying name_standart", Filename);
+			memory::m_free(name);
 			return OptionNameStandart(fileinfo, Filename, exst, FPath);
 		}
-		memory::memzero_explicit(name, MAX_PATH + 1);
+		memory::memzero_explicit(name, size);
 		memcpy(name, encoded, bsize);
 		memcpy(&name[bsize], ECRYPT_NAME_P, ECRYPT_NAME_LEN);
 	}
