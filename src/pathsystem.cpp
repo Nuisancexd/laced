@@ -234,7 +234,7 @@ size_t PathSystem::start_local_search()
         DESC d = INVALID_HANDLE_VALUE;
         if((d = api::OpenFile(directory)) == INVALID_HANDLE_VALUE)
         {
-            LOG_ERROR("[start_local_search][FILE_CAT] Failed; " log_str, directory);
+            LOG_ERROR("[start_local_search][FILE_CAT] Failed; no match file: " log_str, directory);
             return f_count = 0;
         }
         api::CloseDesc((d));
@@ -242,16 +242,15 @@ size_t PathSystem::start_local_search()
         char* name = NULL;
         char* path = NULL;
         size_t ld = memory::StrLen(directory);
-        for (int i = ld - 1, j = 0; i >= 0; --i, ++j)
+        for (int i = ld - 1; i >= 0; --i)
         {
             if (directory[i] == ('/') || directory[i] == ('\\'))
             {
-                name = (char*)memory::m_malloc(i + 1);
-                memcpy(name, &directory[i + 1], j);
+                name = (char*)memory::m_malloc(ld - i + 1);
+                memcpy(name, &directory[i + 1], ld - i);
 
                 path = (char*)memory::m_malloc(i + 1);
                 memcpy(path, directory, i);
-
                 break;
             }
         }
@@ -261,7 +260,7 @@ size_t PathSystem::start_local_search()
             DriveData->Filename = name;
         if (path)
             DriveData->Path = path;
-        char* fpath = (char*)memory::m_malloc((ld + 1) * Tsize);
+        char* fpath = (char*)memory::m_malloc(ld + 1);
         memcpy(fpath, directory, ld);
         DriveData->FullPath = fpath;
         DriveData->Exst = make_exst(directory);

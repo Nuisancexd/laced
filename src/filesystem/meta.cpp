@@ -11,6 +11,7 @@
 #define PSIZE_BLOCK 256
 #define HPSIZE_BLOCK PSIZE_BLOCK/2
 #define IV_SIZE 8
+#define MODE_SIZE 2
 
 static void memcpy_offset(void* pdst, const void* psrc, size_t size, size_t* offset)
 {
@@ -132,7 +133,12 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 			LOG_ERROR("[init_mdata_hblock] ecrypt_version metadata invalid");
 			hblock_t->status = false;
 		}
-		if(!memory::memcmp(&hblock_t->pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN], fileinfo->crypt_info->name, memory::StrLen(fileinfo->crypt_info->name)))
+		if(!memory::memcmp(&hblock_t->pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN], std::to_string((int)GLOBAL_ENUM.g_EncryptMode + 55).c_str(), MODE_SIZE))
+		{
+			LOG_ERROR("[init_mdata_hblock] encrypt mode metadata invalid");
+			hblock_t->status = false;
+		}
+		if(!memory::memcmp(&hblock_t->pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN + MODE_SIZE], fileinfo->crypt_info->name, memory::StrLen(fileinfo->crypt_info->name)))
 		{
 			LOG_ERROR("[init_mdata_hblock] namecrypt metadata invalid");
 			hblock_t->status = false;
@@ -142,6 +148,7 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 	{
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE, &offset);
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN, &offset);
+		memcpy_offset(&hblock_t->pblock[offset], std::to_string((int)GLOBAL_ENUM.g_EncryptMode + 55).c_str(), MODE_SIZE, &offset);
  		memcpy_offset(&hblock_t->pblock[offset], fileinfo->crypt_info->name, memory::StrLen(fileinfo->crypt_info->name), &offset);
 #ifdef _WIN32
 		BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
