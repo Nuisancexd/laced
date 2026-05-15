@@ -133,7 +133,7 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 			LOG_ERROR("[init_mdata_hblock] ecrypt_version metadata invalid");
 			hblock_t->status = false;
 		}
-		if(!memory::memcmp(&hblock_t->pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN], std::to_string((int)GLOBAL_ENUM.g_EncryptMode + 55).c_str(), MODE_SIZE))
+		if(!memory::memcmp(&hblock_t->pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN], std::to_string((int)GLOBAL_ENUM.g_EncryptMode).c_str(), MODE_SIZE))
 		{
 			LOG_ERROR("[init_mdata_hblock] encrypt mode metadata invalid");
 			hblock_t->status = false;
@@ -148,7 +148,7 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 	{
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE, &offset);
  		memcpy_offset(&hblock_t->pblock[offset], ECRYPT_VERSION, ECRYPT_VERSION_LEN, &offset);
-		memcpy_offset(&hblock_t->pblock[offset], std::to_string((int)GLOBAL_ENUM.g_EncryptMode + 55).c_str(), MODE_SIZE, &offset);
+		memcpy_offset(&hblock_t->pblock[offset], std::to_string((int)GLOBAL_ENUM.g_EncryptMode).c_str(), MODE_SIZE, &offset);
  		memcpy_offset(&hblock_t->pblock[offset], fileinfo->crypt_info->name, memory::StrLen(fileinfo->crypt_info->name), &offset);
 #ifdef _WIN32
 		BCryptGenRandom(0, &hblock_t->pblock[offset], PSIZE_BLOCK - offset, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
@@ -174,4 +174,92 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
 	}
 
 	return hblock_t;
+}
+
+void filesystem::output_metadata(char* path)
+{
+	LOG_DISABLE(" ");
+	DESC desc = INVALID_HANDLE_VALUE;
+	size_t filesize;
+	if(!api::get_parse_file(path, &desc, &filesize) || filesize < PSIZE_BLOCK)
+	{
+		LOG_ERROR("failed parse file %s", path);
+		return;
+	}
+	else if(!read_headname(desc))
+	{
+		LOG_ERROR("failed tag headname");
+		return;
+	}
+
+	BYTE pblock[PSIZE_BLOCK] = {0};
+	laced_ctx ctx;
+
+	api::SetPointOff(desc, -PSIZE_BLOCK, FILE_END);
+	api::ReadFile(desc, pblock, PSIZE_BLOCK, NULL);
+	api::CloseDesc(desc);
+	if(GLOBAL_KEYS.g_Key)
+	{
+		ECRYPT_keysetup(&ctx, GLOBAL_KEYS.g_Key, 256, 64);
+ 		ECRYPT_ivsetup(&ctx, &pblock[HPSIZE_BLOCK + 72]);
+		ECRYPT_encrypt_bytes(&ctx, pblock, pblock, HPSIZE_BLOCK);
+	}
+	
+	if(!memory::memcmp(&pblock, ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE))
+			LOG_ERROR("[init_mdata_hblock] headname metadata invalid");
+	
+	int pad = 15;
+	LOG_INFO("path:%*s%.*s", std::max(1, pad - 5), "", memory::StrLen(path), path);
+	LOG_INFO("version:%*s%.*s", std::max(1, pad - 8), "", ECRYPT_VERSION_LEN, &pblock[ECRYPT_LEN_STORAGE]);
+
+	BYTE mode[MODE_SIZE + 1] = {0};
+	memcpy(mode, &pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN], MODE_SIZE);
+	int al = memory::my_stoi((char*)mode);
+	switch (al)
+	{
+	case (int)EncryptModes::FULL_ENCRYPT:
+		LOG_INFO("MODE:%*s%s", std::max(1, pad - 5), "", "FULL_ENCRYPT");
+		break;
+	case (int)EncryptModes::PARTLY_ENCRYPT:
+		LOG_INFO("MODE:%*s%s", std::max(1, pad - 5), "", "PARTLY_ENCRYPT");
+		break;
+	case (int)EncryptModes::HEADER_ENCRYPT:
+		LOG_INFO("MODE:%*s%s", std::max(1, pad - 5), "", "HEADER_ENCRYPT");
+		break;
+	case (int)EncryptModes::BLOCK_ENCRYPT:
+		LOG_INFO("MODE:%*s%s", std::max(1, pad - 5), "", "BLOCK_ENCRYPT");
+		break;
+	default:
+		LOG_INFO("MODE:%*s%s", std::max(1, pad - 5), "", "NOT_FOUND");
+	}
+
+	BYTE algo[11];
+	memcpy(algo, &pblock[ECRYPT_LEN_STORAGE + ECRYPT_VERSION_LEN + MODE_SIZE], 10);
+	if(memory::substr(algo, 10, "AES256", 6))
+		LOG_INFO("namecrypt:%*s%s", std::max(1, pad - 10), "", "AES256");
+	else if (memory::substr(algo, 10, "ChaCha20", 8))
+		LOG_INFO("namecrypt:%*s%s", std::max(1, pad - 10), "", "ChaCha20");
+	else if (memory::substr(algo, 10, "RSA_AES256", 10))
+		LOG_INFO("namecrypt:%*s%s", std::max(1, pad - 10), "", "RSA_AES256");
+	else if (memory::substr(algo, 10, "RSA_CHACHA", 10))
+		LOG_INFO("namecrypt:%*s%s", std::max(1, pad - 10), "", "RSA_CHACHA");
+	else if (memory::substr(algo, 10, "RSA", 3))
+		LOG_INFO("namecrypt:%*s%s", std::max(1, pad - 10), "", "RSA");
+	else
+		LOG_INFO("namecrypt:%*s%s", std::max(1, pad - 10), "", "NOT_FOUND");
+
+	BYTE hash[32];
+	sha256(pblock, HPSIZE_BLOCK, hash);
+	BYTE* hash_hex_hblock = memory::BinaryToHex(hash, 32);
+	sha256(&pblock[HPSIZE_BLOCK + 32], 8, hash);
+	BYTE* hash_hex_iv = memory::BinaryToHex(hash, 32);
+	sha256(pblock, PSIZE_BLOCK, hash);
+	BYTE* hash_hex_block = memory::BinaryToHex(hash, 32);
+
+	LOG_INFO("hash hblock%*s%s", std::max(1, pad - 11), "", hash_hex_hblock);
+	LOG_INFO("hash block%*s%s", std::max(1, pad - 10), "", hash_hex_block);
+	LOG_INFO("hash IV%*s%s", std::max(1, pad - 7), "", hash_hex_iv);
+	memory::m_free(hash_hex_hblock);
+	memory::m_free(hash_hex_block);
+	memory::m_free(hash_hex_iv);
 }

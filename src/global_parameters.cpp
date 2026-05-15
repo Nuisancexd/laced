@@ -18,15 +18,18 @@ global::GlobalScanPort GLOBAL_SCAN_PORT;
 #define str_ std::string
 #define str(s) std::string(s)
 
+void global::print_kv(const std::string& key, const str_& value)
+{
+	constexpr int width = 15;
+	int pad = std::max(1, width - (int)key.size());
+	LOG_NONE("%s%*s%s", key.c_str(), pad, "", value.c_str());
+}
+
 BOOL global::print_command_g()
 {
+	if(CommandParser::OUTPUT_META)
+		return true;
 	LOG_NONE("[LACED PARAMETERS]");
-	auto print_kv = [](const std::string& key, const str_& value)
-	{
-	    constexpr int width = 15;
-	    int pad = std::max(1, width - (int)key.size());
-	    LOG_NONE("%s%*s%s", key.c_str(), pad, "", value.c_str());
-	};
 
 	std::string algo;
 	std::string method;

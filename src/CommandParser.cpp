@@ -68,6 +68,7 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n"
            "                        '--path' followed by the path to the configuration.\n"
            "[*]  -nm / --no-meta    Disable metadata block. (default: false)\n"
+           "[*]  -om / --outmeta    Output metadata block.\n"
            "[*]  -hf / --hashfile   Only output the file hash sum.\n"
            "[*]  -s / --sign        Signature and Verification (default: false). When using the signature\n"
            "                        first specify the public key, followed by the private key, separating them with the '$'/'$$' symbol.\n"
@@ -140,7 +141,7 @@ bool CommandParser::PIPELINE = false;
 bool CommandParser::HASH_FILE = false;
 bool CommandParser::PPATH = false;
 bool CommandParser::NOMETA = false;
-
+bool CommandParser::OUTPUT_META = false;
 
 #ifdef __linux__
 #include <sys/stat.h>
@@ -265,6 +266,7 @@ void CommandParser::commands_state(int* argumentc, char** argument)
         setinlist("-d", "--delete", &GLOBAL_STATE.g_FlagDelete),
         setinlist("-et", "--en_thread", &THREAD_ENABLE),
         setinlist("-hf", "--hashfile", &HASH_FILE),
+        setinlist("-om", "--outmeta", &OUTPUT_META),
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
@@ -622,6 +624,17 @@ void CommandParser::ParsingCommandLine()
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::RSA;
             funcDeCrypt();
             funcKey();
+        }
+    }
+    else if (CommandParser::OUTPUT_META) 
+    {
+        pair = GetCommandsNext(argc, argv, "-k", "--key");
+        if (pair.first)
+        {
+            size_t size_key = memory::StrLen(pair.second) + 1;
+            BYTE* key_set = (BYTE*)memory::m_malloc(33);
+            memcpy(key_set, pair.second, min(size_key, size_t(32)));
+            GLOBAL_KEYS.g_Key = key_set;
         }
     }
     else { LOG_ERROR("[ParsingCommandLine] Miss the command --algo"); exit(1); }

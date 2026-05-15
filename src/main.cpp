@@ -11,6 +11,7 @@ void rewrite_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 bool path_operation(PathSystem* psys);
+void metadata_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 
 
 
@@ -61,7 +62,7 @@ bool path_operation(PathSystem* psys)
     {
         psys->start_local_search();
         if (psys->f_count == 0) { LOG_ERROR("No files. null."); return false; }
-        LOG_DISABLE("After this operation %d files will be changed\n[FILES]", psys->f_count);
+        LOG_DISABLE("operation with files %d\n[FILES]", psys->f_count);
         LIST_FOREACH(psys->data, psys->drive_info)
             LOG_INFO("  %d. " log_str, ++count, psys->data->Filename);        
     }
@@ -84,6 +85,7 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
         pipeline->wait();
         delete pipeline;
     }
+    else if(CommandParser::OUTPUT_META) operation = metadata_operation;
     else operation = crypt_operation;
 
     if(f == 1 || !CommandParser::THREAD_ENABLE)
@@ -133,4 +135,9 @@ void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 {
     locker::HandlerCrypt(CryptInfo, data);
+}
+
+void metadata_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
+{
+    filesystem::output_metadata(data->FullPath);
 }

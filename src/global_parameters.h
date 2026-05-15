@@ -121,6 +121,7 @@ namespace global
 		int eport = 0;
 	};
 
+	void print_kv(const std::string& key, const std::string& value);
 	BOOL print_command_g();
 	VOID free_global();
 }

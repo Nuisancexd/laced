@@ -18,7 +18,7 @@ extern bool NO_LOG;
 extern bool NOUT;
 extern bool PPATH;
 extern bool NOMETA;
-
+extern bool OUTPUT_META;
 
 class FileParser
 {
@@ -122,6 +122,7 @@ public:
     static bool HASH_FILE;
     static bool PPATH;
     static bool NOMETA;
+    static bool OUTPUT_META;
 };
 
 #endif

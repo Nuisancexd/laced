@@ -318,6 +318,28 @@ bool memory::memcmp(const void* str, const void* streq, size_t bytes)
 	return true;
 }
 
+bool memory::substr(const void* str, size_t str_bytes, const void* streq, size_t streq_bytes)
+{
+	if(streq_bytes > str_bytes) return false;
+	const BYTE* s = (BYTE*)str;
+	const BYTE* sq = (BYTE*)streq;
+	bool state = true;
+	for(int i = 0; i <= str_bytes - streq_bytes; ++i, state = true)
+	{
+		for(int j = 0; j < streq_bytes; ++j)
+		{
+			if(s[i + j] != sq[j])
+			{
+				state = false;
+				break;
+			}
+		} 
+		if(state) return true;
+	}
+
+	return false;
+}
+
 unsigned char* memory::BinaryToHex(unsigned char* src, size_t size)
 {
 	unsigned char* hashHEX = (unsigned char*)m_malloc(65);
