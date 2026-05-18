@@ -2,6 +2,7 @@
 #include "filesystem/filesystem.h"
 #include "CommandParser.h"
 #include "global_parameters.h"
+#include "pathsystem.h"
 #include "threadpool.h"
 #include "logs.h"
 
@@ -47,6 +48,9 @@ exit:
         LOG_SUCCESS("EXIT_SUCCESS");
     }
     else LOG_ERROR("EXIT");
+
+    if(!success || CommandParser::OUTPUT_META)
+        psys.free_drive_info();
     logs::CloseLog();   
 
     return EXIT_SUCCESS;

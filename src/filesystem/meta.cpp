@@ -188,7 +188,7 @@ void filesystem::output_metadata(char* path)
 	}
 	else if(!read_headname(desc))
 	{
-		LOG_ERROR("failed tag headname");
+		LOG_ERROR("failed tag headname %s", path);
 		return;
 	}
 
