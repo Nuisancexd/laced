@@ -80,11 +80,7 @@ bool filesystem::RewriteSDelete(CRYPT_INFO* CryptInfo, char* FullPath)
 	}
 
 
-	if (!api::SetPoint(desc, FILE_BEGIN))
-	{
-		LOG_ERROR("[RewriteSDelete] Failed; " log_str, FullPath);
-		goto end;
-	}
+	api::SetPoint(desc, FILE_BEGIN);
 
 #ifdef _WIN32
 	if (!SetEndOfFile(desc))
@@ -107,18 +103,16 @@ bool filesystem::RewriteSDelete(CRYPT_INFO* CryptInfo, char* FullPath)
 end:
 	if (desc != INVALID_HANDLE_VALUE)
 		api::CloseDesc(desc);
+
+	if (success &&
 #ifdef _WIN32
-	if (success && !DeleteFileA(FullPath))
+		!DeleteFileA(FullPath))
+#elif __linux__
+		unlink(FullPath) != 0)
+#endif		 
 	{
 		LOG_ERROR("Failed to unlink file after secure delete: %ls", FullPath);
 		success = false;
 	}
-#else
-	if (success && unlink(FullPath) != 0)
-	{
-		LOG_ERROR("Failed to unlink file after secure delete: %s", FullPath);
-		success = false;
-	}
-#endif
 	return success;
 }

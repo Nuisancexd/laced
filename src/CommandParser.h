@@ -19,6 +19,7 @@ extern bool NOUT;
 extern bool PPATH;
 extern bool NOMETA;
 extern bool OUTPUT_META;
+extern bool OUTPUT_META_SHORT;
 
 class FileParser
 {
@@ -29,21 +30,10 @@ public:
         q_array = (int*)memory::m_malloc(4 * sizeof(int));
         count_q = 0;
     }
-    FileParser(const char* filepath_) : filepath(filepath_) 
+    FileParser(char* filepath_) : filepath(filepath_) 
     {
         method = &FileParser::parse_paths_data;
     }
-#ifdef _WIN32
-    FileParser(WCHAR* filepath_)
-    {
-        auto len = memory::StrLen(filepath_);
-        int size_needed = WideCharToMultiByte(CP_UTF8, 0, filepath_, len, NULL, 0, NULL, NULL);
-	    std::string str(size_needed, 0);
-	    WideCharToMultiByte(CP_UTF8, 0, filepath_, len, str.data(), size_needed, NULL, NULL);
-        filepath = str.c_str();
-        method = &FileParser::parse_paths_data;
-    }
-#endif
     ~FileParser()
     {
         if(q_array)
@@ -58,7 +48,7 @@ private:
     bool parse_config_data(char* line, size_t index, char** argv_ret);
     bool parse_paths_data(char* line, size_t index, char** argv_ret);
 
-    void parse_file(const char* filepath);
+    void parse_file(char* filepath);
     std::pair<size_t, char**> parse_data_file();
 
     std::unique_ptr<char[]> filebuffer;
@@ -66,7 +56,7 @@ private:
 
     int argc = 0;
     char** argv = NULL;
-    const char* filepath = NULL;
+    char* filepath = NULL;
 
     int count = 0;
 
@@ -123,6 +113,7 @@ public:
     static bool PPATH;
     static bool NOMETA;
     static bool OUTPUT_META;
+    static bool OUTPUT_META_SHORT;
 };
 
 #endif

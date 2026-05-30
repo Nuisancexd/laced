@@ -153,3 +153,32 @@ char* filesystem::NameMethodState(PFILE_INFO fileinfo, PDRIVE_INFO data)
 	return fullpath;
 }
 
+// void filesystem::rename_files(char* path)
+// {
+// 	FILE_INFO fileinfo;
+// 	fileinfo.hblock->crypt;
+// 	DESC desc = api::OpenFile(path);
+
+// 	switch (GLOBAL_ENUM.g_CryptName)
+// 	{
+// 	case NAME::BASE64_NAME_CRYPT:
+// 	case NAME::BASE64_NAME:
+// 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameBase;
+// 		break;
+// 	case NAME::HASH_NAME:
+// 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameHash;
+// 		break;
+// 	default:
+// 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameStandart;
+// 		break;
+// 	}
+	
+// 	char* fullname = NameMethodState(fileinfo, data);
+// 	if(!fullname)
+// 		return;
+
+// 	rename(FileInfo->file_path, FileInfo->recent_filename);
+
+
+// }
+

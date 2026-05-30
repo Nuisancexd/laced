@@ -56,7 +56,8 @@ void filesystem::delete_metadata(DESC filehandle, size_t* filesize)
 
 void filesystem::free_hblock_mdata(PHEAD_BLOCK hblock_t)
 {
-	memory::memzero_free(hblock_t->pblock, 256);
+	if(!hblock_t) return;
+	memory::memzero_free(hblock_t->pblock, PSIZE_BLOCK);
 	memory::memzero_free(hblock_t->ctx, sizeof(laced_ctx));
 	memory::memzero_free(hblock_t->IV, IV_SIZE);
 	memory::m_free(hblock_t);
@@ -159,8 +160,8 @@ PHEAD_BLOCK filesystem::init_mdata_hblock(PFILE_INFO fileinfo)
  		offset = HPSIZE_BLOCK;
 		sha256(hblock_t->pblock, HPSIZE_BLOCK, &hblock_t->pblock[offset]);
 		offset += 32;
-		memcpy_offset(hblock_t->IV, &hblock_t->pblock[offset], 8, &offset);
-		sha256(hblock_t->IV, 8, &hblock_t->pblock[offset]);
+		memcpy_offset(hblock_t->IV, &hblock_t->pblock[offset], IV_SIZE, &offset);
+		sha256(hblock_t->IV, IV_SIZE, &hblock_t->pblock[offset]);
 		offset += 32;
 		if(GLOBAL_KEYS.g_Key)
 		{
@@ -189,6 +190,7 @@ void filesystem::output_metadata(char* path)
 	else if(!read_headname(desc))
 	{
 		LOG_ERROR("failed tag headname");
+		api::CloseDesc(desc);
 		return;
 	}
 
@@ -205,9 +207,19 @@ void filesystem::output_metadata(char* path)
 		ECRYPT_encrypt_bytes(&ctx, pblock, pblock, HPSIZE_BLOCK);
 	}
 	
-	if(!memory::memcmp(&pblock, ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE))
+	bool valid = false;
+	if(!(valid = memory::memcmp(&pblock, ECRYPT_NAME_STORAGE, ECRYPT_LEN_STORAGE)))
 			LOG_ERROR("[init_mdata_hblock] headname metadata invalid");
 	
+	if(CommandParser::OUTPUT_META_SHORT)
+	{
+		valid ? 
+			LOG_SUCCESS("META_DATA VALID%*s%.*s", 5, "", memory::StrLen(path), path)
+			:
+			LOG_ERROR("META_DATA INVALID%*s%.*s", 5, "", memory::StrLen(path), path);
+		return;
+	}
+
 	int pad = 15;
 	LOG_INFO("path:%*s%.*s", std::max(1, pad - 5), "", memory::StrLen(path), path);
 	LOG_INFO("version:%*s%.*s", std::max(1, pad - 8), "", ECRYPT_VERSION_LEN, &pblock[ECRYPT_LEN_STORAGE]);

@@ -10,7 +10,8 @@ enum class CryptoPolicy
 	CHACHA = 102,
 	RSA_AES256 = 103,
 	RSA_CHACHA = 104,
-	RSA = 105
+	RSA = 105,
+	NONE = 106
 };
 
 enum class EncryptModes : size_t
@@ -85,7 +86,7 @@ namespace global
 		EncryptModes g_EncryptMode = EncryptModes::FULL_ENCRYPT;
 		EncryptCatalog g_EncryptCat = EncryptCatalog::DIR_CAT;
 		NAME g_CryptName = NAME::NONE;
-		CryptoPolicy g_EncryptMethod = CryptoPolicy::CHACHA;
+		CryptoPolicy g_EncryptMethod = CryptoPolicy::NONE;
 		throttle_time g_throttle_time = throttle_time::base;
 	};
 

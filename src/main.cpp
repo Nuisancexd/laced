@@ -44,6 +44,8 @@ exit:
     {
         auto end_time = std::chrono::high_resolution_clock::now();
         LOG_INFO("[TIME] %s seconds", std::to_string(std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count()).c_str());
+        auto p = locker::get_count_op();
+        LOG_INFO("success: %d; failure %d", p.first, p.second);
         LOG_SUCCESS("EXIT_SUCCESS");
     }
     else LOG_ERROR("EXIT");

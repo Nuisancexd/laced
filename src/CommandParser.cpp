@@ -142,7 +142,7 @@ bool CommandParser::HASH_FILE = false;
 bool CommandParser::PPATH = false;
 bool CommandParser::NOMETA = false;
 bool CommandParser::OUTPUT_META = false;
-
+bool CommandParser::OUTPUT_META_SHORT = false;
 #ifdef __linux__
 #include <sys/stat.h>
 #define MAX_PATH 255
@@ -267,6 +267,7 @@ void CommandParser::commands_state(int* argumentc, char** argument)
         setinlist("-et", "--en_thread", &THREAD_ENABLE),
         setinlist("-hf", "--hashfile", &HASH_FILE),
         setinlist("-om", "--outmeta", &OUTPUT_META),
+        setinlist("-oms", "--outmetas", &OUTPUT_META_SHORT),
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
@@ -399,7 +400,7 @@ void CommandParser::ParsingCommandLine()
         FileParser pars(argc, argv);
         std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
-            LOG_ERROR("[ParseFileConfig] Failed;"); exit(1);
+            { LOG_ERROR("[ParseFileConfig] Failed;"); exit(1); }
         argv = pair_c.second;
         argc = pair_c.first;
         config = true;
@@ -667,11 +668,11 @@ void CommandParser::ParsingCommandLine()
     logs::call_log();
 }
 
-void FileParser::parse_file(const char* filepath)
+void FileParser::parse_file(char* filepath)
 {
     DESC desc = INVALID_HANDLE_VALUE;
     TCHAR* fp = NULL;
-    if(!api::get_parse_file((char*)filepath, &desc, &filesize))
+    if(!api::get_parse_file(filepath, &desc, &filesize))
     {
         LOG_ERROR("[ParseFile] failed");
         return;

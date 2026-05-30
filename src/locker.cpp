@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include "CommandParser.h"
+#include <atomic>
 
 
 constexpr unsigned MB = 1048576;
@@ -505,13 +506,30 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 	return true;
 }
 
+std::atomic<size_t> op_succ{ 0 };
+std::atomic<size_t> op_fail{ 0 };
+
+std::pair<size_t, size_t> locker::get_count_op()
+{
+	return {op_succ.load(), op_fail.load()};
+}
+
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
 	if(success)
+	{
+		LOG_SUCCESS("success encrypt file; %s", data->Filename);
+		op_succ.fetch_add(1, std::memory_order_relaxed);
 		FileInfo->hblock->crypt ? 
 			filesystem::write_metadata(FileInfo)
 			:
 			filesystem::delete_metadata(FileInfo->recent_filehandle, &FileInfo->filesize);
+	}
+	else
+	{
+		LOG_ERROR("failed encrypt file; %s", data->Filename);
+		op_fail.fetch_add(1, std::memory_order_relaxed);
+	}
 
 	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
 		api::CloseDesc(FileInfo->filehandle);
@@ -520,20 +538,12 @@ void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 
 	if (!success) SecureDelete(FileInfo->recent_filename);
 	else if (GLOBAL_STATE.g_FlagDelete && !GLOBAL_STATE.g_write_in)
-	{
-		if (!SecureDelete(FileInfo->file_path))
-			LOG_ERROR("[SecureDelete] Failed; %s", FileInfo->filename);
-	}
+		SecureDelete(FileInfo->file_path);
 	else if(GLOBAL_STATE.g_write_in)
 		rename(FileInfo->file_path, FileInfo->recent_filename);
 
 	memory::m_free(FileInfo->recent_filename);
 	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
-	
-	success == 1 ?
-		LOG_SUCCESS("success encrypt file; %s", data->Filename)
-		:
-		LOG_ERROR("failed encrypt file; %s", data->Filename);
 
 	filesystem::free_hblock_mdata(FileInfo->hblock);
 	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));

