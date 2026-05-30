@@ -2,6 +2,7 @@
 #include "filesystem/filesystem.h"
 #include "CommandParser.h"
 #include "global_parameters.h"
+#include "pathsystem.h"
 #include "threadpool.h"
 #include "logs.h"
 
@@ -49,6 +50,9 @@ exit:
         LOG_SUCCESS("EXIT_SUCCESS");
     }
     else LOG_ERROR("EXIT");
+
+    if(!success || CommandParser::OUTPUT_META)
+        psys.free_drive_info();
     logs::CloseLog();   
 
     return EXIT_SUCCESS;
@@ -88,6 +92,7 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
         delete pipeline;
     }
     else if(CommandParser::OUTPUT_META) operation = metadata_operation;
+    else if(CommandParser::OUTPUT_META_SHORT) { operation = metadata_operation; }
     else operation = crypt_operation;
 
     if(f == 1 || !CommandParser::THREAD_ENABLE)
