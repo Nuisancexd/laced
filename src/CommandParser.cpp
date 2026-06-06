@@ -145,6 +145,8 @@ bool CommandParser::NOMETA = false;
 bool CommandParser::OUTPUT_META = false;
 bool CommandParser::OUTPUT_META_SHORT = false;
 bool CommandParser::DELETE_FILE_EXST = false;
+bool CommandParser::WATHCER = false;
+
 #ifdef __linux__
 #include <sys/stat.h>
 #define MAX_PATH 255
@@ -270,6 +272,7 @@ void CommandParser::commands_state(int* argumentc, char** argument)
         setinlist("-hf", "--hashfile", &HASH_FILE),
         setinlist("-om", "--outmeta", &OUTPUT_META),
         setinlist("-oms", "--outmetas", &OUTPUT_META_SHORT),
+        setinlist("-w", "--watcher", &WATHCER),
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
@@ -357,7 +360,7 @@ void set_filedelete(const char* val)
         GLOBAL_ENUM.g_CryptName = NAME::DELETE_NAME_L;
     else if(memory::StrStrC(val, "wo"))
         GLOBAL_ENUM.g_CryptName = NAME::DELETE_NAME_;
-    else return;
+    else {LOG_DISABLE("type: delete w/wo file ext"); exit(0); };
     CommandParser::DELETE_FILE_EXST = true;
 }
 

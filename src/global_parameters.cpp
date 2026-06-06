@@ -39,8 +39,11 @@ bool proceed()
 
 BOOL global::print_command_g()
 {
-	if(CommandParser::OUTPUT_META)
+	if(CommandParser::OUTPUT_META || CommandParser::OUTPUT_META_SHORT)
+	{
+		LOG_DISABLE("OUTPUT METADATA");
 		return true;
+	}
 	if(CommandParser::DELETE_FILE_EXST)
 	{
 		if(GLOBAL_ENUM.g_CryptName == NAME::DELETE_NAME_L)

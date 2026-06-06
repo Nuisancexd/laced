@@ -46,6 +46,7 @@ namespace filesystem
 	char* OptionNameHash(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
 	char* OptionNameBase(PFILE_INFO fileinfo, char* Filename, char* exst, char* FPath);
 	void rename_files();
+	void delete_file_exst(PDRIVE_INFO data);
 
 	bool nopOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);
 	bool ZerosOverWriteFile(CRYPT_INFO* CryptInfo, DESC desc_file, unsigned filesize);

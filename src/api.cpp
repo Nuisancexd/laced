@@ -237,14 +237,10 @@ bool api::get_parse_file(char* FilePath, DESC* desc_file, size_t* filesize)
 	LARGE_INTEGER FileSize;
 	if (!GetFileSizeEx(*desc_file, &FileSize))
 	{
-		LOG_ERROR("[GetParseFile] Failed file must not be empty;" log_str, FilePath);
+		LOG_ERROR("[GetParseFile] GetFileSizeEx failed;" log_str, FilePath);
 		return FALSE;
 	}
-	if (!FileSize.QuadPart)
-	{
-		LOG_ERROR("[GetParseFile] Failed file must not be empty; " log_str, FilePath);
-		return FALSE;
-	}
+
 	*filesize = FileSize.QuadPart;
 #else
 	struct stat st;
