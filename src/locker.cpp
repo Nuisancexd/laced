@@ -104,7 +104,6 @@ EncryptAlgoMethod init_hybrid(u32* mode)
 bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 {
 	crypt_info->hash_sum_method = (HashSumFunc)filesystem::nopHashSumFile;
-	crypt_info->hash_data.HashList = NULL;
 	u32 mode_ = 0;
 
 	switch (policy)
@@ -242,9 +241,6 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 	}
 
 	crypt_info->overwrite_method = (OverWriteFunc)filesystem::nopOverWriteFile;
-	crypt_info->zeros = NULL;
-	crypt_info->random = NULL;
-
 	return true;
 }
 
@@ -266,7 +262,7 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 
 	if(CommandParser::HASH_FILE)
 	{
-		delete CryptInfo;
+		memory::m_free(CryptInfo);
 		return;
 	}
 
@@ -308,7 +304,7 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 		CryptInfo->ctx = NULL;
 	}
 
-	delete CryptInfo;
+	memory::m_free(CryptInfo);
 }
 
 
@@ -420,7 +416,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 }
 
 
-static bool SecureDelete(CONST char* FilePath)
+bool locker::SecureDelete(CONST char* FilePath)
 {
 #ifdef __linux__
 	int desc = api::OpenFile(FilePath);

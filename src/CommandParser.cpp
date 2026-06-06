@@ -76,6 +76,7 @@ VOID CommandParser::CommandLineHelper()
            "                        hash -- hash Irrevocably Hash FILENAME with sha256.\n"
            "                        base -- encrypt FILENAME with Base64.\n"
            "                        enbase -- encrypt FILENAME with chacha->Base64\n"
+           "[*]  -dfe / --dfex      delete files exstention: w - with exst '.laced', wo - without exst '.laced'\n"
            "[*]  -m / --mode        Select the encryption mode. (default: FULL_ENCRYPT)\n"
            "                        a / auto  -- AUTO_ENCRYPT:   File size <= 1 MB uses full, <= 5 MB uses partly and > uses header\n"
            "                        f / full  -- FULL_ENCRYPT:   Encrypts the entire file. Recommended for small files.\n"
@@ -143,6 +144,7 @@ bool CommandParser::PPATH = false;
 bool CommandParser::NOMETA = false;
 bool CommandParser::OUTPUT_META = false;
 bool CommandParser::OUTPUT_META_SHORT = false;
+bool CommandParser::DELETE_FILE_EXST = false;
 #ifdef __linux__
 #include <sys/stat.h>
 #define MAX_PATH 255
@@ -349,6 +351,16 @@ void set_cat(const char* val)
         GLOBAL_ENUM.g_EncryptCat = EncryptCatalog::FILE_CAT;
 }
 
+void set_filedelete(const char* val)
+{
+    if(memory::StrStrC(val, "w"))
+        GLOBAL_ENUM.g_CryptName = NAME::DELETE_NAME_L;
+    else if(memory::StrStrC(val, "wo"))
+        GLOBAL_ENUM.g_CryptName = NAME::DELETE_NAME_;
+    else return;
+    CommandParser::DELETE_FILE_EXST = true;
+}
+
 void CommandParser::commands_state_t(int* argumentc, char** argument)
 {
     commands list[]
@@ -357,6 +369,7 @@ void CommandParser::commands_state_t(int* argumentc, char** argument)
         {"-n", "--name", memory::cStrLen("-n"), memory::cStrLen("--name"), set_name},
         {"-m", "--mode", memory::cStrLen("-m"), memory::cStrLen("--mode"), set_mode},
         {"-c", "--cat", memory::cStrLen("-c"), memory::cStrLen("--cat"), set_cat},
+        {"-dfe", "--dfex", memory::cStrLen("-dfe"), memory::cStrLen("--dfex"), set_filedelete}
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
@@ -451,6 +464,8 @@ void CommandParser::ParsingCommandLine()
         }
     }
 
+    if(CommandParser::DELETE_FILE_EXST) return;
+
     pair = GetCommandsCurr(argc, argv, "-b64", "--base64");
     if (pair.first) { GLOBAL_STATE.g_RsaBase64 = true; BASE64 = true; };
 
@@ -522,7 +537,7 @@ void CommandParser::ParsingCommandLine()
         auto funcKey = ([this]
             {
                 std::pair<bool, char*> pair = GetCommandsNext(argc, argv, "-k", "--key");
-                if (!pair.first) { LOG_ERROR("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
+                if (!pair.first) { LOG_DISABLE("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
                 auto pair_sign = GetCommandsC(argc, argv, "-s", "--sign");
                 if (pair_sign.first)
                 {
@@ -530,8 +545,8 @@ void CommandParser::ParsingCommandLine()
                     pair_sign = GetCommandsN(argc, argv, "$", "$$");
                     if (!pair_sign.first)
                     {
-                        LOG_ERROR("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
-                        LOG_ERROR("example: --key /home/user/key/public_key_rsa.txt $ /home/user/key/private_key_rsa.txt");
+                        LOG_DISABLE("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
+                        LOG_DISABLE("example: --key /home/user/key/public_key_rsa.txt $ /home/user/key/private_key_rsa.txt");
                         exit(1);
                     }
 

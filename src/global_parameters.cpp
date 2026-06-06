@@ -25,10 +25,30 @@ void global::print_kv(const std::string& key, const str_& value)
 	LOG_NONE("%s%*s%s", key.c_str(), pad, "", value.c_str());
 }
 
+bool proceed()
+{
+	std::string str;
+	LOG_DISABLE("PROCEED [Y-enter/n]");
+	std::getline(std::cin, str);
+
+	if (str == "n") return FALSE;
+	else if (str.empty() || str == "y" || str == "Y" || str == "yes" || str == "YES")
+		return TRUE;
+	else { LOG_DISABLE("Type y/Y/yes/YES or press enter"); return FALSE; }
+}
+
 BOOL global::print_command_g()
 {
 	if(CommandParser::OUTPUT_META)
 		return true;
+	if(CommandParser::DELETE_FILE_EXST)
+	{
+		if(GLOBAL_ENUM.g_CryptName == NAME::DELETE_NAME_L)
+			LOG_DISABLE("DELETE FILE EXSTENSION with '.laced'");
+		else if(GLOBAL_ENUM.g_CryptName == NAME::DELETE_NAME_)
+			LOG_DISABLE("DELETE FILE EXSTENSION without '.laced'");
+		return proceed();
+	}
 	LOG_NONE("[LACED PARAMETERS]");
 
 	std::string algo;
@@ -215,14 +235,7 @@ BOOL global::print_command_g()
 end:
 	if(CommandParser::NOUT)
 		return true;
-	std::string str;
-	LOG_DISABLE("PROCEED [Y-enter/n]");
-	std::getline(std::cin, str);
-
-	if (str == "n") return FALSE;
-	else if (str.empty() || str == "y" || str == "Y" || str == "yes" || str == "YES")
-		return TRUE;
-	else { LOG_DISABLE("Type y/Y/yes/YES or press enter"); return FALSE; }
+	return proceed();
 }
 
 

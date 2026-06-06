@@ -20,6 +20,7 @@ extern bool PPATH;
 extern bool NOMETA;
 extern bool OUTPUT_META;
 extern bool OUTPUT_META_SHORT;
+extern bool DELETE_FILE_EXST;
 
 class FileParser
 {
@@ -114,6 +115,7 @@ public:
     static bool NOMETA;
     static bool OUTPUT_META;
     static bool OUTPUT_META_SHORT;
+    static bool DELETE_FILE_EXST;
 };
 
 #endif

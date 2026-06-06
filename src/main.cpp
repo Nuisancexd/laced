@@ -8,11 +8,7 @@
 
 typedef void (*operation_func)(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f);
-void rewrite_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
-void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
-void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 bool path_operation(PathSystem* psys);
-void metadata_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 
 
 
@@ -23,9 +19,8 @@ int main(int argc, char* argv[])
     CommandParser pcl(argc, argv);        
     PathSystem psys(pcl.q_paths, GLOBAL_PATH.g_Path);
 
-    CRYPT_INFO* CryptInfo = new CRYPT_INFO;
+    CRYPT_INFO* CryptInfo = (CRYPT_INFO*)memory::m_malloc(sizeof(CRYPT_INFO));
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
-
 
     if (!locker::GeneratePolicy(CryptInfo))
     { LOG_ERROR("Failed to Generate Policy."); goto exit; }
@@ -76,49 +71,6 @@ bool path_operation(PathSystem* psys)
     return true;
 }
 
-void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f)
-{
-    operation_func operation = NULL;
-
-    if(CommandParser::O_REWRITE) operation = rewrite_operation;
-    else if(CommandParser::HASH_FILE) operation = hash_operation;
-    else if(CommandParser::PIPELINE)
-    {
-        ThreadPipeLine* pipeline = new ThreadPipeLine;
-        LIST_FOREACH(data, DriveInfo)
-            pipeline->init(CryptInfo, data);
-
-        pipeline->wait();
-        delete pipeline;
-    }
-    else if(CommandParser::OUTPUT_META) operation = metadata_operation;
-    else if(CommandParser::OUTPUT_META_SHORT) { operation = metadata_operation; }
-    else operation = crypt_operation;
-
-    if(f == 1 || !CommandParser::THREAD_ENABLE)
-    {
-        LIST_FOREACH(data, DriveInfo)
-            operation(CryptInfo, data);
-    }
-    else
-    {
-        int maxThreads = std::thread::hardware_concurrency() - 1;
-        int threads = f <= maxThreads ? f - 1 : maxThreads;
-
-        ThreadPool pool(threads);
-        LIST_FOREACH(data, DriveInfo)
-            pool.put_task([=]()
-            {
-                operation(CryptInfo, data);
-            });
-
-        pool.run_main_thread();
-    }
-
-    if (CommandParser::signature && !filesystem::VerifySignatureRSA(CryptInfo->hash_data.HashList))
-        LOG_ERROR("[VerifySignatureRSA] Failed");
-}
-
 void rewrite_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 {
     if (filesystem::RewriteSDelete(CryptInfo, data->FullPath))
@@ -147,4 +99,52 @@ void crypt_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 void metadata_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 {
     filesystem::output_metadata(data->FullPath);
+}
+
+void deletefex_opretaion(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
+{
+    filesystem::delete_file_exst(data);
+}
+
+void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f)
+{
+    operation_func operation = NULL;
+
+    if(CommandParser::O_REWRITE) operation = rewrite_operation;
+    else if(CommandParser::HASH_FILE) operation = hash_operation;
+    else if(CommandParser::PIPELINE)
+    {
+        ThreadPipeLine* pipeline = new ThreadPipeLine;
+        LIST_FOREACH(data, DriveInfo)
+            pipeline->init(CryptInfo, data);
+
+        pipeline->wait();
+        delete pipeline;
+    }
+    else if(CommandParser::OUTPUT_META || CommandParser::OUTPUT_META_SHORT) operation = metadata_operation;
+    else if(CommandParser::DELETE_FILE_EXST) operation = deletefex_opretaion;
+    else operation = crypt_operation;
+
+    if(f == 1 || !CommandParser::THREAD_ENABLE)
+    {
+        LIST_FOREACH(data, DriveInfo)
+            operation(CryptInfo, data);
+    }
+    else
+    {
+        int maxThreads = std::thread::hardware_concurrency() - 1;
+        int threads = f <= maxThreads ? f - 1 : maxThreads;
+
+        ThreadPool pool(threads);
+        LIST_FOREACH(data, DriveInfo)
+            pool.put_task([=]()
+            {
+                operation(CryptInfo, data);
+            });
+
+        pool.run_main_thread();
+    }
+
+    if (CommandParser::signature && !filesystem::VerifySignatureRSA(CryptInfo->hash_data.HashList))
+        LOG_ERROR("[VerifySignatureRSA] Failed");
 }

