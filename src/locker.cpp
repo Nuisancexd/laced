@@ -44,10 +44,10 @@ static void HandlerGenKeyAES(crypto_aes_ctx* CryptCtx, CONST BYTE* AESKey)
 
 static bool SymmetricMethodState(PFILE_INFO FileInfo)
 {
-	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE)
-		FileInfo->crypt_info->gen_key_method(FileInfo->ctx, GLOBAL_KEYS.g_Key, FileInfo->hblock->IV);
+	if (FileInfo->crypt_info->methods.gen_policy == GENKEY_EVERY_ONCE)
+		FileInfo->crypt_info->methods.gen_key_method(FileInfo->ctx, GLOBAL_KEYS.g_Key, FileInfo->hblock->IV);
 
-	return FileInfo->crypt_info->mode_method(FileInfo);
+	return FileInfo->crypt_info->methods.mode_method(FileInfo);
 }
 
 static bool HybridMethodStateCrypt(PFILE_INFO FileInfo)
@@ -103,7 +103,7 @@ EncryptAlgoMethod init_hybrid(u32* mode)
 
 bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 {
-	crypt_info->hash_sum_method = (HashSumFunc)filesystem::nopHashSumFile;
+	crypt_info->methods.hash_sum_method = (HashSumFunc)filesystem::nopHashSumFile;
 	u32 mode_ = 0;
 
 	switch (policy)
@@ -116,13 +116,16 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 			.ctx = (crypto_aes_ctx*)memory::m_malloc(sizeof(crypto_aes_ctx)), 
 			.name = "AES256",
 			.mode = mode_,
-			.method_policy = CryptoPolicy::AES256,
-			.gen_policy = GENKEY_ONCE,
-			.crypt_method = (EncryptMethodFunc)aes_block_fn,
-			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
-			.algo_method = (EncryptAlgoMethod)SymmetricMethodState,
+			.methods =
+			{
+				.method_policy = CryptoPolicy::AES256,
+				.gen_policy = GENKEY_ONCE,
+				.crypt_method = (EncryptMethodFunc)aes_block_fn,
+				.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
+				.algo_method = (EncryptAlgoMethod)SymmetricMethodState,
+			},
 		};
-		crypt_info->gen_key_method(crypt_info->ctx, GLOBAL_KEYS.g_Key, NULL);
+		crypt_info->methods.gen_key_method(crypt_info->ctx, GLOBAL_KEYS.g_Key, NULL);
 		break;
 	}
 	case CryptoPolicy::CHACHA:
@@ -131,11 +134,14 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 		CRYPT_INFO{
 			.name = "ChaCha20",
 			.mode = 0,
-			.method_policy = CryptoPolicy::CHACHA,
-			.gen_policy = GENKEY_EVERY_ONCE,
-			.crypt_method = (EncryptMethodFunc)chacha_block_fn,
-			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
-			.algo_method = (EncryptAlgoMethod)SymmetricMethodState
+			.methods =
+			{
+				.method_policy = CryptoPolicy::CHACHA,
+				.gen_policy = GENKEY_EVERY_ONCE,
+				.crypt_method = (EncryptMethodFunc)chacha_block_fn,
+				.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
+				.algo_method = (EncryptAlgoMethod)SymmetricMethodState
+			},
 		};
 		break;
 	}
@@ -159,11 +165,14 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 			},
 			.name = "RSA_AES256",
 			.mode = mode_,
-			.method_policy = CryptoPolicy::RSA_AES256,
-			.gen_policy = GENKEY_EVERY_ONCE,
-			.crypt_method = (EncryptMethodFunc)aes_block_fn,
-			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
-			.algo_method = algm
+			.methods =
+			{
+				.method_policy = CryptoPolicy::RSA_AES256,
+				.gen_policy = GENKEY_EVERY_ONCE,
+				.crypt_method = (EncryptMethodFunc)aes_block_fn,
+				.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyAES,
+				.algo_method = algm
+			}
 		};
 		if (!filesystem::ReadRSAFile(crypt_info))
 		{
@@ -191,11 +200,14 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 			},
 			.name = "RSA_CHACHA",
 			.mode = mode_,
-			.method_policy = CryptoPolicy::RSA_CHACHA,
-			.gen_policy = GENKEY_EVERY_ONCE,
-			.crypt_method = (EncryptMethodFunc)chacha_block_fn,
-			.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
-			.algo_method = algm
+			.methods =
+			{
+				.method_policy = CryptoPolicy::RSA_CHACHA,
+				.gen_policy = GENKEY_EVERY_ONCE,
+				.crypt_method = (EncryptMethodFunc)chacha_block_fn,
+				.gen_key_method = (EncryptGenKeyFunc)HandlerGenKeyChaCha,
+				.algo_method = algm
+			}
 		};
 		if (!filesystem::ReadRSAFile(crypt_info))
 		{
@@ -223,11 +235,14 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 			},
 			.name = "RSA",
 			.mode = 0,
-			.method_policy = CryptoPolicy::RSA,
-			.gen_policy = NONE,
-			.crypt_method = NULL,
-			.gen_key_method = NULL,
-			.algo_method = (EncryptAlgoMethod)RSAOnlyMethodState
+			.methods =
+			{
+				.method_policy = CryptoPolicy::RSA,
+				.gen_policy = NONE,
+				.crypt_method = NULL,
+				.gen_key_method = NULL,
+				.algo_method = (EncryptAlgoMethod)RSAOnlyMethodState
+			},
 		};
 		if (!filesystem::ReadRSAFile(crypt_info))
 		{
@@ -240,7 +255,7 @@ bool locker::CryptoSystemInit(CryptoPolicy policy, PCRYPT_INFO crypt_info)
 		break;		
 	}
 
-	crypt_info->overwrite_method = (OverWriteFunc)filesystem::nopOverWriteFile;
+	crypt_info->methods.overwrite_method = (OverWriteFunc)filesystem::nopOverWriteFile;
 	return true;
 }
 
@@ -304,6 +319,9 @@ void locker::FreeCryptInfo(CRYPT_INFO* CryptInfo)
 		CryptInfo->ctx = NULL;
 	}
 
+	if(CryptInfo->list_psd)
+		delete CryptInfo->list_psd;
+
 	memory::m_free(CryptInfo);
 }
 
@@ -316,17 +334,22 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		return false;
 	}
 
+	if(true) /* if not unsafe*/
+	{
+		CryptInfo->list_psd = new LIST<LIST_PSD>;
+	}
+
 	if(CommandParser::HASH_FILE)
 	{
 		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
-		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::hash_file;
+		CryptInfo->methods.hash_sum_method = (HashSumFunc)filesystem::hash_file;
 		return true;
 	}
 	
 	if (CommandParser::signature)
 	{
 		CryptInfo->hash_data.HashList = new SLIST<HASH_LIST>;
-		CryptInfo->hash_sum_method = (HashSumFunc)filesystem::HashSumFile;
+		CryptInfo->methods.hash_sum_method = (HashSumFunc)filesystem::HashSumFile;
 	}
 
 	if (GLOBAL_OVERWRITE.g_OverWrite)
@@ -335,7 +358,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		{
 		case overwrite::ZEROS:
 		{
-			CryptInfo->overwrite_method = (OverWriteFunc)filesystem::ZerosOverWriteFile;
+			CryptInfo->methods.overwrite_method = (OverWriteFunc)filesystem::ZerosOverWriteFile;
 			CryptInfo->zeros = (BYTE*)memory::m_malloc(MB);
 			memory::memzero_explicit(CryptInfo->zeros, MB);
 			CryptInfo->random = NULL;
@@ -343,7 +366,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		}
 		case overwrite::RANDOM:
 		{
-			CryptInfo->overwrite_method = (OverWriteFunc)filesystem::RandomOverWriteFile;
+			CryptInfo->methods.overwrite_method = (OverWriteFunc)filesystem::RandomOverWriteFile;
 			CryptInfo->random = (BYTE*)memory::m_malloc(MB);
 #ifdef _WIN32
 			BCryptGenRandom(0, CryptInfo->random, MB, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
@@ -355,7 +378,7 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 		}
 		case overwrite::DOD:
 		{
-			CryptInfo->overwrite_method = (OverWriteFunc)filesystem::DODOverWriteFile;
+			CryptInfo->methods.overwrite_method = (OverWriteFunc)filesystem::DODOverWriteFile;
 			CryptInfo->zeros = (BYTE*)memory::m_malloc(MB);
 			memory::memzero_explicit(CryptInfo->zeros, MB);
 			CryptInfo->random = (BYTE*)memory::m_malloc(MB);
@@ -374,19 +397,19 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	switch (GLOBAL_ENUM.g_EncryptMode)
 	{
 	case EncryptModes::FULL_ENCRYPT:
-		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeFULL;
+		CryptInfo->methods.mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeFULL;
 		break;
 	case EncryptModes::PARTLY_ENCRYPT:
-		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModePARTLY;
+		CryptInfo->methods.mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModePARTLY;
 		break;
 	case EncryptModes::HEADER_ENCRYPT:
-		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeHEADER;
+		CryptInfo->methods.mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeHEADER;
 		break;
 	case EncryptModes::BLOCK_ENCRYPT:
-		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeBLOCK;
+		CryptInfo->methods.mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeBLOCK;
 		break;
 	case EncryptModes::AUTO_ENCRYPT:
-		CryptInfo->mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeAUTO;
+		CryptInfo->methods.mode_method = (OptionEncryptModeFunc)filesystem::OptionEncryptModeAUTO;
 		break;
 	case EncryptModes::PIPELINE_ENCRYPT:
 		break;
@@ -399,13 +422,13 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 	{
 	case NAME::BASE64_NAME_CRYPT:
 	case NAME::BASE64_NAME:
-		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameBase;
+		CryptInfo->methods.name_method = (OptionNameFunc)filesystem::OptionNameBase;
 		break;
 	case NAME::HASH_NAME:
-		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameHash;
+		CryptInfo->methods.name_method = (OptionNameFunc)filesystem::OptionNameHash;
 		break;
 	default:
-		CryptInfo->name_method = (OptionNameFunc)filesystem::OptionNameStandart;
+		CryptInfo->methods.name_method = (OptionNameFunc)filesystem::OptionNameStandart;
 		break;
 	}
 
@@ -414,36 +437,6 @@ bool locker::GeneratePolicy(CRYPT_INFO* CryptInfo)
 
 	return true;
 }
-
-
-bool locker::SecureDelete(CONST char* FilePath)
-{
-#ifdef __linux__
-	int desc = api::OpenFile(FilePath);
-	if (desc == -1)
-		return FALSE;
-	if (!api::SetPoint(desc, 0) || ftruncate(desc, 0) == -1)
-	{
-		api::CloseDesc(desc);
-		return FALSE;
-	}
-	fsync(desc);
-	api::CloseDesc(desc);
-	return unlink(FilePath) == 0;
-#elif _WIN32
-	HANDLE Handle = CreateFileA(FilePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-	if (Handle == INVALID_HANDLE_VALUE)
-		return false;
-
-	if (SetFilePointer(Handle, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER
-		|| !SetEndOfFile(Handle))
-		return false;
-	CloseHandle(Handle);
-	return DeleteFileA(FilePath);
-#endif
-}
-
-
 
 bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo)
 {
@@ -461,15 +454,15 @@ bool locker::SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO
 		.padding = 0
 	};
 	
-	if (CryptInfo->gen_policy == GENKEY_EVERY_ONCE)
+	if (CryptInfo->methods.gen_policy == GENKEY_EVERY_ONCE)
 	{
-		if (CryptInfo->method_policy == CryptoPolicy::CHACHA
-			|| CryptInfo->method_policy == CryptoPolicy::RSA_CHACHA)
+		if (CryptInfo->methods.method_policy == CryptoPolicy::CHACHA
+			|| CryptInfo->methods.method_policy == CryptoPolicy::RSA_CHACHA)
 			FileInfo->ctx = (laced_ctx*)memory::m_malloc(sizeof(laced_ctx));
 		else
 			FileInfo->ctx = (crypto_aes_ctx*)memory::m_malloc(sizeof(crypto_aes_ctx));
 	}
-	else if (CryptInfo->gen_policy == GENKEY_ONCE)
+	else if (CryptInfo->methods.gen_policy == GENKEY_ONCE)
 		FileInfo->ctx = CryptInfo->ctx;
 
 	if (!api::get_parse_file(data->FullPath, &FileInfo->filehandle, &FileInfo->filesize) 
@@ -510,6 +503,37 @@ std::pair<size_t, size_t> locker::get_count_op()
 	return {op_succ.load(), op_fail.load()};
 }
 
+bool locker::safe_delete_file(LIST<LIST_PSD>* list_psd)
+{
+	if(!list_psd) return false;
+	PLIST_PSD data = NULL;
+	bool success = true;
+	LIST_FOREACH(data, list_psd)
+	{
+		if(!data->state)
+			success = false;
+	}
+	
+	if(!success)
+		goto end;
+	
+	LIST_FOREACH(data, list_psd)
+	{
+		LOG_INFO("delete %s", data->path);
+		api::SecureDelete(data->path);
+	}
+
+end:
+
+	LIST_FOREACH(data, list_psd)
+	{
+		memory::m_free(data->path);
+		list_psd->LIST_DELETE_HEAD();
+	}
+	
+	return success;
+}
+
 void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 {
 	if(success)
@@ -527,19 +551,26 @@ void locker::free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO data, bool success)
 		op_fail.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	if (FileInfo->filehandle != INVALID_HANDLE_VALUE)
-		api::CloseDesc(FileInfo->filehandle);
-	if (FileInfo->recent_filehandle != INVALID_HANDLE_VALUE)
-		api::CloseDesc(FileInfo->recent_filehandle);
+	api::CloseDesc(FileInfo->filehandle);
+	api::CloseDesc(FileInfo->recent_filehandle);
 
-	if (!success) SecureDelete(FileInfo->recent_filename);
+	if(true)
+	{
+		PLIST_PSD data_st = new LIST_PSD;
+		data_st->state = success;
+		size_t len = memory::StrLen(data->FullPath);
+		data_st->path = (char*)memory::m_malloc(len + 1);
+		memcpy(data_st->path, data->FullPath, len);
+		FileInfo->crypt_info->list_psd->LIST_INSERT_HEAD(data_st);
+	}
+	else if (!success) api::SecureDelete(FileInfo->recent_filename);
 	else if (GLOBAL_STATE.g_FlagDelete && !GLOBAL_STATE.g_write_in)
-		SecureDelete(FileInfo->file_path);
+		api::SecureDelete(FileInfo->file_path);
 	else if(GLOBAL_STATE.g_write_in)
 		rename(FileInfo->file_path, FileInfo->recent_filename);
 
 	memory::m_free(FileInfo->recent_filename);
-	if (FileInfo->crypt_info->gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
+	if (FileInfo->crypt_info->methods.gen_policy == GENKEY_EVERY_ONCE && FileInfo->ctx) memory::m_free(FileInfo->ctx);
 
 	filesystem::free_hblock_mdata(FileInfo->hblock);
 	memory::memzero_explicit(FileInfo, sizeof(FILE_INFO));
@@ -557,14 +588,14 @@ bool locker::HandlerCrypt
  	if (!(success = SetOptionFileInfo(&FileInfo, data, CryptInfo)))
  		goto END;
 
-	if (!(success = CryptInfo->algo_method(&FileInfo)))
+	if (!(success = CryptInfo->methods.algo_method(&FileInfo)))
 		goto END;
 
-	if (!CryptInfo->overwrite_method(CryptInfo, FileInfo.filehandle, FileInfo.filesize))
+	if (!CryptInfo->methods.overwrite_method(CryptInfo, FileInfo.filehandle, FileInfo.filesize))
 		LOG_ERROR("[OverWriteFile] Failed; %s", data->Filename);
 
 	if (CommandParser::signature &&
-		CryptInfo->hash_sum_method
+		CryptInfo->methods.hash_sum_method
 		(
 			CryptInfo,
 			FileInfo.hblock->crypt ? FileInfo.filehandle : FileInfo.recent_filehandle,

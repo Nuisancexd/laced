@@ -73,7 +73,7 @@ bool filesystem::RewriteSDelete(CRYPT_INFO* CryptInfo, char* FullPath)
 		return false;
 	}
 
-	if (!CryptInfo->overwrite_method(CryptInfo, desc, filesize))
+	if (!CryptInfo->methods.overwrite_method(CryptInfo, desc, filesize))
 	{
 		LOG_ERROR("[OverWriteFile] Failed; " log_str, FullPath);
 		goto end;
@@ -101,8 +101,7 @@ bool filesystem::RewriteSDelete(CRYPT_INFO* CryptInfo, char* FullPath)
 	fsync(desc);
 #endif
 end:
-	if (desc != INVALID_HANDLE_VALUE)
-		api::CloseDesc(desc);
+	api::CloseDesc(desc);
 
 	if (success &&
 #ifdef _WIN32

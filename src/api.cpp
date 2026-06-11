@@ -274,3 +274,30 @@ bool api::create_file_open(DESC* desc_file, char* filename)
 #endif
 	return true;
 }
+
+bool api::SecureDelete(CONST char* FilePath)
+{
+#ifdef __linux__
+	int desc = api::OpenFile(FilePath);
+	if (desc == -1)
+		return FALSE;
+	if (!api::SetPoint(desc, 0) || ftruncate(desc, 0) == -1)
+	{
+		api::CloseDesc(desc);
+		return FALSE;
+	}
+	fsync(desc);
+	api::CloseDesc(desc);
+	return unlink(FilePath) == 0;
+#elif _WIN32
+	HANDLE Handle = CreateFileA(FilePath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+	if (Handle == INVALID_HANDLE_VALUE)
+		return false;
+
+	if (SetFilePointer(Handle, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER
+		|| !SetEndOfFile(Handle))
+		return false;
+	CloseHandle(Handle);
+	return DeleteFileA(FilePath);
+#endif
+}

@@ -313,10 +313,8 @@ end:
 		memory::memzero_explicit(buf_pub, len_pub);
 		free(buf_pub);
 	}
-	if (desc_prv != -1)
-		api::CloseDesc(desc_prv);
-	if (desc_pub != -1)
-		api::CloseDesc(desc_pub);
+	api::CloseDesc(desc_prv);
+	api::CloseDesc(desc_pub);
 	if (pkey)
 		EVP_PKEY_free(pkey);
 	if (ctx)

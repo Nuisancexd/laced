@@ -45,6 +45,7 @@ namespace api
 
     bool get_parse_file(char* FilePath, DESC* desc_file, size_t* filesize);
     bool create_file_open(DESC* desc_file, char* filename);
+    bool SecureDelete(CONST char* FilePath);
 }
 
 

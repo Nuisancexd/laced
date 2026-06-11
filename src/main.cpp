@@ -10,7 +10,7 @@
 typedef void (*operation_func)(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f);
 bool path_operation(PathSystem* psys);
-
+void watcher_operation(CRYPT_INFO* CryptInfo);
 
 
 int main(int argc, char* argv[])
@@ -26,15 +26,22 @@ int main(int argc, char* argv[])
     if (!locker::GeneratePolicy(CryptInfo))
     { LOG_ERROR("Failed to Generate Policy."); goto exit; }
     
-    //if(!path_operation(&psys)) goto exit;
+    if(CommandParser::WATHCER)
+    {
+        watcher_operation(CryptInfo);
+        goto exit;
+    }
 
-    //if (!global::print_command_g()) goto exit;
+    if(!path_operation(&psys)) goto exit;
+
+    if (!global::print_command_g()) goto exit;
     start_time = std::chrono::high_resolution_clock::now();
 
     execute_operation(psys.drive_info, psys.data, CryptInfo, psys.f_count);
 
     success = TRUE;
 exit:
+    locker::safe_delete_file(CryptInfo->list_psd);
     locker::FreeCryptInfo(CryptInfo);
     global::free_global();
     if (success)
@@ -82,7 +89,7 @@ void rewrite_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 
 void hash_operation(CRYPT_INFO* CryptInfo, DRIVE_INFO* data)
 {
-    CryptInfo->hash_sum_method
+    CryptInfo->methods.hash_sum_method
     (
         CryptInfo,  
         NULL,
@@ -130,13 +137,13 @@ void watcher_operation(CRYPT_INFO* CryptInfo)
             psys.drive_info->LIST_DELETE_HEAD();
             --psys.f_count;
         }
+        locker::safe_delete_file(CryptInfo->list_psd);
     }
 }
 
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f)
 {
     operation_func operation = NULL;
-    if(CommandParser::WATHCER) watcher_operation(CryptInfo);
     if(CommandParser::O_REWRITE) operation = rewrite_operation;
     else if(CommandParser::HASH_FILE) operation = hash_operation;
     else if(CommandParser::PIPELINE)
@@ -174,4 +181,21 @@ void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO
 
     if (CommandParser::signature && !filesystem::VerifySignatureRSA(CryptInfo->hash_data.HashList))
         LOG_ERROR("[VerifySignatureRSA] Failed");
+}
+
+
+void test()
+{
+    const char t[] = "Because you didn't come here to make the choice.\n"
+                    "You've already made it.\n"
+                    "You're here to try to understand why you made it.\n";
+    while(true)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        for(int i = 0; i < sizeof(t); ++i)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            printf("%c", t[i]);
+        }
+    }
 }

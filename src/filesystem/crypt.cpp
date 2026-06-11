@@ -36,8 +36,8 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 	DWORD BytesRead = FileInfo->filesize;
 	size_t dwread = 0;
 	DWORD padding = 0;
-	bool isAes = FileInfo->crypt_info->method_policy == CryptoPolicy::AES256
-		|| FileInfo->crypt_info->method_policy == CryptoPolicy::RSA_AES256;
+	bool isAes = FileInfo->crypt_info->methods.method_policy == CryptoPolicy::AES256
+		|| FileInfo->crypt_info->methods.method_policy == CryptoPolicy::RSA_AES256;
 	if (isAes && FileInfo->dcrypt == (int)EncryptCipher::CRYPT)
 		padding = aes256_padding(BytesRead) - BytesRead;
 		
@@ -55,7 +55,7 @@ static bool EncryptFileFullData(PFILE_INFO FileInfo)
 		goto end;
 	}
 
-	FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
+	FileInfo->crypt_info->methods.crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, FileBuffer, FileBuffer, dwread);
 
 	if(isAes && FileInfo->dcrypt == (int)EncryptCipher::DECRYPT)
 	{
@@ -129,8 +129,8 @@ static bool EncryptFilePartly
 		return FALSE;
 	}
 
-	BOOL isAes = FileInfo->crypt_info->method_policy == CryptoPolicy::AES256
-		|| FileInfo->crypt_info->method_policy == CryptoPolicy::RSA_AES256;
+	BOOL isAes = FileInfo->crypt_info->methods.method_policy == CryptoPolicy::AES256
+		|| FileInfo->crypt_info->methods.method_policy == CryptoPolicy::RSA_AES256;
 	
 	if (isAes)
 			multiply = PartSize % 16;
@@ -152,7 +152,7 @@ static bool EncryptFilePartly
 			goto end;
 		}
 
-		FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
+		FileInfo->crypt_info->methods.crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, BufferPart, BufferPart, BytesRead - multiply);
 	
 		if(GLOBAL_STATE.g_write_in)
 		{
@@ -218,14 +218,14 @@ static bool EncryptFileBlock
 	{
 		if (BytesRead < 1048576)
 		{
-			if(FileInfo->crypt_info->method_policy == CryptoPolicy::AES256)
+			if(FileInfo->crypt_info->methods.method_policy == CryptoPolicy::AES256)
 			{
 				padding = BytesRead % 16;
 				BytesRead -= padding;
 			}
 		}
 
-		FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
+		FileInfo->crypt_info->methods.crypt_method(FileInfo, FileInfo->ctx, &FileInfo->padding, Buffer, Buffer, BytesRead);
 
 		if(GLOBAL_STATE.g_write_in)
 		{
@@ -280,7 +280,7 @@ static bool EncryptFileHeader
 		goto end;
 	}
 
-	FileInfo->crypt_info->crypt_method(FileInfo, FileInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);
+	FileInfo->crypt_info->methods.crypt_method(FileInfo, FileInfo->ctx, 0, Buffer, Buffer, BytesEncrypt);
 	
 	if(GLOBAL_STATE.g_write_in)
 	{

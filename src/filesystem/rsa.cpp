@@ -155,8 +155,7 @@ bool filesystem::ReadRSAFile
 
 	success = TRUE;
 END:
-	if (hCryptFile != INVALID_HANDLE_VALUE)
-		api::CloseDesc(hCryptFile);
+	api::CloseDesc(hCryptFile);
 	return success;
 }
 
@@ -322,7 +321,7 @@ static bool GenKey
 	}
 #endif
 
-	FileInfo->crypt_info->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
+	FileInfo->crypt_info->methods.gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
 
 	memory::Copy(EncryptedKey, CryptKey, 32);
 	memory::Copy(EncryptedKey + 32, CryptIV, 8);
@@ -429,7 +428,7 @@ bool filesystem::FileCryptEncrypt
 		goto END;
 	}
 
-	if (!FileInfo->crypt_info->mode_method(FileInfo))
+	if (!FileInfo->crypt_info->methods.mode_method(FileInfo))
 		goto END;
 
 	WriteEncryptInfo(FileInfo, EncryptedKey, ksize, mode);
@@ -577,9 +576,9 @@ bool filesystem::FileCryptDecrypt
 	memory::Copy(CryptIV, Buffer + 32, 8);
 #endif
 
-	FileInfo->crypt_info->gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
+	FileInfo->crypt_info->methods.gen_key_method(FileInfo->ctx, CryptKey, CryptIV);
 
-	success = FileInfo->crypt_info->mode_method(FileInfo);
+	success = FileInfo->crypt_info->methods.mode_method(FileInfo);
 
 END:
 	if (EncryptedKey)
@@ -802,8 +801,7 @@ bool filesystem::VerifySignatureRSA
 
 	success = TRUE;
 end:
-	if (desc)
-		api::CloseDesc(desc);
+	api::CloseDesc(desc);
 	if (SignatureBuffer)
 		memory::m_free(SignatureBuffer);
 	if (PathLocale)

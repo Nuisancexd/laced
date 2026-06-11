@@ -190,7 +190,7 @@ void ThreadPipeLine::work_read()
         read->data = (BYTE*)memory::m_malloc(1048576 + AES_BLOCK_SIZE);
         if(api::ReadFile(state->file->filehandle, read->data, 1048576, &read->bytes) && read->bytes != 0)
         {
-            if (read->bytes < 1048576 && que_state->front()->file->crypt_info->method_policy == CryptoPolicy::AES256)
+            if (read->bytes < 1048576 && que_state->front()->file->crypt_info->methods.method_policy == CryptoPolicy::AES256)
             {
                 state->padding = read->bytes % 16;
                 read->bytes -= state->padding;
@@ -233,9 +233,9 @@ void ThreadPipeLine::work_encrypt()
                 que_re->pop();
             }
 
-            if (que_state->front()->file->crypt_info->gen_policy == GENKEY_EVERY_ONCE)
-		        que_state->front()->file->crypt_info->gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, que_state->front()->file->hblock->IV);
-            que_state->front()->file->crypt_info->crypt_method(que_state->front()->file, que_state->front()->file->ctx, 
+            if (que_state->front()->file->crypt_info->methods.gen_policy == GENKEY_EVERY_ONCE)
+		        que_state->front()->file->crypt_info->methods.gen_key_method(que_state->front()->file->ctx, GLOBAL_KEYS.g_Key, que_state->front()->file->hblock->IV);
+            que_state->front()->file->crypt_info->methods.crypt_method(que_state->front()->file, que_state->front()->file->ctx, 
                 &que_state->front()->file->padding, data->data, data->data, data->bytes);
             
             lock.unlock();

