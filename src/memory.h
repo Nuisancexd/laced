@@ -31,6 +31,7 @@ namespace memory
 	bool memcmp(const void* str, const void* streq, size_t bytes);
 	bool substr(const void* str, size_t str_bytes, const void* streq, size_t streq_bytes);
 	unsigned char* BinaryToHex(unsigned char* src, size_t size);
+	void print_hex(const BYTE* data, size_t size);
 	unsigned char* HexToBinary(const char* hexStr, size_t hexSize);
 	VOID memzero_explicit(volatile VOID* ptr, size_t size_of_ptr);
 

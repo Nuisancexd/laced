@@ -2,6 +2,7 @@
 #include "CommandParser.h"
 #include "filesystem/filesystem.h"
 #include "crypto/rsa/rsa.h"
+#include "crypto/crypto.h"
 #include "global_parameters.h"
 
 #ifdef __linux__
@@ -104,6 +105,8 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -k / --key         Required for HYBRID, ASYMMETRIC & SYMMETRIC encryption. This is a required field.\n"
            "                        For HYBRID & ASYMMETRIC: the full path to private/public RSA key.\n"
            "                        For SYMMETRIC   the secret key. The key size must be between 1 and 32 bytes.\n"
+           "[*]  -kh / --keyhex     if symmetric key in hex format\n"
+           "[*]  -kb / --keybase    if symmetric key in base format\n"
            "[*]  -r / --root        TODO;For SYMMETRIC   Command option for load Root key and iv\n"
            "[*]  -et / --en_thread  Enable the Thread Pool. When enabled all logical CPU cores are used. (default: false)\n"
            "[*]  -nl / --nolog      Disable the log.\n"
@@ -118,7 +121,8 @@ VOID CommandParser::CommandLineHelper()
            "                        DOD      -- DOD: overwrite the file with zeros and random crypt symbols.\n"
            "                        -count       Number of times to overwrite the file.\n\n");
     printf("RSA Generate Keys OPTIONS:\n"
-           "[*]  -g / --gen           Command generate RSA keys. This is a required field.\n"
+           "[*]  -g / --gen           Command generate RSA keys and symmetric key in hex&base. This is a required field.\n"
+           "[*]  -k / --key           Command to generate symmetric key\n"
            "[*]  -b64 / --base64      Save RSA keys in Base64 format. (default: false)\n"
            "[*]  -b / --bit           RSA bit(key) length. Available options: 2048, 3072 or 4096. (default: 4096)\n"
            "[*]  -p / --path          Path to save the generated keys. Optional field. If null, saves in local path.\n"
@@ -477,6 +481,13 @@ void CommandParser::ParsingCommandLine()
     pair = GetCommandsCurr(argc, argv, "-g", "--gen");
     if (pair.first)
     {
+        pair = GetCommandsCurr(argc, argv, "-k", "--key");
+        if(pair.first)
+        {
+            crypto::output_master_key();
+            exit(0);
+        }
+        //crypto::output_master_key();
         pair = GetCommandsNext(argc, argv, "-b", "--bit");
         if (pair.first)
         {
@@ -591,14 +602,27 @@ void CommandParser::ParsingCommandLine()
                 if(pair.first)
                 {
                     BYTE* key = NULL;
-                    BYTE* iv = NULL;
-                    locker::LoadRootSymmetricKey(&key, &iv);
-                    if(key && iv)
+                    crypto::load_root_symmetric_key(&key);
+                    if(key)
                     {
                         GLOBAL_KEYS.g_Key = key;
                         return;
                     } else exit(0);
                 }
+                pair = GetCommandsNext(argc, argv, "-kb", "--keybase");
+                if(pair.first)
+                {
+                    GLOBAL_KEYS.g_Key = crypto::get_master_key_base(pair.second, memory::StrLen(pair.second));
+                    return;
+                }
+
+                pair = GetCommandsNext(argc, argv, "-kh", "--keyhex");
+                if(pair.first)
+                {
+                    GLOBAL_KEYS.g_Key = crypto::get_master_key_hex(pair.second, memory::StrLen(pair.second));
+                    return;
+                }
+
                 pair = GetCommandsNext(argc, argv, "-k", "--key");
                 if (pair.first)
                 {

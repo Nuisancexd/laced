@@ -178,37 +178,3 @@ end:
 	
 	return success;
 }
-
-void locker::LoadPublicRootKey(BYTE** g_PublicKeyRoot, DWORD* size)
-{
-	BYTE pub[] = "__public_key__"; // "\x06\x02\x00" Root RSA Public key / Type -print while gen keys
-	*size = sizeof(pub);
-	*g_PublicKeyRoot = (BYTE*)memory::m_malloc(4096);
-	if (!g_PublicKeyRoot) return;
-	memcpy(*g_PublicKeyRoot, pub, *size);
-	memory::memzero_explicit((VOID*)pub, *size);
-}
-
-void locker::LoadPrivateRootKey(BYTE** g_PrivateKeyRoot, DWORD* size)
-{
-	BYTE prv[] = "__private_key__"; // "\x07\x02\x00" Root RSA Private key / Type -print while gen keys
-	*size = sizeof(prv);
-	*g_PrivateKeyRoot = (BYTE*)memory::m_malloc(4096);
-	if (!g_PrivateKeyRoot) return;
-	memcpy(*g_PrivateKeyRoot, prv, *size);
-	memory::memzero_explicit((VOID*)prv, *size);
-}
-
-void locker::LoadRootSymmetricKey(BYTE** g_RootKey, BYTE** g_RootIV)
-{
-	BYTE root_key[] = "____________ROOT_KEY____________";
-	BYTE root_iv[] = "ROOT__IV";
-	*g_RootKey = (BYTE*)memory::m_malloc(32);
-	*g_RootIV = (BYTE*)memory::m_malloc(8);
-	if (!g_RootKey || !g_RootIV)
-		return;
-	memcpy(g_RootKey, root_key, 32);
-	memcpy(g_RootIV, root_iv, 8);
-	memory::memzero_explicit((VOID*)root_key, sizeof(root_key));
-	memory::memzero_explicit((VOID*)root_iv, sizeof(root_iv));
-}

@@ -356,6 +356,12 @@ unsigned char* memory::BinaryToHex(unsigned char* src, size_t size)
 	return hashHEX;
 }
 
+void memory::print_hex(const BYTE* data, size_t size)
+{
+	for (size_t i = 0; i < size; ++i)
+		printf("\\x%02X", data[i]);
+	printf("\n");
+}
 
 unsigned char* memory::HexToBinary(const char* hexStr, size_t hexSize)
 {
