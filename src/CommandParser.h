@@ -22,6 +22,7 @@ extern bool OUTPUT_META;
 extern bool OUTPUT_META_SHORT;
 extern bool DELETE_FILE_EXST;
 extern bool WATHCER;
+extern bool UNSAFE;
 
 class FileParser
 {
@@ -118,6 +119,7 @@ public:
     static bool OUTPUT_META_SHORT;
     static bool DELETE_FILE_EXST;
     static bool WATHCER;
+    static bool UNSAFE;
 };
 
 #endif

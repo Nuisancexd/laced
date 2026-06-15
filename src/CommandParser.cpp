@@ -146,6 +146,7 @@ bool CommandParser::OUTPUT_META = false;
 bool CommandParser::OUTPUT_META_SHORT = false;
 bool CommandParser::DELETE_FILE_EXST = false;
 bool CommandParser::WATHCER = false;
+bool CommandParser::UNSAFE = false;
 
 #ifdef __linux__
 #include <sys/stat.h>
@@ -273,6 +274,7 @@ void CommandParser::commands_state(int* argumentc, char** argument)
         setinlist("-om", "--outmeta", &OUTPUT_META),
         setinlist("-oms", "--outmetas", &OUTPUT_META_SHORT),
         setinlist("-w", "--watcher", &WATHCER),
+        setinlist("-u", "--unsafe", &UNSAFE),
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
