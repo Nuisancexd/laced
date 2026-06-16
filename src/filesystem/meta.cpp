@@ -229,6 +229,9 @@ void filesystem::output_metadata(char* path)
 	int al = memory::my_stoi((char*)mode);
 	switch (al)
 	{
+	case (int)EncryptModes::AUTO_ENCRYPT:
+		LOG_INFO("MODE:%*s%s", std::max(1, pad - 5), "", "AUTO_ENCRYPT");
+		break;
 	case (int)EncryptModes::FULL_ENCRYPT:
 		LOG_INFO("MODE:%*s%s", std::max(1, pad - 5), "", "FULL_ENCRYPT");
 		break;

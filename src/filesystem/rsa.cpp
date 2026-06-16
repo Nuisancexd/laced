@@ -532,7 +532,7 @@ bool filesystem::FileCryptDecrypt
 	FileInfo->filesize -= EncryptedKeySize + 4;
 	
 #ifdef _WIN32
-	if (SetFilePointer(FileInfo->filehandle, FileInfo->filesize, NULL, FILE_BEGIN))
+	if (GLOBAL_STATE.g_FlagDelete && (FileInfo->filehandle, FileInfo->filesize, NULL, FILE_BEGIN))
 	{
 		SetEndOfFile(FileInfo->filehandle);
 		SetFilePointer(FileInfo->filehandle, 0, NULL, FILE_BEGIN);
@@ -553,7 +553,7 @@ bool filesystem::FileCryptDecrypt
 	memory::Copy(CryptKey, EncryptedKey, 32);
 	memory::Copy(CryptIV, EncryptedKey + 32, 8);
 #else
-	if (ftruncate(FileInfo->filehandle, FileInfo->filesize) == -1)
+	if (ftruncate(GLOBAL_STATE.g_FlagDelete && FileInfo->filehandle, FileInfo->filesize) == -1)
 	{
 		LOG_ERROR("Failed truncate key");
 		goto END;

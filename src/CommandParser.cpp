@@ -487,7 +487,7 @@ void CommandParser::ParsingCommandLine()
             crypto::output_master_key();
             exit(0);
         }
-        //crypto::output_master_key();
+        
         pair = GetCommandsNext(argc, argv, "-b", "--bit");
         if (pair.first)
         {
@@ -496,7 +496,7 @@ void CommandParser::ParsingCommandLine()
             else if (memory::StrStrC(pair.second, "3072"))
                 GLOBAL_KEYS.g_BitKey = 3072;
         }
-        pair = GetCommandsCurr(argc, argv, "-pr", "--print");
+        pair = GetCommandsCurr(argc, argv, "-print", "--print");
         if (pair.first) GLOBAL_STATE.g_print_hex = true;
         if (!HandlerGenKeyPairRSA())
             LOG_ERROR("[HandlerGenKeyPairRSA] Failed");
@@ -512,7 +512,7 @@ void CommandParser::ParsingCommandLine()
         auto mod_ow = GetCommandLineArgChCurr(argc, argv, "random");
         if (mod_ow)
             mode = RANDOM;
-        else if (mod_ow = GetCommandLineArgChCurr(argc, argv, "dod"))
+        else if (mod_ow = GetCommandLineArgChCurr(argc, argv, "DOD"))
             mode = DOD;
         else
             mode = ZEROS;
@@ -613,6 +613,8 @@ void CommandParser::ParsingCommandLine()
                 if(pair.first)
                 {
                     GLOBAL_KEYS.g_Key = crypto::get_master_key_base(pair.second, memory::StrLen(pair.second));
+                    if(!GLOBAL_KEYS.g_Key)
+                        exit(0);
                     return;
                 }
 
@@ -620,6 +622,8 @@ void CommandParser::ParsingCommandLine()
                 if(pair.first)
                 {
                     GLOBAL_KEYS.g_Key = crypto::get_master_key_hex(pair.second, memory::StrLen(pair.second));
+                    if(!GLOBAL_KEYS.g_Key)
+                        exit(0);
                     return;
                 }
 
@@ -673,6 +677,21 @@ void CommandParser::ParsingCommandLine()
     }
     else if (CommandParser::OUTPUT_META) 
     {
+        pair = GetCommandsNext(argc, argv, "-kb", "--keybase");
+        if(pair.first)
+        {
+            GLOBAL_KEYS.g_Key = crypto::get_master_key_base(pair.second, memory::StrLen(pair.second));
+            if(!GLOBAL_KEYS.g_Key)
+                exit(0);
+        }
+        pair = GetCommandsNext(argc, argv, "-kh", "--keyhex");
+        if(pair.first)            
+        {
+            GLOBAL_KEYS.g_Key = crypto::get_master_key_hex(pair.second, memory::StrLen(pair.second));
+            if(!GLOBAL_KEYS.g_Key)
+                exit(0);
+        }   
+                
         pair = GetCommandsNext(argc, argv, "-k", "--key");
         if (pair.first)
         {
@@ -758,7 +777,7 @@ std::pair<size_t, char**> FileParser::parse_config_file()
         memcpy(&local_config[memory::StrLen(local_config)], "/config.laced", 13);
     }
 
-    LOG_INFO("File config:\t%s", local_config);
+    LOG_DISABLE("File config:\t%s", local_config);
     
     parse_file(local_config); 
     memory::m_free(local_config);

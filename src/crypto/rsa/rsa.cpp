@@ -6,16 +6,19 @@
 
 #include <stdalign.h>
 
-#ifdef _WIN32
-
 static void PrintHex(const BYTE* data, size_t size)
 {
 	for (size_t i = 0; i < size; ++i)
+	{
 		printf("\\x%02X", data[i]);
+
+        if ((i + 1) % 16 == 0)
+            printf("\n");
+	}
 	printf("\n");
 }
 
-
+#ifdef _WIN32
 
 bool HandleError(NTSTATUS status)
 {
@@ -27,8 +30,6 @@ bool HandleError(NTSTATUS status)
 
 	return TRUE;
 }
-
-
 
 
 bool HandlerGenKeyPairRSA()
@@ -134,8 +135,16 @@ bool HandlerGenKeyPairRSA()
 	}
 
 
-	LOG_SUCCESS("Public Key (%lu bytes) generated and saved in: %ls", dwPublicKeySize, GLOBAL_PATH.g_Path);
-	LOG_SUCCESS("Private Key (%lu bytes) generated and saved in: %ls", dwPrivateKeySize, GLOBAL_PATH.g_Path);
+	LOG_SUCCESS("Public Key (%lu bytes) generated and saved in: %s", dwPublicKeySize, GLOBAL_PATH.g_Path);
+	LOG_SUCCESS("Private Key (%lu bytes) generated and saved in: %s", dwPrivateKeySize, GLOBAL_PATH.g_Path);
+
+	if(GLOBAL_STATE.g_print_hex)
+	{
+		printf("%35s\n", "public_key");
+		PrintHex(PublicKey, dwPublicKeySize);
+		printf("%35s\n", "private_key");
+		PrintHex(PrivateKey, dwPrivateKeySize);
+	}
 
 end:
 	if (PublicKey)
@@ -168,13 +177,6 @@ end:
 typedef unsigned char byte;
 static unsigned bits = GLOBAL_KEYS.g_BitKey;
 //static BIGNUM exp = 65537;
-
-static void PrintHex(const byte* data, size_t size)
-{
-	for (size_t i = 0; i < size; ++i)
-		printf("\\x%02X", data[i]);
-	printf("\n");
-}
 
 
 void err()
@@ -301,6 +303,14 @@ bool HandlerGenKeyPairRSA()
 	LOG_SUCCESS("Public Key  (%d\tbytes) generated and saved in:\t%s", len_pub, s_pub.c_str());
 	LOG_SUCCESS("Private Key (%d\tbytes) generated and saved in:\t%s", len_prv, s_prv.c_str());
 	success = true;
+
+	if(GLOBAL_STATE.g_print_hex)
+	{
+		printf("%35s\n", "public_key");
+		PrintHex(PublicKey, dwPublicKeySize);
+		printf("%35s\n", "private_key");
+		PrintHex(PrivateKey, dwPrivateKeySize);
+	}
 
 end:
 	if (buf_prv)
