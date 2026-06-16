@@ -1,0 +1,82 @@
+* config commands
+
+* laced -conf -p "..\laced\bash\config.laced"
+* if config in src laced -conf
+
+
+
+* example config crypt files
+{
+    "--path"    : "...\test\tttt"
+    "--out"     : "...\tttt\asd"
+    "--algo"    : "chacha"
+*   "--cat"     : "indir"
+    "--mode"    : "auto"
+*   "--key"     : "key_master_32byte"
+    "--keyhex"  : "0e499ee269c25decdbea575e55ca394a2222d092b5255d96fecfb49b0673cdf4"
+*   "--keybase" : "Dkme4mnCXezb6ldeVco5SiIi0JK1JV2W_s+0mwZzzfQ="
+    "--delete"  : "false"
+    "--writein" : "false"
+    "--en_thread" : "false"
+    "--no-meta" : "false"
+}
+
+
+* example config generate keys
+{
+    "--gen"     : "true"
+* generate symmetric key
+*    "--key"    : "true"
+* generate rsa keys
+    "--bit"     : "2048"
+    "--base64"  : "true"
+    "--print"   : "true"
+}
+
+* example config wipe files
+{
+    "--path"      : "...\test\tttt\asd"
+    "--cat"       : "dir"
+    "--overwrite" : "true"
+    "--rewrite"   : "true"
+    "DOD"         : "true"
+    "-count"      : "2" 
+}
+
+* example config delete file exstention
+{
+    "--path"      : "...\test\tttt\asd"
+    "--dfex"      : "wo"
+}
+
+* example config hybrid crypt with sign
+{
+    "--path"      : "...\test\tttt"
+    "--out"       : "...\test\tttt\asd"
+    "--cat"       : "dir"
+    "--mode"      : "auto"
+    "--algo"      : "rsa_chacha"
+* commands to decrypt
+    "decrypt"     : "false"
+    "crypt"       : "true"
+    "--key"       : "...\laced\src\RSA_public_key_laced.txt"
+    "$"           : "...\laced\src\RSA_private_key_laced.txt"
+    "--base64"    : "true"
+    "--sign"      : "true"
+    "--delete"    : "false"
+}
+
+* example config print metadata info rsa
+{
+    "--path"      : "...\test\tttt\asd"
+    "--cat"       : "dir"
+    "--outmeta"   : "true"
+}
+
+* example config print metadata info symmetric
+{
+    "--path"      : "...\test\tttt"
+    "--cat"       : "dir"
+    "--keyhex"    : "0e499ee269c25decdbea575e55ca394a2222d092b5255d96fecfb49b0673cdf4"
+    "--outmeta"   : "true"
+}
