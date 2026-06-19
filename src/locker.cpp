@@ -170,9 +170,9 @@ bool locker::safe_delete_file(LIST<LIST_PSD>* list_psd)
 
 end:
 
-	LIST_FOREACH(data, list_psd)
+	while(!list_psd->LIST_EMPTY())
 	{
-		memory::m_free(data->path);
+		memory::m_free(list_psd->LIST_HEAD_T()->path);
 		list_psd->LIST_DELETE_HEAD();
 	}
 	

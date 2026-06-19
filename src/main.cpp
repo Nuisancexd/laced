@@ -4,13 +4,14 @@
 #include "CommandParser.h"
 #include "global_parameters.h"
 #include "pathsystem.h"
+#include "structures.h"
 #include "threadpool.h"
 #include "logs.h"
 
 typedef void (*operation_func)(CRYPT_INFO* CryptInfo, DRIVE_INFO* data);
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f);
 bool path_operation(PathSystem* psys);
-void watcher_operation(CRYPT_INFO* CryptInfo);
+void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo);
 
 
 int main(int argc, char* argv[])
@@ -28,7 +29,7 @@ int main(int argc, char* argv[])
     
     if(CommandParser::WATHCER)
     {
-        watcher_operation(CryptInfo);
+        watcher_operation(psys, CryptInfo);
         goto exit;
     }
 
@@ -120,9 +121,8 @@ void signal_handler(int)
     doneman = 0;
 }
 
-void watcher_operation(CRYPT_INFO* CryptInfo)
+void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo)
 {
-    PathSystem psys(GLOBAL_PATH.g_Path);
     std::signal(SIGINT, signal_handler);
     while(doneman)
     {
@@ -131,9 +131,9 @@ void watcher_operation(CRYPT_INFO* CryptInfo)
         if(psys.f_count == 0)
             continue;
         
-        LIST_FOREACH(psys.data, psys.drive_info)
+        while(!psys.drive_info->LIST_EMPTY())
         {
-            crypt_operation(CryptInfo, psys.data);
+            crypt_operation(CryptInfo, psys.drive_info->LIST_HEAD_T());
             psys.drive_info->LIST_DELETE_HEAD();
             --psys.f_count;
         }

@@ -11,7 +11,7 @@ void crypto::generate_master_key(BYTE** master_key)
 #ifdef _WIN32
 	BCryptGenRandom(0, *master_key, KEY_SIZE, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 #else
-	RAND_bytes(*master_key KEY_SIZE);
+	api::urandom(*master_key, KEY_SIZE);
 #endif
 }
 
@@ -21,10 +21,10 @@ void crypto::output_master_key()
 	generate_master_key(&master_key);
 	if(!master_key)
 	{ LOG_ERROR("failed generate key"); return;}
-	LOG_STDOUT("%s\n", master_key);
+	LOG_STDOUT("%.*s", KEY_SIZE, master_key);
 	
 	BYTE* hex_mkey = memory::BinaryToHex(master_key, KEY_SIZE);
-	
+
 	LOG_DISABLE("HEX %s", hex_mkey);
 	int bsize;
 	char key_base[KEY_SIZE + KEY_SIZE] = { 0 };
@@ -33,8 +33,9 @@ void crypto::output_master_key()
 			key_base, &bsize);
 	LOG_DISABLE("BASE %s", key_base);
 
-	memory::m_free(hex_mkey);
-	memory::m_free(master_key);
+	memory::memzero_free(hex_mkey, 64);
+	memory::memzero_free(master_key, KEY_SIZE);
+	memory::memzero_explicit(key_base, KEY_SIZE + KEY_SIZE);
 }
 
 BYTE* crypto::get_master_key_hex(const char* master_key, size_t size)

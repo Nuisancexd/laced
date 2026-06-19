@@ -104,6 +104,8 @@ public:
     char** argv = NULL;
     bool config = false;
     std::queue<std::pair<size_t, std::unique_ptr<char[]>>> q_paths;
+    int argc_conf = 0;
+    char** argv_conf = NULL;
 
     static bool NOUT;
     static bool NO_LOG;

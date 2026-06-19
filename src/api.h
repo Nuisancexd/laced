@@ -41,6 +41,7 @@ namespace api
     BOOL GetExecPath(CHAR* dir_buf, size_t size);
     BOOL SetPoint(int desc, int seek);
     BOOL SetPointOff(int desc, int offset, int seek);
+    bool urandom(BYTE* buf, size_t size);
 #endif
 
     bool get_parse_file(char* FilePath, DESC* desc_file, size_t* filesize);

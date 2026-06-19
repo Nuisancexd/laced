@@ -4,6 +4,7 @@
 #include "crypto/rsa/rsa.h"
 #include "crypto/crypto.h"
 #include "global_parameters.h"
+#include "memory.h"
 
 #ifdef __linux__
 #include "network/port_scanner.h"
@@ -415,7 +416,6 @@ void CommandParser::ParsingCommandLine()
     std::pair<bool, char*> pair;
     pair = GetCommandsCurr(argc, argv, "-h", "--help");
     if (pair.first) CommandLineHelper();
-
     pair = GetCommandsCurr(argc, argv, "-conf", "--config");
     if (pair.first)
     {
@@ -423,6 +423,9 @@ void CommandParser::ParsingCommandLine()
         std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
             { LOG_ERROR("[ParseFileConfig] Failed;"); exit(1); }
+        argc_conf = pair_c.first;
+        argv_conf = (char**)memory::m_malloc(argc_conf * sizeof(char*));
+        for(int i = 0; i < argc_conf; ++i) argv_conf[i] = pair_c.second[i];
         argv = pair_c.second;
         argc = pair_c.first;
         config = true;
@@ -573,9 +576,6 @@ void CommandParser::ParsingCommandLine()
                     char* private_key = (char*)memory::m_malloc(len + 1);
                     memcpy(private_key, pair_sign.second, len);
 
-                    LOG_INFO("public  key:\t", public_key);
-                    LOG_INFO("private key:\t", private_key);
-
                     if (GLOBAL_ENUM.g_DeCrypt == EncryptCipher::CRYPT)
                     {
                         GLOBAL_PATH.g_PathRSAKey = public_key;
@@ -712,12 +712,10 @@ void CommandParser::ParsingCommandLine()
 
     if (config)
     {
-        for (int i = 0; i < argc; ++i)
-        {
-            memory::memzero_explicit(argv[i], memory::StrLen(argv[i]));
-            memory::m_free(argv[i]);
-        }
+        for (int i = 0; i < argc_conf; ++i)
+            memory::memzero_free(argv_conf[i], memory::StrLen(argv_conf[i]));
         memory::m_free(argv);
+        memory::m_free(argv_conf);
     }
     else
     {
@@ -869,8 +867,8 @@ bool FileParser::parse_config_data(char* line, size_t index, char** argv_ret)
         LOG_ERROR("Syntax error: missed quotes in line: %s", line);
         return false;
     }
-    char* arg_c = (char*)memory::m_malloc((q_array[1] - q_array[0]));
-    char* arg_n = (char*)memory::m_malloc((q_array[3] - q_array[2]));
+    char* arg_c = (char*)memory::m_malloc(1 + (q_array[1] - q_array[0]));
+    char* arg_n = (char*)memory::m_malloc(1 + (q_array[3] - q_array[2]));
     memcpy(arg_c, &line[q_array[0] + 1], (q_array[1] - q_array[0] - 1));
     memcpy(arg_n, &line[q_array[2] + 1], (q_array[3] - q_array[2] - 1));
     if (memory::StrStrC(arg_n, "false") || memory::StrStrC(arg_n, "FALSE"))

@@ -224,6 +224,25 @@ BOOL api::SetPointOff(int desc, int offset, int seek)
     return TRUE;
 }
 
+bool api::urandom(BYTE* buf, size_t size) 
+{
+    int desc = open("/dev/urandom", O_RDONLY);
+    if (desc == -1)
+    {LOG_ERROR("[URANDOM] failed"); return false; }
+
+    ssize_t n;
+    size_t total = 0;
+    while (total < size) 
+    {
+        n = read(desc, buf + total, size - total);
+        if (n <= 0)
+            break;
+        total += n;
+    }
+    close(desc);
+    return true;
+}
+
 #endif
 
 bool api::get_parse_file(char* FilePath, DESC* desc_file, size_t* filesize)

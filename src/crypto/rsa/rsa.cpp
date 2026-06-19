@@ -307,9 +307,9 @@ bool HandlerGenKeyPairRSA()
 	if(GLOBAL_STATE.g_print_hex)
 	{
 		printf("%35s\n", "public_key");
-		PrintHex(PublicKey, dwPublicKeySize);
+		PrintHex(buf_pub, len_pub);
 		printf("%35s\n", "private_key");
-		PrintHex(PrivateKey, dwPrivateKeySize);
+		PrintHex(buf_prv, len_prv);
 	}
 
 end:
