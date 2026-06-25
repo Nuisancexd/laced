@@ -23,6 +23,7 @@ extern bool OUTPUT_META_SHORT;
 extern bool DELETE_FILE_EXST;
 extern bool WATHCER;
 extern bool UNSAFE;
+extern bool DEMONIZE;
 
 class FileParser
 {
@@ -93,12 +94,12 @@ public:
     static std::pair<bool, char*> GetCommandsNext(int argc, char* argv[], const char* fstr, const char* sstr);
     CommandParser(int argc_, char** argv_) : argc(argc_), argv(argv_) 
     {
-        ParsingCommandLine();
+        
     }
     CommandParser(){};
     ~CommandParser()
     {};
-    void ParsingCommandLine();
+    bool ParsingCommandLine();
 
     int argc = 0;
     char** argv = NULL;
@@ -122,6 +123,7 @@ public:
     static bool DELETE_FILE_EXST;
     static bool WATHCER;
     static bool UNSAFE;
+    static bool DEMONIZE;
 };
 
 #endif

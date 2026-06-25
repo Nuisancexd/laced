@@ -69,6 +69,7 @@ VOID CommandParser::CommandLineHelper()
            "[*]  -o / --out         Path to directory for encrypted files. (default: false)\n"
            "[*]  -conf / --config   Load parameters from config. Configure from the local path or use\n"
            "                        '--path' followed by the path to the configuration.\n"
+           "[*]  -dmn / --demonize    \n"
            "[*]  -nm / --no-meta    Disable metadata block. (default: false)\n"
            "[*]  -om / --outmeta    Output metadata block.\n"
            "[*]  -hf / --hashfile   Only output the file hash sum.\n"
@@ -152,6 +153,7 @@ bool CommandParser::OUTPUT_META_SHORT = false;
 bool CommandParser::DELETE_FILE_EXST = false;
 bool CommandParser::WATHCER = false;
 bool CommandParser::UNSAFE = false;
+bool CommandParser::DEMONIZE = false;
 
 #ifdef __linux__
 #include <sys/stat.h>
@@ -367,7 +369,7 @@ void set_filedelete(const char* val)
         GLOBAL_ENUM.g_CryptName = NAME::DELETE_NAME_L;
     else if(memory::StrStrC(val, "wo"))
         GLOBAL_ENUM.g_CryptName = NAME::DELETE_NAME_;
-    else {LOG_DISABLE("type: delete w/wo file ext"); exit(0); };
+    else {printf("type: delete w/wo file ext"); exit(0); };
     CommandParser::DELETE_FILE_EXST = true;
 }
 
@@ -408,7 +410,7 @@ void CommandParser::commands_state_t(int* argumentc, char** argument)
     *argumentc = index_ptr;
 }
 
-void CommandParser::ParsingCommandLine()
+bool CommandParser::ParsingCommandLine()
 {
     if (!argv || argc <= 1)
         subCommandHelper();
@@ -422,7 +424,7 @@ void CommandParser::ParsingCommandLine()
         FileParser pars(argc, argv);
         std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
-            { LOG_ERROR("[ParseFileConfig] Failed;"); exit(1); }
+            { LOG_ERROR("[ParseFileConfig] Failed;"); return false; }
         argc_conf = pair_c.first;
         argv_conf = (char**)memory::m_malloc(argc_conf * sizeof(char*));
         for(int i = 0; i < argc_conf; ++i) argv_conf[i] = pair_c.second[i];
@@ -440,7 +442,7 @@ void CommandParser::ParsingCommandLine()
         {
             size_t len = memory::StrLen(p.second);
             if(len > MAX_PATH)
-                { LOG_ERROR("len path > MAX_PATH"); exit(1); }
+                { printf("len path > MAX_PATH"); return false; }
             char* spath = (char*)memory::m_malloc(len + 1);
             memcpy(spath, p.second, len);
             GLOBAL_PATH.g_Path = spath;
@@ -452,7 +454,7 @@ void CommandParser::ParsingCommandLine()
             {
                 size_t len = memory::StrLen(p.second);
                 if(len > MAX_PATH)
-                    { LOG_ERROR("len path > MAX_PATH"); exit(1); }                
+                    { printf("len path > MAX_PATH"); return false; }                
                 memcpy(locale, p.second, len);
                 FileParser pars(locale);
                 pars.parse_paths_file(q_paths);
@@ -476,7 +478,7 @@ void CommandParser::ParsingCommandLine()
         }
     }
 
-    if(CommandParser::DELETE_FILE_EXST) return;
+    if(CommandParser::DELETE_FILE_EXST) return true;
 
     pair = GetCommandsCurr(argc, argv, "-b64", "--base64");
     if (pair.first) { GLOBAL_STATE.g_RsaBase64 = true; BASE64 = true; };
@@ -502,8 +504,8 @@ void CommandParser::ParsingCommandLine()
         pair = GetCommandsCurr(argc, argv, "-print", "--print");
         if (pair.first) GLOBAL_STATE.g_print_hex = true;
         if (!HandlerGenKeyPairRSA())
-            LOG_ERROR("[HandlerGenKeyPairRSA] Failed");
-        exit(0);
+            printf("[HandlerGenKeyPairRSA] Failed");
+        return false;
     }
 
     pair = GetCommandsCurr(argc, argv, "-ow", "--overwrite");
@@ -529,7 +531,7 @@ void CommandParser::ParsingCommandLine()
 
         pair = GetCommandsCurr(argc, argv, "-rw", "--rewrite");
         if (pair.first)
-            O_REWRITE = true; return;
+            O_REWRITE = true; return true;
     }
 
     pair = GetCommandsNext(argc, argv, "-al", "--algo");
@@ -547,16 +549,17 @@ void CommandParser::ParsingCommandLine()
                         GLOBAL_ENUM.g_DeCrypt = EncryptCipher::DECRYPT;
                     else
                     {
-                        LOG_ERROR("Type: crypt or decrypt. This is a required field. (default: null)");
-                        exit(1);
+                        printf("Type: crypt or decrypt. This is a required field. (default: null)");
+                        return false;
                     }
                 }
+                return true;
             });
 
         auto funcKey = ([this]
             {
                 std::pair<bool, char*> pair = GetCommandsNext(argc, argv, "-k", "--key");
-                if (!pair.first) { LOG_DISABLE("Type -key \"/path\" RSA private/public key or generate RSA Key"); exit(1); }
+                if (!pair.first) { printf("Type -key \"/path\" RSA private/public key or generate RSA Key"); return false; }
                 auto pair_sign = GetCommandsC(argc, argv, "-s", "--sign");
                 if (pair_sign.first)
                 {
@@ -566,7 +569,7 @@ void CommandParser::ParsingCommandLine()
                     {
                         LOG_DISABLE("When using the signature, first specify the public key, followed by the private key, separating them with the '$' symbol.\n");
                         LOG_DISABLE("example: --key /home/user/key/public_key_rsa.txt $ /home/user/key/private_key_rsa.txt");
-                        exit(1);
+                        return false;
                     }
 
                     size_t len = memory::StrLen(pair.second);
@@ -594,6 +597,7 @@ void CommandParser::ParsingCommandLine()
                     memcpy(keypath, pair.second, len);
                     GLOBAL_PATH.g_PathRSAKey = keypath;
                 }
+                return true;
             });
 
         auto funcKeySym([this]
@@ -606,16 +610,16 @@ void CommandParser::ParsingCommandLine()
                     if(key)
                     {
                         GLOBAL_KEYS.g_Key = key;
-                        return;
-                    } else exit(0);
+                        return true;
+                    } else return false;
                 }
                 pair = GetCommandsNext(argc, argv, "-kb", "--keybase");
                 if(pair.first)
                 {
                     GLOBAL_KEYS.g_Key = crypto::get_master_key_base(pair.second, memory::StrLen(pair.second));
                     if(!GLOBAL_KEYS.g_Key)
-                        exit(0);
-                    return;
+                        return false;
+                    return true;
                 }
 
                 pair = GetCommandsNext(argc, argv, "-kh", "--keyhex");
@@ -623,8 +627,8 @@ void CommandParser::ParsingCommandLine()
                 {
                     GLOBAL_KEYS.g_Key = crypto::get_master_key_hex(pair.second, memory::StrLen(pair.second));
                     if(!GLOBAL_KEYS.g_Key)
-                        exit(0);
-                    return;
+                        return false;
+                    return true;
                 }
 
                 pair = GetCommandsNext(argc, argv, "-k", "--key");
@@ -635,14 +639,16 @@ void CommandParser::ParsingCommandLine()
                     memcpy(key_set, pair.second, min(size_key, size_t(32)));
                     GLOBAL_KEYS.g_Key = key_set;
                 }
-                else { LOG_ERROR("Type -key \"...\" for are symmetrical encrypts. Size key must be beetwen 1 nad 32"); exit(0); };
+                else { printf("Type -key \"...\" for are symmetrical encrypts. Size key must be beetwen 1 nad 32"); return false; };
+                return true;
             });
 
         if (memory::StrStrC(pair.second, "chacha") || memory::StrStrC(pair.second, "CHACHA"))
         {
             GLOBAL_ENUM.g_Encrypt = EncryptCipher::SYMMETRIC;
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::CHACHA;
-            funcKeySym();
+            if(!funcKeySym())
+                return false;
             if(NOMETA)
                 funcDeCrypt();    
         }
@@ -650,29 +656,37 @@ void CommandParser::ParsingCommandLine()
         {
             GLOBAL_ENUM.g_Encrypt = EncryptCipher::SYMMETRIC;
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::AES256;
-            funcDeCrypt();
-            funcKeySym();
+            if(!funcDeCrypt())
+                return false;
+            if(!funcKeySym())
+                return false;
         }
         else if (memory::StrStrC(pair.second, "rsa_chacha") || memory::StrStrC(pair.second, "RSA_CHACHA"))
         {
             GLOBAL_ENUM.g_Encrypt = EncryptCipher::ASYMMETRIC;
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::RSA_CHACHA;
-            funcDeCrypt();
-            funcKey();
+            if(!funcDeCrypt())
+                return false;
+            if(!funcKey())
+                return false;
         }
         else if (memory::StrStrC(pair.second, "rsa_aes") || memory::StrStrC(pair.second, "RSA_AES"))
         {
             GLOBAL_ENUM.g_Encrypt = EncryptCipher::ASYMMETRIC;
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::RSA_AES256;
-            funcDeCrypt();
-            funcKey();
+            if(!funcDeCrypt())
+                return false;
+            if(!funcKey())
+                return false;
         }
         else if (memory::StrStrC(pair.second, "rsa") || memory::StrStrC(pair.second, "RSA"))
         {
             GLOBAL_ENUM.g_Encrypt = EncryptCipher::RSA_ONLY;
             GLOBAL_ENUM.g_EncryptMethod = CryptoPolicy::RSA;
-            funcDeCrypt();
-            funcKey();
+            if(!funcDeCrypt())
+                return false;
+            if(!funcKey())
+                return false;
         }
     }
     else if (CommandParser::OUTPUT_META) 
@@ -682,14 +696,14 @@ void CommandParser::ParsingCommandLine()
         {
             GLOBAL_KEYS.g_Key = crypto::get_master_key_base(pair.second, memory::StrLen(pair.second));
             if(!GLOBAL_KEYS.g_Key)
-                exit(0);
+                return false;
         }
         pair = GetCommandsNext(argc, argv, "-kh", "--keyhex");
         if(pair.first)            
         {
             GLOBAL_KEYS.g_Key = crypto::get_master_key_hex(pair.second, memory::StrLen(pair.second));
             if(!GLOBAL_KEYS.g_Key)
-                exit(0);
+                return false;
         }   
                 
         pair = GetCommandsNext(argc, argv, "-k", "--key");
@@ -727,6 +741,7 @@ void CommandParser::ParsingCommandLine()
     }
 
     logs::call_log();
+    return true;
 }
 
 void FileParser::parse_file(char* filepath)

@@ -57,7 +57,7 @@ static bool check_file_exist(char* path)
 	return true;
 }
 
-
+#include <syslog.h>
 VOID logs::initLog(BOOL append)
 {
 	CONST unsigned max_path = MAX_PATH + MAX_PATH;
@@ -98,7 +98,7 @@ VOID logs::initLog(BOOL append)
 #else
 	int flags = O_RDWR | O_SYNC;
 	flags |= append ? O_APPEND : O_CREAT;
-	if ((g_LogHandle = open(curr_dir, flags, S_IRWXU)) == -1)
+	if ((g_LogHandle = open(curr_dir, flags, S_IRUSR | S_IWUSR)) == -1)
 	{
 		printf("Failed INIT LOG\n");
 		return;
@@ -131,9 +131,9 @@ VOID SetConsoleColor(LogLevel level)
 	{
 	case LogLevel::LOG_STDOUT:
 		break;
-	case LogLevel::LOG_INFO:
-		fprintf(stderr,"\033[0;34m");
-		break;
+	// case LogLevel::LOG_INFO:
+	// 	fprintf(stderr,"\033[0;34m");
+	// 	break;
 	case LogLevel::LOG_ERROR:
 		fprintf(stderr,"\033[0;31m");
 		break;
@@ -191,7 +191,7 @@ VOID ResetConsoleColor()
 
 VOID logs::WriteLog(LogLevel log, CONST CHAR* Format, ...)
 {
-	static bool b_nlogfile = CommandParser::NO_LOG || g_LogHandle == INVALID_HANDLE_VALUE;
+	bool b_nlogfile = CommandParser::NO_LOG || g_LogHandle == INVALID_HANDLE_VALUE;
 
 	if(CommandParser::NOUT && (log != LogLevel::LOG_STDOUT))
 		return;

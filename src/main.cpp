@@ -1,6 +1,8 @@
 ﻿#include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include "filesystem/filesystem.h"
+#include "system/system.h"
 #include "CommandParser.h"
 #include "global_parameters.h"
 #include "pathsystem.h"
@@ -16,10 +18,19 @@ void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo);
 
 int main(int argc, char* argv[])
 {
+    {
+        CommandParser pcl(argc, argv);
+        if(!pcl.ParsingCommandLine())
+        {
+            global::free_global();
+            return EXIT_FAILURE;
+        }
+    }
+    if(CommandParser::DEMONIZE)
+        laced::sys::demonize();
     logs::initLog(TRUE);
     BOOL success = FALSE;
-    CommandParser pcl(argc, argv);        
-    PathSystem psys(pcl.q_paths, GLOBAL_PATH.g_Path);
+    PathSystem psys(GLOBAL_PATH.g_Path);
 
     CRYPT_INFO* CryptInfo = (CRYPT_INFO*)memory::m_malloc(sizeof(CRYPT_INFO));
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
@@ -119,11 +130,14 @@ sig_atomic_t doneman = 1;
 void signal_handler(int)
 {
     doneman = 0;
+    LOG_INFO("shutdown signal");
 }
 
 void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo)
 {
     std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+    std::signal(SIGHUP, SIG_IGN);
     while(doneman)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(2000));

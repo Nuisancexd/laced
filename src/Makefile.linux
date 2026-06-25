@@ -5,7 +5,8 @@ CFLAGS = -D_FILE_OFFSET_BITS=64 -m32 -O3 -std=c++20 -DNDEBUG -fsanitize=address 
 LDFLAGS = -lssl -lcrypto 
 SRC = main.cpp threadpool.cpp api.cpp logs.cpp memory.cpp global_parameters.cpp CommandParser.cpp pathsystem.cpp locker.cpp policy.cpp \
 filesystem/meta.cpp filesystem/crypt.cpp filesystem/rsa.cpp filesystem/hash.cpp filesystem/names.cpp filesystem/wipe.cpp \
-crypto/chacha20/laced.cpp crypto/sha/sha256.cpp crypto/aes/aes256.cpp crypto/base64/base64.cpp crypto/rsa/rsa.cpp crypto/key.cpp
+crypto/chacha20/laced.cpp crypto/sha/sha256.cpp crypto/aes/aes256.cpp crypto/base64/base64.cpp crypto/rsa/rsa.cpp crypto/key.cpp \
+system/daemon.cpp
 #network/port_scanner.cpp network/server/server.cpp network/protocol.cpp network/client/client.cpp \
 
 OBJ = $(SRC:.cpp=.o)
