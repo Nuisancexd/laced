@@ -1,0 +1,17 @@
+[UNIT]
+Description=laced
+After=syslog.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/laced \
+    -conf -p /usr/local/bin/config.laced
+PidFile=/var/run/laced.pid
+Restart=on-failure
+RestartSec=5
+User=root
+Group=root
+WorkingDirectory=/
+
+[Install]
+WantedBy=multi-user.target

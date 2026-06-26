@@ -3,6 +3,15 @@
 * laced -conf -p "..\laced\bash\config.laced"
 * if config in src laced -conf
 
+* example config daemon
+{
+	"-p"	: "../crypt"
+	"-al"	: "chacha"
+	"-k"	: "keytest"
+	"-w"	: "true"
+	"-d"	: "true"
+	"-dmn"	: "true"
+}
 
 
 * example config crypt files
