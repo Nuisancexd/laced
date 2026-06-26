@@ -3,6 +3,7 @@
 
 namespace laced::sys
 {
+    void clear_lock_file();
     void demonize();
 }
 

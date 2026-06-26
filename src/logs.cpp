@@ -57,7 +57,7 @@ static bool check_file_exist(char* path)
 	return true;
 }
 
-#include <syslog.h>
+
 VOID logs::initLog(BOOL append)
 {
 	CONST unsigned max_path = MAX_PATH + MAX_PATH;
@@ -131,9 +131,9 @@ VOID SetConsoleColor(LogLevel level)
 	{
 	case LogLevel::LOG_STDOUT:
 		break;
-	// case LogLevel::LOG_INFO:
-	// 	fprintf(stderr,"\033[0;34m");
-	// 	break;
+	case LogLevel::LOG_INFO:
+		fprintf(stderr,"\033[0;34m");
+		break;
 	case LogLevel::LOG_ERROR:
 		fprintf(stderr,"\033[0;31m");
 		break;

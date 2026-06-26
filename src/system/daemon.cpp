@@ -7,12 +7,17 @@
 #include <cstring>
 #include <cstdio>
 
-const char lock_file[] = "/var/run/laced.pid";
+#define LOCK_FILE "/var/run/laced.pid"
 
+void laced::sys::clear_lock_file()
+{
+    int desc = open(LOCK_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if(desc != -1 ) close(desc);
+}
 
 static void lock()
 {
-    int lock_desc = open(lock_file, O_RDWR | O_CREAT, 0640);
+    int lock_desc = open(LOCK_FILE, O_RDWR | O_CREAT, 0640);
     if(lock_desc < 0) 
     {
         syslog(LOG_ERR, "Failed open lock file");
@@ -21,6 +26,7 @@ static void lock()
     if(lockf(lock_desc, F_TLOCK, 0) < 0)
     {
         syslog(LOG_ERR, "running");
+        close(lock_desc);
         exit(EXIT_SUCCESS);
     }
 
@@ -48,8 +54,11 @@ void laced::sys::demonize()
     else if(pid > 0) exit(EXIT_SUCCESS);
 
     umask(0);
-    if(!chdir("/"))
+    if(chdir("/") != 0)
+    {
         syslog(LOG_ERR, "failed chdir '/'");
+        exit(EXIT_FAILURE);
+    }
 
     close(STDIN_FILENO);
     close(STDOUT_FILENO);

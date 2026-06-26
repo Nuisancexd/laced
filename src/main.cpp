@@ -153,6 +153,7 @@ void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo)
         }
         locker::safe_delete_file(CryptInfo->list_psd);
     }
+    laced::sys::clear_lock_file();
     LOG_INFO("watcher loop stopped");
 }
 

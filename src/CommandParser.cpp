@@ -282,6 +282,7 @@ void CommandParser::commands_state(int* argumentc, char** argument)
         setinlist("-oms", "--outmetas", &OUTPUT_META_SHORT),
         setinlist("-w", "--watcher", &WATHCER),
         setinlist("-u", "--unsafe", &UNSAFE),
+        setinlist("-dmn", "--demonize", &DEMONIZE),
     };
 
     constexpr size_t count = sizeof(list) / sizeof(list[0]);
