@@ -424,7 +424,7 @@ bool CommandParser::ParsingCommandLine()
         FileParser pars(argc, argv);
         std::pair<int, char**> pair_c = pars.parse_config_file();
         if (pair_c.second == NULL)
-            { LOG_ERROR("[ParseFileConfig] Failed;"); return false; }
+            { printf("[ParseFileConfig] Failed;\n"); return false; }
         argc_conf = pair_c.first;
         argv_conf = (char**)memory::m_malloc(argc_conf * sizeof(char*));
         for(int i = 0; i < argc_conf; ++i) argv_conf[i] = pair_c.second[i];
@@ -524,7 +524,7 @@ bool CommandParser::ParsingCommandLine()
 
         char* Count = GetCommandLineArgCh(argc, argv, "-count");
         if (Count) count = memory::my_stoi2(Count);
-        if (count == 0) { LOG_ERROR("Make sure -ow -count num; num doesnt have symbols\n"); exit(1); }
+        if (count == 0) { printf("Make sure -ow -count num; num doesnt have symbols\n"); return false; }
         GLOBAL_OVERWRITE.g_OverWrite = true;
         GLOBAL_OVERWRITE.g_OverWriteMode = mode;
         GLOBAL_OVERWRITE.g_OverWriteCount = count;
@@ -639,7 +639,7 @@ bool CommandParser::ParsingCommandLine()
                     memcpy(key_set, pair.second, min(size_key, size_t(32)));
                     GLOBAL_KEYS.g_Key = key_set;
                 }
-                else { printf("Type -key \"...\" for are symmetrical encrypts. Size key must be beetwen 1 nad 32"); return false; };
+                else { printf("Type -key \"...\" for are symmetrical encrypts. Size key must be beetwen 1 nad 32\n"); return false; };
                 return true;
             });
 
@@ -688,6 +688,8 @@ bool CommandParser::ParsingCommandLine()
             if(!funcKey())
                 return false;
         }
+        else
+        { printf("no func\n"); return false; }
     }
     else if (CommandParser::OUTPUT_META) 
     {
@@ -715,7 +717,7 @@ bool CommandParser::ParsingCommandLine()
             GLOBAL_KEYS.g_Key = key_set;
         }
     }
-    else { LOG_ERROR("[ParsingCommandLine] Miss the command --algo"); exit(1); }
+    else { printf("[ParsingCommandLine] Miss the command --algo\n"); return false; }
 
     pair = GetCommandsCurr(argc, argv, "-pl", "--pipeline");
     if(pair.first) 
@@ -740,7 +742,6 @@ bool CommandParser::ParsingCommandLine()
         memory::memzero_explicit(argv, ptr_end - ptr_start);*/   
     }
 
-    logs::call_log();
     return true;
 }
 

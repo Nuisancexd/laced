@@ -28,14 +28,18 @@ class PathSystem
 {
 public:
     PathSystem() {}
-    PathSystem(char* StartDirectory) : directory(StartDirectory) 
-    { drive_info = new LIST<DriveInfo>;
-      directory_info = new LIST<DirectoryInfo>;
+    PathSystem(char* StartDirectory) : 
+        directory(StartDirectory), 
+        ec(static_cast<size_t>(GLOBAL_ENUM.g_EncryptCat))
+    { 
+        drive_info = new LIST<DriveInfo>;
+        directory_info = new LIST<DirectoryInfo>;
     }
     PathSystem(std::queue<std::pair<size_t, std::unique_ptr<char[]>>>& qpaths) : 
         q_paths(std::move(qpaths)), 
         ec(static_cast<size_t>(GLOBAL_ENUM.g_EncryptCat))
-    {   drive_info = new LIST<DriveInfo>;
+    {   
+        drive_info = new LIST<DriveInfo>;
         directory_info = new LIST<DirectoryInfo>;
     }
     PathSystem(std::queue<std::pair<size_t, std::unique_ptr<char[]>>>& qpaths, char* StartDirectory) : 

