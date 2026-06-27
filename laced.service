@@ -1,16 +1,18 @@
-[UNIT]
+[Unit]
 Description=laced
 After=syslog.target
 
 [Service]
 Type=forking
+User={{USER}}
+Group={{GROUP}}
+RuntimeDirectory=laced
+PIDFile=/run/laced/laced.pid
 ExecStart=/usr/local/bin/laced \
-    -conf -p /usr/local/bin/config.laced
-PidFile=/var/run/laced.pid
+    -conf -p /etc/laced/config.laced
 Restart=on-failure
 RestartSec=5
-User=root
-Group=root
+TimeoutStartSec=5
 WorkingDirectory=/
 
 [Install]

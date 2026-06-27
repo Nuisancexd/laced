@@ -7,7 +7,7 @@
 #include <cstring>
 #include <cstdio>
 
-#define LOCK_FILE "/var/run/laced.pid"
+#define LOCK_FILE "/run/laced/laced.pid"
 
 void laced::sys::clear_lock_file()
 {

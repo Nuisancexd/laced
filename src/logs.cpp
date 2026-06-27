@@ -62,14 +62,21 @@ VOID logs::initLog(BOOL append)
 {
 	CONST unsigned max_path = MAX_PATH + MAX_PATH;
 	char* curr_dir = (char*)memory::m_malloc(max_path);
-	if (!api::GetExecPath(curr_dir, MAX_PATH))
+	if(CommandParser::DEMONIZE)
 	{
-		printf("FAILED iNIT log\n");
-		memory::m_free(curr_dir);
-		return;
+		memcpy(curr_dir, "/var/log/laced/laced.log", 25);
 	}
-	memcpy(&curr_dir[memory::StrLen(curr_dir)], slash, 1);
-	memcpy(&curr_dir[memory::StrLen(curr_dir)], "LACED_LOG.txt", 13);
+	else
+	{
+		if (!api::GetExecPath(curr_dir, MAX_PATH))
+		{
+			printf("FAILED iNIT log\n");
+			memory::m_free(curr_dir);
+			return;
+		}
+		memcpy(&curr_dir[memory::StrLen(curr_dir)], slash, 1);
+		memcpy(&curr_dir[memory::StrLen(curr_dir)], "LACED_LOG.txt", 13);	
+	}
 	ptr_dir = curr_dir;
 
 	if (!check_file_exist(curr_dir))
